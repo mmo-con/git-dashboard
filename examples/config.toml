@@ -1,0 +1,105 @@
+# Example configuration for Git Dashboard.
+#
+# Copy this file to ~/.config/git-dashboard/config.toml and adjust the paths.
+# See docs/configuration.md for every option.
+
+version = 1
+
+# Explicit repositories are always included, even below excluded directories.
+[[repositories]]
+path = "~/devrepos/dotfiles"
+family = "Personal"
+
+[[repositories]]
+path = "~/devrepos/company/api"
+# Optional display name; the default is the directory name, extended by
+# parent directories if several repositories share it.
+name = "company-api"
+family = "Work"
+# Optional assertion: a different URL is reported as a mismatch.
+remote = "git@github.com:example/api.git"
+remote_name = "origin"
+
+# Suppress a repository that a discovery rule would include.
+[[repositories]]
+path = "~/devrepos/experiments/parser"
+enabled = false
+
+# Skip untracked-file detection for a very large repository.
+[[repositories]]
+path = "~/devrepos/company/monorepo"
+family = "Work"
+untracked = "no"
+# Always evaluate these branches here; missing ones are reported.
+pinned_branches = ["main", "develop"]
+
+# Bounded discovery below a root directory.
+[[discovery]]
+root = "~/devrepos/company"
+max_depth = 2
+family = "Work"
+include = ["**"]
+exclude = [
+  "archive/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+]
+follow_symlinks = false
+
+[[discovery]]
+root = "~/devrepos/experiments"
+max_depth = 3
+family = "Experiments"
+exclude = ["discarded/**"]
+# Launchers open the parent directory through {workspace}; {path} still
+# refers to the repository itself.
+workspace = ".."
+
+[git]
+executable = "git"
+inspection_parallelism = 8
+inspection_timeout = "10s"
+fetch_parallelism = 4
+fetch_timeout = "120s"
+fetch_prune = true
+untracked = "normal"
+
+# Local branches other than the checked-out one that need attention.
+[branches]
+enabled = true
+pinned = ["main", "master"]
+ignore = ["archive/**", "dependabot/**"]
+max_age = "30d"
+
+[ui]
+# "unicode" (default), "nerd" for Nerd Font icons, or "ascii".
+icons = "unicode"
+# Repository view at startup: "list" (default) or "tree" grouped by family.
+view = "list"
+
+# Colors: ANSI names (green, bright-blue, gray, …), numbers 0-255, or #rrggbb.
+# Unset keys keep their defaults. NO_COLOR disables all colors.
+[ui.theme]
+active_border = "green"
+inactive_border = "gray"
+selected_background = "blue"
+
+[lazygit]
+command = "lazygit"
+args = []
+enabled = true
+
+# Launchers are argument arrays; no shell is involved. {path} is replaced by
+# the worktree root when it is a complete argument.
+[[launchers]]
+name = "Shell"
+command = ["bash"]
+
+[[launchers]]
+name = "Editor"
+command = ["nvim", "."]
+
+# Open the workspace (by default the repository) in a new VS Code window.
+[[launchers]]
+name = "VS Code"
+command = ["code", "--new-window", "{workspace}"]

@@ -1,0 +1,210 @@
+# Configuration
+
+Git Dashboard reads a TOML file. The file is located in this order:
+
+1. the `--config <path>` command-line option;
+2. the `GIT_DASHBOARD_CONFIG` environment variable;
+3. `$XDG_CONFIG_HOME/git-dashboard/config.toml`, falling back to
+   `~/.config/git-dashboard/config.toml`.
+
+If no file exists, Git Dashboard starts with an empty inventory and shows the
+expected path. `git-dashboard --check` validates the file and prints the
+resolved inventory without starting the user interface.
+
+Syntax errors, type errors, and unknown fields prevent startup. Problems with
+individual entries, such as a missing path, are shown as entry states.
+
+A complete example is in [../examples/config.toml](../examples/config.toml).
+
+## Paths
+
+All path values (`path`, `root`, `[git].executable`, `[lazygit].command`, and
+the first element of a launcher command) support:
+
+- `~` and `~/` at the beginning;
+- environment variables in the form `${NAME}`; an undefined variable is an
+  error. `$NAME` without braces is rejected.
+
+Relative paths are resolved against the directory of the configuration file.
+A command without a slash, such as `lazygit`, is looked up in `PATH`.
+
+## Top level
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `version` | integer | `1` | configuration format version; only `1` is supported |
+
+## `[[repositories]]`
+
+Explicit repositories. They are always included, even below directories that
+a discovery rule excludes.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `path` | string | required | worktree root of the repository; a subdirectory is reported as `config error` |
+| `name` | string | directory name | name shown in the dashboard |
+| `family` | string | discovery family or `Ungrouped` | family shown in the dashboard |
+| `workspace` | string | discovery workspace or the repository | directory for the launcher placeholder `{workspace}`; a relative path is resolved against the repository, for example `".."` |
+| `enabled` | boolean | `true` | `false` removes the repository, even if discovery finds it |
+| `remote` | string | none | expected remote URL; a mismatch is shown as `≠remote` |
+| `remote_name` | string | `origin` | remote that `remote` refers to; also selects the primary remote |
+| `untracked` | `"normal"` or `"no"` | `[git].untracked` | `no` skips untracked-file detection for large repositories |
+| `pinned_branches` | array of strings | `[branches].pinned` | replaces the global pinned branches; listed branches that do not exist are reported as `missing` |
+
+## `[[discovery]]`
+
+Bounded discovery below a root directory.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `root` | string | required | directory to scan; missing roots produce a warning |
+| `max_depth` | integer | `3` | number of directory levels below `root` that are scanned |
+| `family` | string | `Ungrouped` | family of every discovered repository |
+| `workspace` | string | the repository | `{workspace}` directory of every discovered repository; a relative path is resolved against each repository |
+| `include` | array of strings | `["**"]` | a repository must match at least one pattern |
+| `exclude` | array of strings | `[]` | matching directories are skipped and not traversed |
+| `follow_symlinks` | boolean | `false` | follow symbolic links; loops are detected |
+
+Rules:
+
+- Patterns use doublestar glob syntax (`*`, `**`, `?`, `[...]`, `{a,b}`) and
+  are matched case-sensitively against the slash-separated path relative to
+  `root`, for example `company/api`.
+- A pattern ending in `/**` also matches the directory itself.
+- Discovery never descends into a repository. Nested repositories, including
+  submodules, must be configured explicitly.
+- Bare repositories are never discovered.
+- If several discovery entries find the same repository, the first entry in
+  the file supplies the family, and a warning is shown.
+
+### Names
+
+A repository is named after its directory unless `[[repositories]].name` is
+set. If several repositories share a directory name, or a directory name
+equals a configured name, those repositories are named by as many trailing
+path components as needed to tell them apart, for example `hsm1/src` and
+`hsm2/src`. Configured names are never changed.
+
+### Precedence
+
+| Explicit entry | Found by discovery | Result |
+|---|---|---|
+| none | yes | included with the discovery settings |
+| `enabled = true` | no, excluded, or outside every root | included with the explicit settings |
+| `enabled = true` | yes | included once; explicit fields override discovery fields |
+| `enabled = false` | any | excluded |
+
+## `[git]`
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `executable` | string | `git` | Git executable; version 2.34 or newer is required |
+| `inspection_parallelism` | integer | `8` | concurrent inspections |
+| `inspection_timeout` | duration | `"10s"` | timeout per inspection |
+| `fetch_parallelism` | integer | `4` | concurrent fetches and updates |
+| `fetch_timeout` | duration | `"120s"` | timeout per fetch or update |
+| `fetch_prune` | boolean | `true` | add `--prune` to `git fetch --all` |
+| `untracked` | `"normal"` or `"no"` | `"normal"` | default untracked-file detection |
+
+Durations use Go syntax, for example `"500ms"`, `"10s"`, or `"2m"`.
+
+## `[branches]`
+
+Besides the checked-out branch, Git Dashboard reports other local branches
+(`refs/heads`) that need attention. The table shows only their number, for
+example `⎇2`; the detail panel lists them. Row state, header counters `1`–`5`,
+sorting, and the safe update keep referring to the checked-out branch only.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | boolean | `true` | `false` reads only the checked-out branch |
+| `pinned` | array of strings | `["main", "master"]` | branches that are always evaluated, regardless of `ignore` and `max_age`; missing ones are not reported |
+| `ignore` | array of strings | `[]` | doublestar patterns of branch names that are not reported, for example `"archive/**"` |
+| `max_age` | age | `"30d"` | branches whose latest commit is older are not reported; `"0"` disables the age filter |
+
+A branch needs attention if it has no upstream, its upstream is gone, or it is
+ahead of or behind its upstream. Branches checked out in any worktree are not
+listed because the worktree has its own row. The marker is shown in the
+warning color if at least one branch holds unpublished work (no upstream,
+upstream gone, ahead, or missing), otherwise in the behind color.
+
+Ages are a number of days such as `"30d"`, a Go duration such as `"36h"`, or
+`"0"`.
+
+## `[lazygit]`
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `command` | string | `lazygit` | executable name or path |
+| `args` | array of strings | `[]` | additional arguments; no placeholders |
+| `enabled` | boolean | `true` | `false` disables `Enter` |
+
+lazygit starts in the worktree root of the selected repository.
+
+## `[ui]`
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `icons` | `"unicode"`, `"nerd"`, or `"ascii"` | `"unicode"` | symbol set; `nerd` requires a Nerd Font, `ascii` suits limited terminals |
+| `view` | `"list"` or `"tree"` | `"list"` | repository view at startup; `v` switches at runtime. After `R`, a changed value takes effect, otherwise the current view is kept |
+
+## `[ui.theme]`
+
+Colors are ANSI names (`black`, `red`, `green`, `yellow`, `blue`, `magenta`,
+`cyan`, `white`, `gray`, `bright-red`, …, `default`), numbers `0`–`255`, or
+`#rrggbb`. Unset keys keep their defaults. If the `NO_COLOR` environment
+variable is set, no colors are used; every state remains readable through
+symbols and text.
+
+| Key | Default | Used for |
+|---|---|---|
+| `active_border` | `green` | border and title of the focused panel or dialog |
+| `inactive_border` | `gray` | other panel borders |
+| `title` | `green` | application title |
+| `selected_background` | `blue` | selected row |
+| `key` | `cyan` | key hints, marks, running operations |
+| `branch` | `cyan` | branch names |
+| `clean` | `gray` | clean and up-to-date states |
+| `dirty` | `yellow` | modified and deleted entries |
+| `ahead` | `green` | commits ahead, staged entries, successes |
+| `behind` | `magenta` | commits behind |
+| `error` | `red` | conflicts, divergence, failures |
+| `warning` | `yellow` | warnings, stale fetches, remote mismatch |
+| `dim` | `gray` | secondary text |
+
+## `[[launchers]]`
+
+Launchers appear in the menu opened with `o`.
+
+| Key | Type | Description |
+|---|---|---|
+| `name` | string | label in the menu |
+| `command` | array of strings | executable and arguments |
+
+No shell is involved. Placeholders must be complete arguments:
+
+- `{path}` is replaced by the worktree root.
+- `{workspace}` is replaced by the repository's `workspace`, or the worktree
+  root if none is configured. Use it to open a directory that contains the
+  repository, for example `hsm1` for the repository `hsm1/src`.
+
+Launchers start in the worktree root, take over the terminal like lazygit,
+and the repository is refreshed afterward.
+
+```toml
+[[discovery]]
+root = "~/src/hsm1"
+max_depth = 1
+include = ["src"]
+workspace = ".."
+
+[[launchers]]
+name = "VS Code"
+command = ["code", "--new-window", "{workspace}"]
+```
+
+The built-in menu entry *Open remote in browser* converts the primary remote
+to an HTTPS URL and opens it with `xdg-open` or `open`. For SSH remotes it
+uses the remote host and repository path, dropping the SSH user and port.
+This assumes the web interface is available on that host at the same path;
+SSH host aliases are not resolved.
