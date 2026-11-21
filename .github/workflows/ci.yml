@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 ships Git 2.34, the minimum supported version.
+          - name: git 2.34
+            os: ubuntu-latest
+            container: ubuntu:22.04
+          - name: latest git
+            os: ubuntu-latest
+            container: ""
+          - name: macos
+            os: macos-latest
+            container: ""
+    steps:
+      - name: Install Git and build tools (container)
+        if: matrix.container != ''
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates make gcc libc6-dev
+      - name: Install latest Git
+        if: matrix.name == 'latest git'
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get update && sudo apt-get install -y git
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: git --version
+      - run: make lint
+      - run: go test -race ./...
+      - run: make perf

@@ -1,0 +1,72 @@
+# Example configuration for Git Dashboard.
+#
+# Copy this file to ~/.config/git-dashboard/config.toml and adjust the paths.
+# See docs/configuration.md for every option.
+
+version = 1
+
+# Explicit repositories are always included, even below excluded directories.
+[[repositories]]
+path = "~/devrepos/dotfiles"
+family = "Personal"
+
+[[repositories]]
+path = "~/devrepos/company/api"
+family = "Work"
+# Optional assertion: a different URL is reported as a mismatch.
+remote = "git@github.com:example/api.git"
+remote_name = "origin"
+
+# Suppress a repository that a discovery rule would include.
+[[repositories]]
+path = "~/devrepos/experiments/parser"
+enabled = false
+
+# Skip untracked-file detection for a very large repository.
+[[repositories]]
+path = "~/devrepos/company/monorepo"
+family = "Work"
+untracked = "no"
+
+# Bounded discovery below a root directory.
+[[discovery]]
+root = "~/devrepos/company"
+max_depth = 2
+family = "Work"
+include = ["**"]
+exclude = [
+  "archive/**",
+  "**/node_modules/**",
+  "**/vendor/**",
+]
+follow_symlinks = false
+
+[[discovery]]
+root = "~/devrepos/experiments"
+max_depth = 3
+family = "Experiments"
+exclude = ["discarded/**"]
+
+[git]
+executable = "git"
+inspection_parallelism = 8
+inspection_timeout = "10s"
+fetch_parallelism = 4
+fetch_timeout = "120s"
+fetch_prune = true
+untracked = "normal"
+
+[lazygit]
+command = "lazygit"
+args = []
+enabled = true
+
+# Launchers are argument arrays; no shell is involved. {path} is replaced by
+# the worktree root when it is a complete argument.
+[[launchers]]
+name = "Shell"
+command = ["bash"]
+
+[[launchers]]
+name = "Editor"
+command = ["nvim", "."]

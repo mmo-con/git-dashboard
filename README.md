@@ -1,0 +1,98 @@
+# Git Dashboard
+
+Git Dashboard is a terminal application for managing a curated collection of
+local Git repositories. It shows a cross-repository overview, groups
+repositories into families, runs safe batch operations such as fetch and
+fast-forward updates, and hands all detailed work within one repository over
+to [lazygit](https://github.com/jesseduffield/lazygit).
+
+> Git Dashboard manages the repository collection. lazygit manages the
+> individual repository.
+
+The design and the decisions behind it are documented in
+[docs/design.md](docs/design.md).
+
+## Features
+
+- Explicit repositories plus bounded discovery below root directories, with
+  include and exclude patterns and clear precedence rules.
+- Status per repository: branch, detached or unborn HEAD, operations in
+  progress, staged/modified/deleted/renamed/conflicting/untracked entries,
+  upstream state, remotes, latest commit, and last fetch time.
+- Families, text and state filters (`is:dirty`, `is:behind`, …), and sorting.
+- `Enter` opens the selected repository in lazygit; the dashboard refreshes
+  the repository afterward.
+- Concurrent fetch of the visible or marked repositories with progress,
+  cancellation, retry, and an interactive retry in the terminal for
+  repositories that need a passphrase.
+- Safe update: `git merge --ff-only --no-autostash @{upstream}` for eligible
+  repositories only, with a preview that explains every skip.
+- Configurable launchers for a shell, an editor, or a file manager.
+
+Git Dashboard uses the official Git CLI for everything. Background Git
+processes run without a controlling terminal, so they can never prompt in or
+write into the user interface.
+
+## Requirements
+
+- Linux or macOS
+- Git 2.34 or newer
+- lazygit (optional, for `Enter`)
+- Go 1.24 or newer to build from source
+
+## Installation
+
+```sh
+make build            # builds ./bin/git-dashboard
+make install          # installs into $(go env GOPATH)/bin
+```
+
+## Usage
+
+```sh
+git-dashboard                      # uses ~/.config/git-dashboard/config.toml
+git-dashboard --config path.toml   # explicit configuration file
+git-dashboard --check              # validate the configuration and print the inventory
+git-dashboard --version
+```
+
+The configuration file is looked up in this order: `--config`, the
+`GIT_DASHBOARD_CONFIG` environment variable, and
+`$XDG_CONFIG_HOME/git-dashboard/config.toml` (falling back to
+`~/.config/git-dashboard/config.toml`).
+
+Start with [examples/config.toml](examples/config.toml). All options are
+described in [docs/configuration.md](docs/configuration.md), and all keys in
+[docs/keybindings.md](docs/keybindings.md).
+
+## Development
+
+```sh
+make test             # unit and integration tests (requires git)
+make test-race        # tests with the race detector
+make perf             # performance test: 200 repositories within 2 seconds
+make lint             # go vet and gofmt check
+make release          # cross-compiled archives and checksums in ./dist
+```
+
+Integration tests create temporary Git repositories and ignore the user's
+global Git configuration.
+
+### Project layout
+
+| Path | Responsibility |
+|---|---|
+| `cmd/git-dashboard` | command-line entry point |
+| `internal/config` | configuration lookup, parsing, path expansion, validation |
+| `internal/domain` | domain models without dependencies on UI or Git output |
+| `internal/inventory` | discovery, identity, and precedence rules |
+| `internal/git` | typed wrapper around the Git CLI with process isolation |
+| `internal/jobs` | bounded scheduler with per-store locks and event queue |
+| `internal/launcher` | lazygit, launchers, and browser handover commands |
+| `internal/app` | application services: refresh, fetch, update, filter, sort |
+| `internal/tui` | Bubble Tea user interface |
+| `internal/testutil` | helpers for tests with real Git repositories |
+
+## License
+
+No license has been chosen yet.
