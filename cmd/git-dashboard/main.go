@@ -1,0 +1,121 @@
+// Command git-dashboard is a terminal dashboard for a curated collection of
+// local Git repositories.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
+
+	"github.com/mmo-con/git-dashboard/internal/app"
+	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/git-dashboard/internal/git"
+	"github.com/mmo-con/git-dashboard/internal/tui"
+)
+
+var version = "dev"
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
+}
+
+// run executes the command line and returns the exit status: 0 on success,
+// 1 on runtime errors, and 2 on usage or configuration errors.
+func run(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
+	flags := flag.NewFlagSet("git-dashboard", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configFlag := flags.String("config", "", "path of the configuration file")
+	showVersion := flags.Bool("version", false, "print the version and exit")
+	checkConfig := flags.Bool("check", false, "validate the configuration, print the inventory, and exit")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+
+	if *showVersion {
+		fmt.Fprintln(stdout, "git-dashboard", version)
+		return 0
+	}
+
+	path, err := config.Locate(*configFlag, getenv)
+	if err != nil {
+		fmt.Fprintln(stderr, "git-dashboard:", err)
+		return 2
+	}
+	cfg, err := config.Load(path, getenv)
+	if err != nil {
+		fmt.Fprintln(stderr, "git-dashboard: invalid configuration:", err)
+		return 2
+	}
+
+	client := git.New(cfg.Git.Executable)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	_, err = client.CheckVersion(ctx)
+	cancel()
+	if err != nil {
+		fmt.Fprintln(stderr, "git-dashboard:", err)
+		return 1
+	}
+
+	a := app.New(path, cfg, client)
+	defer a.Close()
+
+	if *checkConfig {
+		return check(a, stdout)
+	}
+
+	if getenv("NO_COLOR") != "" {
+		lipgloss.SetColorProfile(termenv.Ascii)
+	}
+	model := tui.New(a)
+	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
+		fmt.Fprintln(stderr, "git-dashboard:", err)
+		return 1
+	}
+	if err := model.Err(); err != nil {
+		fmt.Fprintln(stderr, "git-dashboard:", err)
+		return 1
+	}
+	return 0
+}
+
+// check prints the resolved inventory without starting the TUI.
+func check(a *app.Application, out io.Writer) int {
+	if a.Config.File == "" {
+		fmt.Fprintf(out, "no configuration file at %s\n", a.ConfigPath)
+	} else {
+		fmt.Fprintf(out, "configuration: %s\n", a.Config.File)
+	}
+	res := a.LoadInventory(context.Background())
+	for _, w := range res.Warnings {
+		fmt.Fprintln(out, "warning:", domain.Printable(w))
+	}
+	for _, r := range res.Repositories {
+		line := fmt.Sprintf("%-12s %-10s %-28s %s", domain.Printable(string(r.Family)), r.Source, r.Availability, domain.Printable(r.Path))
+		if r.EntryError != nil {
+			line += " (" + domain.Printable(r.EntryError.Error()) + ")"
+		}
+		fmt.Fprintln(out, line)
+	}
+	if !a.Lazygit.Available() {
+		fmt.Fprintln(out, "warning:", a.Lazygit.Err)
+	}
+	for _, l := range a.Launchers {
+		if l.Err != nil {
+			fmt.Fprintf(out, "warning: launcher %s: %v\n", l.Name, l.Err)
+		}
+	}
+	fmt.Fprintf(out, "%d repositories\n", len(res.Repositories))
+	return 0
+}

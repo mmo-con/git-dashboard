@@ -1,0 +1,7 @@
+/bin/
+/dist/
+*.test
+*.out
+
+# The Makefile is part of the project, even if a global ignore file excludes it.
+!/Makefile

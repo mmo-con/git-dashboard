@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu 22.04 ships Git 2.34, the minimum supported version.
+          - name: git 2.34
+            os: ubuntu-latest
+            container: ubuntu:22.04
+          - name: latest git
+            os: ubuntu-latest
+            container: ""
+          - name: macos
+            os: macos-latest
+            container: ""
+    steps:
+      - name: Install Git and build tools (container)
+        if: matrix.container != ''
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates make gcc libc6-dev
+      - name: Install latest Git
+        if: matrix.name == 'latest git'
+        run: |
+          sudo add-apt-repository -y ppa:git-core/ppa
+          sudo apt-get update && sudo apt-get install -y git
+      - uses: actions/checkout@v4
+      # In a container the checkout belongs to another user; without this, Git
+      # refuses the repository and go list fails on VCS stamping.
+      - name: Trust the checkout (container)
+        if: matrix.container != ''
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: git --version
+      - run: make lint
+      - name: Test with race detector and coverage
+        run: make coverage
+      - name: Write coverage to the job summary
+        run: |
+          echo "**${{ matrix.name }}**" >> "$GITHUB_STEP_SUMMARY"
+          sh scripts/coverage-summary.sh coverage.out >> "$GITHUB_STEP_SUMMARY"
+      - run: make perf
