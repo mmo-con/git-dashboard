@@ -859,6 +859,43 @@ func (m *Model) viewFamily(iw, rows int) (string, []string) {
 	return "Choose family", append([]string{head}, window(body, m.overlayIdx, rows-1)...)
 }
 
+// opGroups orders the rows of the operations view by status: rows that need
+// attention first, completed rows last.
+var opGroups = []struct {
+	title  string
+	status domain.OperationStatus
+}{
+	{"running", domain.StatusRunning},
+	{"failed", domain.StatusFailed},
+	{"cancelled", domain.StatusCancelled},
+	{"skipped", domain.StatusSkipped},
+	{"queued", domain.StatusQueued},
+	{"completed", domain.StatusSucceeded},
+}
+
+// opOrder returns the indexes of the batch rows in display order.
+func (m *Model) opOrder() []int {
+	if m.batch == nil {
+		return nil
+	}
+	var order []int
+	for _, g := range opGroups {
+		for i, row := range m.batch.rows {
+			if row.result.Status == g.status {
+				order = append(order, i)
+			}
+		}
+	}
+	return order
+}
+
+func (m *Model) firstOpRow() int {
+	if order := m.opOrder(); len(order) > 0 {
+		return order[0]
+	}
+	return 0
+}
+
 func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	if m.batch == nil {
 		return "Operations", []string{"no operations"}
@@ -868,20 +905,21 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	for _, r := range m.batch.rows {
 		counts[r.result.Status]++
 	}
+	total := len(m.batch.rows)
 	done := counts[domain.StatusSucceeded] + counts[domain.StatusFailed] + counts[domain.StatusSkipped] + counts[domain.StatusCancelled]
-	summary := fmt.Sprintf(" %d/%d · %d ok · %d failed · %d skipped", done, len(m.batch.rows),
+	summary := fmt.Sprintf(" %3d%% · %d/%d · %d ok · %d failed · %d skipped", done*100/max(total, 1), done, total,
 		counts[domain.StatusSucceeded], counts[domain.StatusFailed], counts[domain.StatusSkipped])
-	bar := m.progressBar(done, len(m.batch.rows), max(iw-ansi.StringWidth(summary), 10))
-	head := []string{bar + summary, ""}
+	bar := m.progressBar(done, total, max(iw-ansi.StringWidth(summary), 10))
+	head := []string{bar + summary}
 
-	var rowsOut []string
-	for i, row := range m.batch.rows {
-		name := string(row.job.RepositoryID)
-		if r := m.repo(row.job.RepositoryID); r != nil {
-			name = r.Name
+	var list []string
+	selLine := 0
+	for _, g := range opGroups {
+		if counts[g.status] == 0 {
+			continue
 		}
 		icon, style := m.icons.queued, t.dim
-		switch row.result.Status {
+		switch g.status {
 		case domain.StatusRunning:
 			icon, style = m.spinnerFrame(), t.key
 		case domain.StatusSucceeded:
@@ -891,30 +929,43 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		case domain.StatusSkipped:
 			icon, style = "–", t.warn
 		case domain.StatusCancelled:
-			icon, style = "–", t.dim
+			icon = "–"
 		}
-		status := string(row.result.Status)
-		if row.result.Status.Final() && row.result.Error != nil {
-			status += ": " + firstLine(row.result.Error.Error())
-		}
-		text := domain.Printable(fmt.Sprintf("%s %-24s %s", icon, ansi.Truncate(name, 24, "…"), status))
-		if fu, resolved := m.followUp(row); fu != "" {
-			fuStyle := t.warn
-			if resolved {
-				fuStyle = t.ok
+		list = append(list, "", t.header.Render(fmt.Sprintf("%s %d", strings.ToUpper(g.title), counts[g.status])))
+		for i, row := range m.batch.rows {
+			if row.result.Status != g.status {
+				continue
 			}
-			if i == m.overlayIdx {
-				rowsOut = append(rowsOut, m.selectable(text+"  → "+fu, true, iw, style))
-			} else {
-				rowsOut = append(rowsOut, style.Render(text)+fuStyle.Render("  → "+fu))
+			name := string(row.job.RepositoryID)
+			if r := m.repo(row.job.RepositoryID); r != nil {
+				name = r.Name
 			}
-			continue
+			text := fmt.Sprintf(" %s %s", icon, runewidth.FillRight(runewidth.Truncate(domain.Printable(name), 24, "…"), 24))
+			if row.result.Status.Final() && row.result.Error != nil {
+				text += " " + firstLine(row.result.Error.Error())
+			}
+			selected := i == m.overlayIdx
+			if selected {
+				selLine = len(list)
+			}
+			if fu, resolved := m.followUp(row); fu != "" {
+				fuStyle := t.warn
+				if resolved {
+					fuStyle = t.ok
+				}
+				if selected {
+					list = append(list, m.selectable(text+"  → "+fu, true, iw, style))
+				} else {
+					list = append(list, style.Render(domain.Printable(text))+fuStyle.Render("  → "+fu))
+				}
+				continue
+			}
+			list = append(list, m.selectable(text, selected, iw, style))
 		}
-		rowsOut = append(rowsOut, m.selectable(text, i == m.overlayIdx, iw, style))
 	}
 
 	var detail []string
-	if m.overlayIdx < len(m.batch.rows) {
+	if m.overlayIdx < total {
 		res := m.batch.rows[m.overlayIdx].result
 		if s := strings.TrimSpace(res.Stderr); s != "" && res.Status == domain.StatusFailed {
 			detail = append(detail, "", t.panelTitle.Render("stderr"))
@@ -928,8 +979,8 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	if m.batch.done() {
 		state = "finished"
 	}
-	body := append(head, window(rowsOut, m.overlayIdx, rows-len(head)-len(detail))...)
-	return fmt.Sprintf("%s ─ %d repositories ─ %s", m.batch.op, len(m.batch.rows), state), append(body, detail...)
+	body := append(head, window(list, selLine, rows-len(head)-len(detail))...)
+	return fmt.Sprintf("%s ─ %d repositories ─ %s", m.batch.op, total, state), append(body, detail...)
 }
 
 func (m *Model) viewConfirmFetch(iw, rows int) (string, []string) {

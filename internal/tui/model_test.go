@@ -428,6 +428,37 @@ func TestFamilySummaryCountsHealthLevels(t *testing.T) {
 	}
 }
 
+func TestOperationsAreGroupedByStatus(t *testing.T) {
+	m := newModel(t)
+	row := func(id string, s domain.OperationStatus) opRow {
+		return opRow{job: jobs.Job{RepositoryID: domain.RepositoryID(id)}, result: domain.OperationResult{Status: s}}
+	}
+	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{
+		row("/r/api", domain.StatusSucceeded), row("/r/frontend", domain.StatusQueued),
+		row("/r/dotfiles", domain.StatusFailed), row("x", domain.StatusRunning),
+	}}
+	if got := fmt.Sprint(m.opOrder()); got != "[3 2 1 0]" {
+		t.Fatalf("order = %s, want running, failed, queued, completed", got)
+	}
+	keys(m, "b")
+	if m.overlayIdx != 3 {
+		t.Fatalf("the first shown row must be selected, got %d", m.overlayIdx)
+	}
+	keys(m, "j", "j")
+	if m.overlayIdx != 1 {
+		t.Fatalf("j must follow the display order, got %d", m.overlayIdx)
+	}
+	m.batch.rows[1].result.Status = domain.StatusRunning
+	keys(m, "j")
+	if m.overlayIdx != 3 {
+		t.Fatalf("the selection must stay on its row when it changes group, got %d", m.overlayIdx)
+	}
+	v := m.View()
+	if !strings.Contains(v, "RUNNING 2") || !strings.Contains(v, "COMPLETED 1") || strings.Index(v, "FAILED") > strings.Index(v, "COMPLETED") {
+		t.Fatal("groups must be titled and ordered")
+	}
+}
+
 func TestQuickFiltersToggle(t *testing.T) {
 	m := newModel(t)
 	keys(m, "1")
