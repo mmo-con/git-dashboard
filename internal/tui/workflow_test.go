@@ -149,6 +149,51 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	}
 }
 
+func TestUpdateSkipsUpstreamFetchedAfterPreview(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	tu.Commit(t, origin, "a.txt", "a\n", "shown in the preview")
+	tu.Git(t, clone, "fetch", "-q")
+
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{{Path: clone, Enabled: true}}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+
+	keys(m, "u")
+	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 {
+		t.Fatalf("preview: ok=%d skip=%d", len(m.updateOK), len(m.updateSkip))
+	}
+	head := tu.Git(t, clone, "rev-parse", "HEAD")
+	tu.Commit(t, origin, "b.txt", "b\n", "not shown in the preview")
+	tu.Git(t, clone, "fetch", "-q") // another tool fetches while the preview is open
+	keys(m, "y")
+	pump(t, m)
+	if r := m.batch.rows[0]; r.result.Status != domain.StatusSkipped || !strings.Contains(r.result.Error.Error(), "upstream moved") {
+		t.Fatalf("update after an external fetch: %s %v", r.result.Status, r.result.Error)
+	}
+	if tu.Git(t, clone, "rev-parse", "HEAD") != head {
+		t.Fatal("HEAD moved although the update was skipped")
+	}
+
+	keys(m, "u")
+	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 {
+		t.Fatalf("the new preview must offer the update again: ok=%d", len(m.updateOK))
+	}
+	keys(m, "y")
+	pump(t, m)
+	if tu.Git(t, clone, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
+		t.Fatal("the confirmed new preview must fast-forward to the fetched state")
+	}
+}
+
 func TestRetryAndCancelBatch(t *testing.T) {
 	m := newModel(t)
 	r := m.repos[0]
