@@ -1012,3 +1012,22 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 		t.Fatal("a changed view setting must take effect; the family stays expanded")
 	}
 }
+
+func TestHelpExplainsHealthColumn(t *testing.T) {
+	m := newModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 80})
+	for _, set := range []string{"unicode", "nerd", "ascii"} {
+		m.icons = iconSet(set)
+		keys(m, "?")
+		v := ansi.Strip(m.View())
+		if !strings.Contains(v, "Health column") {
+			t.Fatalf("%s: the help must have a health legend:\n%s", set, v)
+		}
+		for _, b := range m.icons.healthLegend() {
+			if !strings.Contains(v, b.Keys) || !strings.Contains(v, b.Action) {
+				t.Errorf("%s: the help must explain %q (%s)", set, b.Keys, b.Action)
+			}
+		}
+		keys(m, "esc")
+	}
+}

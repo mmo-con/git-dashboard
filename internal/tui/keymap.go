@@ -54,7 +54,7 @@ var Bindings = []BindingGroup{
 	}},
 	{"Operations view", []Binding{
 		{"Enter", "open row in lazygit"},
-		{"c", "cancel the batch or pending update"},
+		{"c", "cancel batch / pending update"},
 		{"x", "retry failed operations"},
 		{"u", "continue the update"},
 		{"t", "retry failed fetch in terminal"},

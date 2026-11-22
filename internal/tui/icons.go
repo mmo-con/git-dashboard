@@ -46,7 +46,21 @@ func iconSet(name string) icons {
 	return iconSets["unicode"]
 }
 
-// legend explains the symbols in the help view.
+// healthLegend explains the health column in the help view, by priority.
+func (ic icons) healthLegend() []Binding {
+	return []Binding{
+		{ic.failed, "error or unavailable"},
+		{ic.conflict, "conflict, operation, diverged"},
+		{ic.modified, "local changes"},
+		{ic.behind, "behind upstream"},
+		{ic.ahead, "ahead of upstream"},
+		{ic.attention, "other attention, see State"},
+		{ic.clean, "healthy"},
+		{"(empty)", "not inspected yet"},
+	}
+}
+
+// legend explains the other symbols in the help view.
 func (ic icons) legend() []Binding {
 	return []Binding{
 		{ic.clean, "clean worktree / up to date"},
@@ -61,8 +75,6 @@ func (ic icons) legend() []Binding {
 		{ic.mismatch + "remote", "unexpected remote URL"},
 		{ic.unavailable, "unavailable or failed"},
 		{ic.mark, "marked"},
-		{ic.conflict + ic.modified + ic.behind + ic.ahead + ic.attention + ic.clean, "first column: most important state"},
-		{ic.attention, "other attention, e.g. branches or stashes"},
 		{ic.collapsed + " / " + ic.expanded, "collapsed / expanded family"},
 	}
 }
