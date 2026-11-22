@@ -399,7 +399,7 @@ func (m *Model) detailsBox(w, h int) []string {
 	if r == nil {
 		return m.box("Details", "", nil, w, h, false)
 	}
-	lines := m.detailLines(r).fit(h - 2)
+	lines := m.detailLines(r, w-4).fit(h - 2)
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
@@ -449,6 +449,9 @@ type details struct {
 	kinds []detailKind
 	// more renders the line that replaces n hidden other branches.
 	more func(n int) string
+	// width is the width of a section rule, drawn in the rule style.
+	width int
+	rule  lipgloss.Style
 }
 
 func (d *details) add(l string, k detailKind) {
@@ -458,13 +461,15 @@ func (d *details) add(l string, k detailKind) {
 
 func (d *details) text(ss ...seg) { d.add(line(ss...), detailText) }
 
-// section starts a titled section, separated from the previous one by a
-// blank line.
+// section starts a titled section: the title in its style within a rule
+// across the panel, separated from the previous section by a blank line.
 func (d *details) section(title string, style lipgloss.Style) {
 	if len(d.lines) > 0 {
 		d.add("", detailBlank)
 	}
-	d.add(style.Render(strings.ToUpper(title)), detailSection)
+	title = strings.ToUpper(title)
+	rest := max(d.width-runewidth.StringWidth(title)-4, 0)
+	d.add(d.rule.Render("── ")+style.Render(title)+d.rule.Render(" "+strings.Repeat("─", rest)), detailSection)
 }
 
 // fit returns at most n lines if possible. At most maxBranchLines other
@@ -520,13 +525,14 @@ func (m *Model) label(s string) seg {
 	return seg{runewidth.FillRight(s, detailLabelWidth), m.theme.dim}
 }
 
-// detailLines builds the detail panel. The current branch, the worktree, and
-// errors come first, so they stay visible when the panel is cut off at the
-// bottom.
-func (m *Model) detailLines(r *domain.Repository) *details {
+// detailLines builds the detail panel for a content width of width cells.
+// The current branch, the worktree, and errors come first, so they stay
+// visible when the panel is cut off at the bottom.
+func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	t := m.theme
 	now := m.now()
-	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) }}
+	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) },
+		width: width, rule: t.inactiveBorder}
 	d.text(seg{r.Path, t.dim})
 	d.text(m.label("family"), seg{string(r.Family), t.key})
 	if r.Workspace != "" && r.Workspace != r.Path {
@@ -535,7 +541,7 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {
-		d.section("branch", t.header)
+		d.section("branch", t.title)
 		b := append([]seg{}, m.branchSegs(r)...)
 		if r.Upstream.Valid && r.Upstream.Value.Configured {
 			b = append(b, seg{" → " + r.Upstream.Value.Ref, t.dim})
@@ -544,7 +550,7 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 		d.text(append(b, m.upstreamSegs(r)...)...)
 
 		if r.Worktree.Valid {
-			d.section("worktree", t.header)
+			d.section("worktree", t.title)
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
 				d.text(seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
 			}
@@ -569,17 +575,16 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 
 	if inspected {
 		if bs := m.otherBranchLines(r); len(bs) > 0 {
-			d.section("other branches", t.header)
+			d.section("other branches", t.title)
 			for _, l := range bs {
 				d.add(l, detailBranch)
 			}
 		}
 
 		if r.LastCommit.Valid {
-			d.section("last commit", t.header)
+			d.section("last commit", t.title)
 			if c := r.LastCommit.Value; c != nil {
-				d.text(seg{c.ShortID + "  ", t.warn}, seg{c.Subject, t.plain})
-				d.text(seg{c.Author + " · " + ago(now, c.Time), t.dim})
+				d.text(seg{c.ShortID + "  " + commitDate(now, c.Time) + "  ", t.dim}, seg{c.Subject, t.plain})
 			} else {
 				d.text(seg{"no commits yet", t.dim})
 			}
@@ -587,7 +592,7 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 		}
 
 		if r.Remotes.Valid {
-			d.section("remotes", t.header)
+			d.section("remotes", t.title)
 			nameWidth := 0
 			for _, rem := range r.Remotes.Value {
 				nameWidth = max(nameWidth, runewidth.StringWidth(domain.Printable(rem.Name)))
@@ -606,7 +611,7 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 		}
 
 		if siblings := m.worktreeSiblings(r); len(siblings) > 0 {
-			d.section("linked worktrees", t.header)
+			d.section("linked worktrees", t.title)
 			for _, p := range siblings {
 				d.text(seg{p, t.dim})
 			}
