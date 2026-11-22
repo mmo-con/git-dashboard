@@ -84,13 +84,13 @@ func (m *Model) stateSegs(r *domain.Repository) []seg {
 }
 
 // countSegs returns the cells of the count columns: staged, modified
-// (including deletions in the worktree), untracked, ahead, behind, and stash
-// entries. "–" is a known zero and "?" an unknown value. A cell stays empty
+// (including deletions in the worktree), untracked, stash entries, ahead, and
+// behind; local work comes before the relation to the upstream. "–" is a known zero and "?" an unknown value. A cell stays empty
 // while the repository loads and where the count does not apply, such as
 // ahead and behind without an upstream; the state column names the reason.
 func (m *Model) countSegs(r *domain.Repository) [][]seg {
 	t := m.theme
-	out := make([][]seg, colStashes-colStaged+1)
+	out := make([][]seg, colBehind-colStaged+1)
 	if !r.IsAvailable() || !loaded(r) {
 		return out
 	}
@@ -101,9 +101,9 @@ func (m *Model) countSegs(r *domain.Repository) [][]seg {
 		return []seg{{strconv.Itoa(n), style}}
 	}
 	unknown := []seg{{"?", t.warn}}
-	out[5] = unknown
+	out[3] = unknown
 	if r.Stashes.Valid {
-		out[5] = num(r.Stashes.Value, t.warn)
+		out[3] = num(r.Stashes.Value, t.warn)
 	}
 	if r.Worktree.Valid {
 		w := r.Worktree.Value
@@ -117,7 +117,7 @@ func (m *Model) countSegs(r *domain.Repository) [][]seg {
 		out[0], out[1], out[2] = unknown, unknown, unknown
 	}
 	if !r.Head.Valid || !r.Upstream.Valid {
-		out[3], out[4] = unknown, unknown
+		out[4], out[5] = unknown, unknown
 		return out
 	}
 	h, u := r.Head.Value, r.Upstream.Value
@@ -128,7 +128,7 @@ func (m *Model) countSegs(r *domain.Repository) [][]seg {
 	if u.Diverged() {
 		ahead, behind = t.err, t.err
 	}
-	out[3], out[4] = num(u.Ahead, ahead), num(u.Behind, behind)
+	out[4], out[5] = num(u.Ahead, ahead), num(u.Behind, behind)
 	return out
 }
 

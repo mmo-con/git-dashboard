@@ -45,7 +45,7 @@ The architecture and the decisions behind it are documented in
   lazygit, see which blockers are resolved, and continue with a new preview.
 - Configurable launchers for a shell, an editor, or a file manager.
 - lazygit-style panels with titled borders, one column per count (staged,
-  modified, untracked, ahead, behind, stashes) plus a State column for everything
+  modified, untracked, stashes, ahead, behind) plus a State column for everything
   else, per-cell colors, spinners and progress bars, dialogs as overlays, and
   header counters that double as quick filters. Colors, built-in theme presets
   (such as high contrast, Catppuccin, Dracula, and Gruvbox), and the symbol

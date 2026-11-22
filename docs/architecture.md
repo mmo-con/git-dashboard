@@ -459,9 +459,10 @@ The concrete keys, symbols, and filters are listed in
   across the panel (`── BRANCH ───`), so sections stay apart without boxes.
   The latest commit is one line of short hash, compact date, and subject;
   lazygit shows the history.
-- Every count has its own column (staged, modified, untracked, ahead,
-  behind, stashes), so the same state can be compared down the table, and a
-  cell needs no symbol. A known zero is `–`, an unknown value `?`, and a count
+- Every count has its own column (staged, modified, untracked, stashes,
+  ahead, behind), so the same state can be compared down the table, and a
+  cell needs no symbol. Local work comes first, the relation to the
+  upstream last. A known zero is `–`, an unknown value `?`, and a count
   that does not apply stays empty, so neither looks like a clean state.
   Findings without a count, such as conflicts, an operation in progress, or
   a missing upstream, share one State column with text, which is empty for

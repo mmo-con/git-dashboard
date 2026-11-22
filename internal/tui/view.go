@@ -90,9 +90,9 @@ const (
 	colStaged
 	colModified
 	colUntracked
+	colStashes
 	colAhead
 	colBehind
-	colStashes
 	colCommit
 )
 
@@ -104,9 +104,9 @@ var colSpecs = []colSpec{
 	colStaged:    {title: "Staged", min: 1, cap: 9, short: func(ic icons) string { return ic.staged }},
 	colModified:  {title: "Modified", min: 1, cap: 9, short: func(ic icons) string { return ic.modified }},
 	colUntracked: {title: "Untracked", min: 1, cap: 9, short: func(ic icons) string { return ic.untracked }},
+	colStashes:   {title: "Stashes", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
 	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
-	colStashes:   {title: "Stashes", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colCommit:    {title: "Commit", min: 3, pref: 6, cap: 6},
 }
 

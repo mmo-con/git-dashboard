@@ -135,8 +135,8 @@ is updated until the new preview is confirmed.
 | Staged | staged entries |
 | Modified | entries modified or deleted in the worktree and not staged |
 | Untracked | untracked entries |
-| Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
 | Stashes | stash entries of the repository; linked worktrees share them |
+| Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
 | Commit | age of the latest commit |
 
 In the count columns, `–` is a known zero and `?` an unknown value. A cell
