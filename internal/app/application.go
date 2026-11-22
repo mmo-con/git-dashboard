@@ -19,11 +19,14 @@ import (
 // Application bundles the services of one Git Dashboard session.
 type Application struct {
 	ConfigPath string
-	Config     *config.Config
-	Git        *git.Client
-	Scheduler  *jobs.Scheduler
-	Lazygit    *launcher.Lazygit
-	Launchers  []launcher.Custom
+	// ScanRoot, if set, replaces the configured inventory with discovery below
+	// this directory, also after a reload.
+	ScanRoot  string
+	Config    *config.Config
+	Git       *git.Client
+	Scheduler *jobs.Scheduler
+	Lazygit   *launcher.Lazygit
+	Launchers []launcher.Custom
 
 	generation atomic.Uint64
 }
@@ -48,6 +51,13 @@ func limits(cfg *config.Config) map[jobs.Kind]int {
 		jobs.KindFetch:   cfg.Git.FetchParallelism,
 		jobs.KindUpdate:  cfg.Git.FetchParallelism,
 	}
+}
+
+// SetScanRoot replaces the configured inventory with discovery below root.
+// The replacement is applied again whenever the configuration is reloaded.
+func (a *Application) SetScanRoot(root string) {
+	a.ScanRoot = root
+	a.Config.ScanOnly(root)
 }
 
 // LoadInventory resolves the inventory of the current configuration.
@@ -77,6 +87,9 @@ func (a *Application) LoadConfig(ctx context.Context) (*Loaded, error) {
 	cfg, err := config.Load(a.ConfigPath, os.Getenv)
 	if err != nil {
 		return nil, err
+	}
+	if a.ScanRoot != "" {
+		cfg.ScanOnly(a.ScanRoot)
 	}
 	client := git.New(cfg.Git.Executable)
 	vctx, cancel := context.WithTimeout(ctx, 10*time.Second)

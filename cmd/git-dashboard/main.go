@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,6 +38,12 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	configFlag := flags.String("config", "", "path of the configuration file")
 	showVersion := flags.Bool("version", false, "print the version and exit")
 	checkConfig := flags.Bool("check", false, "validate the configuration, print the inventory, and exit")
+	flags.Usage = func() {
+		fmt.Fprintln(stderr, "usage: git-dashboard [options] [path]")
+		fmt.Fprintln(stderr, "\nWith a path, the repositories below it replace the configured ones.")
+		fmt.Fprintln(stderr, "\noptions:")
+		flags.PrintDefaults()
+	}
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -46,6 +54,12 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	if *showVersion {
 		fmt.Fprintln(stdout, "git-dashboard", version)
 		return 0
+	}
+
+	scanRoot, err := scanRootArg(flags.Args())
+	if err != nil {
+		fmt.Fprintln(stderr, "git-dashboard:", err)
+		return 2
 	}
 
 	path, err := config.Locate(*configFlag, getenv)
@@ -70,6 +84,9 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 
 	a := app.New(path, cfg, client)
 	defer a.Close()
+	if scanRoot != "" {
+		a.SetScanRoot(scanRoot)
+	}
 
 	if *checkConfig {
 		return check(a, stdout)
@@ -97,6 +114,9 @@ func check(a *app.Application, out io.Writer) int {
 	} else {
 		fmt.Fprintf(out, "configuration: %s\n", a.Config.File)
 	}
+	if a.ScanRoot != "" {
+		fmt.Fprintf(out, "scan of %s (replaces the configured repositories)\n", domain.Printable(a.ScanRoot))
+	}
 	res := a.LoadInventory(context.Background())
 	for _, w := range res.Warnings {
 		fmt.Fprintln(out, "warning:", domain.Printable(w))
@@ -118,4 +138,29 @@ func check(a *app.Application, out io.Writer) int {
 	}
 	fmt.Fprintf(out, "%d repositories\n", len(res.Repositories))
 	return 0
+}
+
+// scanRootArg validates the optional path argument and returns it as an
+// absolute directory, or "" if none was given.
+func scanRootArg(args []string) (string, error) {
+	switch {
+	case len(args) == 0:
+		return "", nil
+	case len(args) > 1 && strings.HasPrefix(args[1], "-"):
+		return "", fmt.Errorf("options must precede the path: %q", args[1])
+	case len(args) > 1:
+		return "", fmt.Errorf("expected at most one path, got %d", len(args))
+	}
+	root, err := filepath.Abs(args[0])
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", root)
+	}
+	return root, nil
 }
