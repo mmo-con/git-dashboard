@@ -86,6 +86,37 @@ func TestInspectWorktreeStates(t *testing.T) {
 	}
 }
 
+func TestInspectStashes(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	repo := tu.InitRepo(t, filepath.Join(base, "repo"))
+	tu.Git(t, repo, "worktree", "add", "-q", "-b", "side", filepath.Join(base, "wt"))
+
+	withHeader := git.New("git")
+	if _, err := withHeader.CheckVersion(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// A client without a checked version counts with a separate process.
+	clients := map[string]*git.Client{"status header": withHeader, "rev-list": git.New("git")}
+	check := func(want int) {
+		t.Helper()
+		for name, c := range clients {
+			for _, path := range []string{repo, filepath.Join(base, "wt")} {
+				in := inspect(t, c, validate(t, c, path))
+				if !in.Stashes.Valid || in.Stashes.Value != want {
+					t.Errorf("%s, %s: stashes = %+v, want %d", name, filepath.Base(path), in.Stashes, want)
+				}
+			}
+		}
+	}
+	check(0)
+	for i := range 2 {
+		tu.WriteFile(t, filepath.Join(repo, "README"), fmt.Sprintf("change %d\n", i))
+		tu.Git(t, repo, "stash", "-q")
+	}
+	check(2)
+}
+
 func TestInspectMergeConflictAndOperations(t *testing.T) {
 	tu.IsolateGit(t)
 	c := git.New("git")
@@ -463,8 +494,10 @@ func countingGit(t *testing.T) (*git.Client, func() int) {
 
 // TestProcessBudget guards the cost model in docs/architecture.md: one
 // validation process per candidate, and three processes per inspection, four
-// for a detached HEAD. Startup time grows with the number of processes, so
-// this replaces a wall-clock measurement that depends on the machine.
+// for a detached HEAD, and one more for the stash count if the Git version is
+// older than 2.35 or unknown. Startup time grows with the number of
+// processes, so this replaces a wall-clock measurement that depends on the
+// machine.
 func TestProcessBudget(t *testing.T) {
 	tu.IsolateGit(t)
 	c, processes := countingGit(t)
@@ -478,6 +511,16 @@ func TestProcessBudget(t *testing.T) {
 	if n := processes(); n != 1 {
 		t.Fatalf("validation started %d processes, want 1", n)
 	}
+	if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := processes(); n != 4 {
+		t.Fatalf("inspection without a known Git version started %d processes, want 4", n)
+	}
+	if _, err := c.CheckVersion(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	processes()
 	for _, branches := range []bool{true, false} {
 		if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: branches}); err != nil {
 			t.Fatal(err)

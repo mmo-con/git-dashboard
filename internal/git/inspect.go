@@ -12,7 +12,8 @@ import (
 )
 
 // Inspect reads the state of one worktree with three Git processes; a
-// detached HEAD needs a fourth one for the latest commit.
+// detached HEAD needs a fourth one for the latest commit, and Git older than
+// 2.35 another one for the stash count.
 // Fields that could not be determined stay invalid; the returned error
 // describes the first failure.
 func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectOptions) (domain.Inspection, error) {
@@ -26,7 +27,7 @@ func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectO
 	if untracked == "" {
 		untracked = domain.UntrackedNormal
 	}
-	res, err := c.run.run(ctx, root, true, "status", "--porcelain=v2", "--branch", "-z",
+	res, err := c.run.run(ctx, root, true, "status", "--porcelain=v2", "--branch", "--show-stash", "-z",
 		"--untracked-files="+string(untracked))
 	if err != nil {
 		return in, fmt.Errorf("inspection failed: %w", err)
@@ -40,6 +41,23 @@ func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectO
 	in.Upstream = domain.KnownValue(st.Upstream)
 
 	var firstErr error
+	if c.stashHeader {
+		in.Stashes = domain.KnownValue(st.Stashes)
+	} else {
+		// --ignore-missing prints 0 if refs/stash does not exist.
+		res, err := c.run.run(ctx, root, true, "rev-list", "--walk-reflogs", "--count", "--ignore-missing", "refs/stash")
+		if err == nil {
+			var n int
+			n, err = strconv.Atoi(strings.TrimSpace(string(res.stdout)))
+			if err == nil {
+				in.Stashes = domain.KnownValue(n)
+			}
+		}
+		if err != nil {
+			firstErr = fmt.Errorf("reading stash entries failed: %w", err)
+		}
+	}
+
 	var commit *domain.CommitSummary
 	if opts.Branches || (!st.Head.Unborn && !st.Head.Detached) {
 		args := []string{"for-each-ref", "--format=" + branchFormat, "refs/heads"}
@@ -61,7 +79,7 @@ func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectO
 				}
 			}
 		}
-		if err != nil {
+		if err != nil && firstErr == nil {
 			firstErr = fmt.Errorf("reading branches failed: %w", err)
 		}
 	}

@@ -9,6 +9,9 @@ import (
 // Client is the typed wrapper around the official Git CLI.
 type Client struct {
 	run runner
+	// stashHeader is set by CheckVersion if status reports the stash count in
+	// porcelain v2 (Git 2.35); otherwise a separate process counts it.
+	stashHeader bool
 }
 
 // New returns a client that runs the given Git executable.

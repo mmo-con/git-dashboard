@@ -11,7 +11,8 @@ func TestParseStatusHeadersAndCounts(t *testing.T) {
 		"# branch.head main\x00" +
 		"# branch.upstream origin/main\x00" +
 		"# branch.ab +2 -3\x00" +
-		"# stash 4\x00" + // unknown header: ignored
+		"# stash 4\x00" +
+		"# future.header x\x00" + // unknown header: ignored
 		"1 M. N... 100644 100644 100644 aaa bbb staged.txt\x00" +
 		"1 .M N... 100644 100644 100644 aaa bbb modified.txt\x00" +
 		"1 MM N... 100644 100644 100644 aaa bbb both.txt\x00" +
@@ -41,6 +42,9 @@ func TestParseStatusHeadersAndCounts(t *testing.T) {
 	}
 	if !w.UntrackedChecked || w.Clean() {
 		t.Errorf("worktree = %+v", w)
+	}
+	if st.Stashes != 4 {
+		t.Errorf("stashes = %d, want 4", st.Stashes)
 	}
 }
 
@@ -85,6 +89,12 @@ func TestParseStatusSpecialHeads(t *testing.T) {
 func TestParseStatusRejectsUnknownEntryType(t *testing.T) {
 	if _, err := ParseStatus([]byte("# branch.oid abc\x00X something\x00"), true); err == nil {
 		t.Fatal("expected a compatibility error")
+	}
+}
+
+func TestParseStatusRejectsMalformedStashHeader(t *testing.T) {
+	if _, err := ParseStatus([]byte("# branch.oid abc\x00# stash many\x00"), true); err == nil {
+		t.Fatal("expected an error")
 	}
 }
 
