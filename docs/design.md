@@ -1437,11 +1437,11 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 ```text
  Git Dashboard   1 dirty 1  2 behind 2  3 ahead 1  4 diverged 1  5 errors 0  6 branches 0
 ╭─ Repositories ─────────────────────────────────────────────────────────────╮╭─ api ────────────────────────────────────────────╮
-│   Repository   Family Branch     Status           Upstream         Commit  ││ ~/devrepos/company/api                           │
-│▌  api        ↓ Work   main       ✓ clean  ≠remote ↓3               2h      ││ family    Work                                   │
-│   billing    ✘ Work   main       ✓ clean          ↑1 ↓1 diverged   3h      ││                                                  │
-│ ◆ frontend   ● Work   develop    ✚1  ●2  ?3       ✓                3h      ││ BRANCH                                           │
-│   tools      ✗ Work   –          ✗ missing        –                        ││ main → origin/main  ↓3                           │
+│   Repository   Family Branch     Status     Upstream         Commit        ││ ~/devrepos/company/api                           │
+│▌  api        ↓ Work   main       ✓  ≠remote ↓3               2h            ││ family    Work                                   │
+│   billing    ✘ Work   main       ✓          ↑1 ↓1 diverged   3h            ││                                                  │
+│ ◆ frontend   ● Work   develop    ✚1  ●2  ?3 ✓                3h            ││ BRANCH                                           │
+│   tools      ✗ Work   –          ✗ missing  –                              ││ main → origin/main  ↓3                           │
 │                                                                            ││                                                  │
 │                                                                            ││ WORKTREE                                         │
 │                                                                            ││ ✓ clean                                          │
@@ -1523,7 +1523,7 @@ Color is never the only information carrier. Every state is expressed by a symbo
 
 | Unicode | Meaning | Default color |
 |---|---|---|
-| `✓ clean` | clean worktree | gray |
+| `✓` | clean worktree (the detail panel shows `✓ clean`) | gray |
 | `✚n` | staged entries | green |
 | `●n` | modified entries | yellow |
 | `−n` | deleted entries | yellow |

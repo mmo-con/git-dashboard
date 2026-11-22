@@ -53,7 +53,7 @@ func (m *Model) statusSegs(r *domain.Repository) []seg {
 		}
 	}
 	if len(out) == 0 {
-		add(seg{ic.clean + " clean", t.clean})
+		add(seg{ic.clean, t.clean})
 	}
 	if r.RemoteMismatch() {
 		add(seg{ic.mismatch + "remote", t.warn})
