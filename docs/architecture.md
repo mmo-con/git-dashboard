@@ -457,8 +457,13 @@ The concrete keys, symbols, and filters are listed in
   panel is cut off at the bottom; it shortens the other branches list before
   dropping section titles. Each section starts with its title in a rule
   across the panel (`── BRANCH ───`), so sections stay apart without boxes.
-  The latest commit is one line of short hash, compact date, and subject;
-  lazygit shows the history.
+  The latest commit is one line of short hash, time, and subject; lazygit
+  shows the history.
+- Commit times have one absolute format in table and detail panel
+  (`Nov 13 22:16`, with the year for an earlier year), so rows can be
+  compared and sorted by eye; a narrow column drops the time of day and then
+  the day instead of truncating. Fetch and branch ages stay relative,
+  because there the distance to now is what matters.
 - Every count has its own column (staged, modified, untracked, stashed,
   ahead, behind), so the same state can be compared down the table, and a
   cell needs no symbol. Local work comes first, the relation to the

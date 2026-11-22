@@ -401,36 +401,22 @@ func ago(now, t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// commitDate is the compact date of a commit: relative within a week, then
-// month and day, and the full date for an earlier year.
-func commitDate(now, t time.Time) string {
-	d := now.Sub(t)
-	switch {
-	case d < time.Minute:
-		return "just now"
-	case d < time.Hour:
-		return fmt.Sprintf("%dm ago", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh ago", int(d.Hours()))
-	case d < 7*24*time.Hour:
-		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
-	case t.Year() == now.Year():
-		return t.Format("Jan 2")
+// commitTime is the time of a commit in one format for table and detail
+// panel: month, day, and time, with the year for an earlier year. The day is
+// padded, so the times line up in the table. For a narrow column, it drops
+// the time of day and then the day instead of truncating; width 0 means no
+// limit.
+func commitTime(now, t time.Time, width int) string {
+	layouts := []string{"Jan _2 15:04", "Jan _2"}
+	if t.Year() != now.Year() {
+		layouts = []string{"Jan _2 2006 15:04", "Jan 2006", "2006"}
 	}
-	return t.Format("2006-01-02")
-}
-
-func shortAgo(now, t time.Time) string {
-	d := now.Sub(t)
-	switch {
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	case d < 365*24*time.Hour:
-		return fmt.Sprintf("%dd", int(d.Hours()/24))
+	for _, l := range layouts {
+		if s := t.Format(l); width <= 0 || len(s) <= width {
+			return s
+		}
 	}
-	return fmt.Sprintf("%dy", int(d.Hours()/24/365))
+	return t.Format(layouts[len(layouts)-1])
 }
 
 // staleFetch is the age after which the last fetch is highlighted.
