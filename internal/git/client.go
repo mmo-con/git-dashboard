@@ -37,7 +37,7 @@ type Interface interface {
 	Validate(ctx context.Context, path string) Validation
 	Inspect(ctx context.Context, loc domain.Location, opts InspectOptions) (domain.Inspection, error)
 	Fetch(ctx context.Context, loc domain.Location, opts FetchOptions) error
-	MergeFastForwardOnly(ctx context.Context, loc domain.Location) error
+	MergeFastForwardOnly(ctx context.Context, loc domain.Location, target string) error
 }
 
 var _ Interface = (*Client)(nil)

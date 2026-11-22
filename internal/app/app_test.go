@@ -20,7 +20,7 @@ func behindRepo() domain.Repository {
 		Head:       domain.KnownValue(domain.HeadState{Branch: "main", CommitID: "abc"}),
 		Operation:  domain.KnownValue(domain.NoOperation),
 		Worktree:   domain.KnownValue(domain.WorktreeState{Untracked: 3, UntrackedChecked: true}),
-		Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main", Behind: 2}),
+		Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main", CommitID: "up1", Behind: 2}),
 	}
 }
 
@@ -45,6 +45,7 @@ func TestEligibility(t *testing.T) {
 		{"diverged", func(r *domain.Repository) { r.Upstream.Value.Ahead = 1 }, false, "diverged from upstream"},
 		{"ahead", func(r *domain.Repository) { r.Upstream.Value = domain.UpstreamState{Configured: true, Ahead: 1} }, false, "ahead of upstream"},
 		{"up to date", func(r *domain.Repository) { r.Upstream.Value.Behind = 0 }, false, "already up to date"},
+		{"upstream commit unknown", func(r *domain.Repository) { r.Upstream.Value.CommitID = "" }, false, "upstream commit is unknown"},
 		{"busy", func(*domain.Repository) {}, true, "another operation or lazygit session is active"},
 	}
 	for _, tc := range tests {
@@ -64,6 +65,7 @@ type fakeGit struct {
 	mu         sync.Mutex
 	inspection domain.Inspection
 	merged     int
+	target     string
 	fetched    []string
 }
 
@@ -71,10 +73,11 @@ func (f *fakeGit) Inspect(context.Context, domain.Location, git.InspectOptions) 
 	return f.inspection, nil
 }
 
-func (f *fakeGit) MergeFastForwardOnly(context.Context, domain.Location) error {
+func (f *fakeGit) MergeFastForwardOnly(_ context.Context, _ domain.Location, target string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.merged++
+	f.target = target
 	return nil
 }
 
@@ -113,8 +116,8 @@ func TestUpdateJobRechecksBeforeMerge(t *testing.T) {
 
 	f.inspection.Worktree = r.Worktree
 	ev = runJobs(t, UpdateJobs(f, []domain.Repository{r}, []UpdateCandidate{{Repository: r}}, time.Second))
-	if ev[0].Result.Status != domain.StatusSucceeded || f.merged != 1 {
-		t.Fatalf("eligible repository must be merged: %+v merged=%d", ev[0].Result, f.merged)
+	if ev[0].Result.Status != domain.StatusSucceeded || f.merged != 1 || f.target != "up1" {
+		t.Fatalf("eligible repository must be merged to the previewed upstream commit: %+v merged=%d target=%q", ev[0].Result, f.merged, f.target)
 	}
 }
 
@@ -124,7 +127,8 @@ func TestUpdateJobSkipsStateChangedSincePreview(t *testing.T) {
 		mutate func(in *domain.Inspection)
 		want   string
 	}{
-		{"upstream moved", func(in *domain.Inspection) { in.Upstream.Value.Behind = 3 }, "upstream moved"},
+		{"upstream moved", func(in *domain.Inspection) { in.Upstream.Value.CommitID, in.Upstream.Value.Behind = "up2", 3 }, "upstream moved"},
+		{"upstream rewritten with the same distance", func(in *domain.Inspection) { in.Upstream.Value.CommitID = "up2" }, "upstream moved"},
 		{"branch switched", func(in *domain.Inspection) { in.Head.Value.Branch = "release" }, "branch changed"},
 		{"HEAD moved", func(in *domain.Inspection) { in.Head.Value.CommitID = "def" }, "HEAD moved"},
 		{"upstream changed", func(in *domain.Inspection) { in.Upstream.Value.Ref = "fork/main" }, "upstream changed"},

@@ -333,7 +333,10 @@ func TestFetchAndFastForward(t *testing.T) {
 	if in.Upstream.Value.Behind != 1 || in.FetchHead.Value == nil {
 		t.Fatalf("after fetch: %+v fetch=%v", in.Upstream.Value, in.FetchHead.Value)
 	}
-	if err := c.MergeFastForwardOnly(context.Background(), loc); err != nil {
+	if want := tu.Git(t, clone, "rev-parse", "@{upstream}"); in.Upstream.Value.CommitID != want {
+		t.Fatalf("upstream commit = %q, want %q", in.Upstream.Value.CommitID, want)
+	}
+	if err := c.MergeFastForwardOnly(context.Background(), loc, in.Upstream.Value.CommitID); err != nil {
 		t.Fatal(err)
 	}
 	if u := inspect(t, c, loc).Upstream.Value; u.Behind != 0 || u.Ahead != 0 {
@@ -346,14 +349,64 @@ func TestFetchAndFastForward(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := tu.Git(t, clone, "rev-parse", "HEAD")
-	if err := c.MergeFastForwardOnly(context.Background(), loc); err == nil {
+	target := inspect(t, c, loc).Upstream.Value.CommitID
+	if err := c.MergeFastForwardOnly(context.Background(), loc, target); err == nil {
 		t.Fatal("divergence must be rejected")
 	}
 	if tu.Git(t, clone, "rev-parse", "HEAD") != head {
 		t.Fatal("HEAD changed although the merge was rejected")
 	}
-	if code := git.ExitCode(c.MergeFastForwardOnly(context.Background(), loc)); code == nil || *code == 0 {
+	if code := git.ExitCode(c.MergeFastForwardOnly(context.Background(), loc, target)); code == nil || *code == 0 {
 		t.Fatal("expected a non-zero exit code")
+	}
+	if err := c.MergeFastForwardOnly(context.Background(), loc, "@{upstream}"); err == nil || git.ExitCode(err) != nil {
+		t.Fatalf("a merge target that is not an object name must be rejected without running Git: %v", err)
+	}
+}
+
+// TestFastForwardStopsAtPreviewedCommit verifies that the update applies the
+// upstream commit read during inspection, not a later state of the upstream.
+func TestFastForwardStopsAtPreviewedCommit(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	loc := validate(t, c, clone)
+
+	tu.Commit(t, origin, "a.txt", "a\n", "previewed")
+	tu.Git(t, clone, "fetch", "-q")
+	previewed := inspect(t, c, loc).Upstream.Value.CommitID
+	tu.Commit(t, origin, "b.txt", "b\n", "fetched later")
+	tu.Git(t, clone, "fetch", "-q")
+	if err := c.MergeFastForwardOnly(context.Background(), loc, previewed); err != nil {
+		t.Fatal(err)
+	}
+	if head := tu.Git(t, clone, "rev-parse", "HEAD"); head != previewed {
+		t.Fatalf("HEAD = %s, want the previewed commit %s", head, previewed)
+	}
+}
+
+func TestInspectReadsLocalUpstreamCommit(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	repo := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "repo"))
+	tu.Git(t, repo, "checkout", "-q", "-b", "topic")
+	tu.Git(t, repo, "branch", "-q", "--set-upstream-to=main")
+	tu.Git(t, repo, "checkout", "-q", "main")
+	tu.Commit(t, repo, "m.txt", "m\n", "main moves")
+	tu.Git(t, repo, "checkout", "-q", "topic")
+	loc := validate(t, c, repo)
+	want := tu.Git(t, repo, "rev-parse", "main")
+	for _, branches := range []bool{true, false} {
+		in, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: branches})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u := in.Upstream.Value; u.Ref != "main" || u.Behind != 1 || u.CommitID != want {
+			t.Fatalf("branches=%v: upstream = %+v, want commit %s", branches, u, want)
+		}
 	}
 }
 
@@ -375,7 +428,7 @@ func TestFastForwardKeepsIgnoredFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	head := tu.Git(t, clone, "rev-parse", "HEAD")
-	if err := c.MergeFastForwardOnly(context.Background(), loc); err == nil {
+	if err := c.MergeFastForwardOnly(context.Background(), loc, inspect(t, c, loc).Upstream.Value.CommitID); err == nil {
 		t.Fatal("a fast-forward that overwrites an ignored file must fail")
 	}
 	if got, _ := os.ReadFile(filepath.Join(clone, "local.conf")); string(got) != "local\n" {
