@@ -356,9 +356,16 @@ func (m *Model) otherBranchLines(r *domain.Repository) []string {
 	return out
 }
 
-func (m *Model) branchSegs(r *domain.Repository) []seg {
+// branchSegs names the checked-out branch, or the commit of a detached HEAD.
+// The table column is titled, so only the detail panel adds the branch
+// symbol.
+func (m *Model) branchSegs(r *domain.Repository, symbol bool) []seg {
 	if !r.IsAvailable() || !r.Head.Valid {
 		return []seg{{"–", m.theme.dim}}
+	}
+	prefix := ""
+	if symbol {
+		prefix = m.icons.branch
 	}
 	h := r.Head.Value
 	if h.Detached {
@@ -366,9 +373,9 @@ func (m *Model) branchSegs(r *domain.Repository) []seg {
 		if len(h.CommitID) >= 7 {
 			id = h.CommitID[:7]
 		}
-		return []seg{{m.icons.branch + "(" + id + ")", m.theme.warn}}
+		return []seg{{prefix + "(" + id + ")", m.theme.warn}}
 	}
-	return []seg{{m.icons.branch + h.Branch, m.theme.branch}}
+	return []seg{{prefix + h.Branch, m.theme.branch}}
 }
 
 func (m *Model) stateText(r *domain.Repository) string    { return plain(m.stateSegs(r)) }
