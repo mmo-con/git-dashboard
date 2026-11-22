@@ -149,7 +149,7 @@ with the branch format
 
 **Fetch**, once per store: `git -C <root> fetch --all [--prune]`.
 
-**Update**: `git -C <root> merge --ff-only --no-autostash @{upstream}` (see 4.2).
+**Update**: `git -C <root> merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` (see 4.2).
 
 ### 3.3 Parsing rules
 
@@ -226,17 +226,22 @@ confirmation states how many marked targets are hidden.
 A repository is eligible only if every condition holds:
 
 - no staged, modified, deleted, renamed, or conflicting entries (untracked
-  files do not block, because Git refuses to overwrite them);
+  and ignored files do not block; the update never overwrites them, see
+  below);
 - no merge, rebase, cherry-pick, revert, or bisect in progress;
 - HEAD is a local branch with commits, with an upstream that still exists;
 - the branch is behind and not ahead of its upstream;
 - no other mutating job and no interactive session is active for its store.
 
-The update runs `merge --ff-only --no-autostash @{upstream}` instead of
+The update runs `merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` instead of
 `pull --ff-only`: it applies exactly the state shown in the preview because
 it does not contact the network, it is independent of `pull.*`
 configuration, and `--no-autostash` guarantees that no stash is created even
-with `merge.autoStash`. Every condition is checked again under the store lock
+with `merge.autoStash`. Git refuses to overwrite untracked files on its own,
+but by default replaces ignored files, such as a local configuration that the
+upstream starts to track; `--no-overwrite-ignore` makes such a collision fail
+like any other, so the repository stays on the worklist with Git's message
+and no file or branch is changed. Every condition is checked again under the store lock
 immediately before the merge; a changed repository is skipped with a reason.
 Git Dashboard never creates a merge commit, a rebase, or a stash.
 
@@ -473,7 +478,7 @@ The concrete keys, symbols, and filters are listed in
 | Families explicit, never derived from directories | predictable grouping |
 | Linked worktrees as rows, grouped into stores | separate state per worktree, shared locks and fetches per store |
 | Last fetch time from `FETCH_HEAD` | counts fetches from any tool |
-| `merge --ff-only --no-autostash @{upstream}` | see 4.2 |
+| `merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` | see 4.2 |
 | No dialog opens on asynchronous completion | see 4.2 |
 | Other branches reported only when they need attention | see 4.4 |
 
