@@ -289,7 +289,11 @@ func TestBatchEventsAreApplied(t *testing.T) {
 		t.Fatal("batch must be finished")
 	}
 	if got := m.upstreamText(m.repo(r.ID)); got != "✗ fetch failed" {
-		t.Fatalf("upstream column = %q", got)
+		t.Fatalf("upstream = %q", got)
+	}
+	m.repo(r.ID).Availability = domain.Available
+	if got := m.stateText(m.repo(r.ID)); !strings.HasPrefix(got, "✗ fetch failed") {
+		t.Fatalf("state column = %q", got)
 	}
 	if !m.messageErr {
 		t.Fatal("failed batch must be reported as an error")
@@ -307,43 +311,62 @@ func TestStaleInspectionIsIgnored(t *testing.T) {
 	}
 }
 
+// countText joins the count cells of r with "|".
+func countText(m *Model, r *domain.Repository) string {
+	var out []string
+	for _, c := range m.countSegs(r) {
+		out = append(out, plain(c))
+	}
+	return strings.Join(out, "|")
+}
+
 func TestStatusTexts(t *testing.T) {
 	m := newModel(t)
 	r := repo("x", "", false)
 	r.Availability = domain.Available
 	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
 	r.Operation = domain.KnownValue(domain.Merging)
-	r.Worktree = domain.KnownValue(domain.WorktreeState{Conflicts: 1, Staged: 2, Modified: 3, Untracked: 4})
+	r.Worktree = domain.KnownValue(domain.WorktreeState{Conflicts: 1, Staged: 2, Modified: 3, Deleted: 1, Untracked: 4, UntrackedChecked: true})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ahead: 1, Behind: 2})
 	r.ExpectedRemote = &domain.ExpectedRemote{URL: "git@a:b.git"}
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:c.git"}})
-	if got := m.statusText(&r); got != "merging  ✘1  ✚2  ●3  ?4  ≠remote" {
-		t.Errorf("status = %q", got)
+	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip"}})
+	if got := m.stateText(&r); got != "merging  ✘1 conflicts  diverged  ≠remote  ⎇1" {
+		t.Errorf("state = %q", got)
+	}
+	if got := countText(m, &r); got != "2|4|4|1|2" {
+		t.Errorf("counts = %q; modified includes deletions", got)
 	}
 	if got := m.upstreamText(&r); got != "↑1 ↓2 diverged" {
 		t.Errorf("upstream = %q", got)
 	}
+
 	r.Operation = domain.KnownValue(domain.NoOperation)
-	r.ExpectedRemote = nil
-	r.Worktree = domain.KnownValue(domain.WorktreeState{UntrackedChecked: true})
-	if got := m.statusText(&r); got != "✓" {
-		t.Errorf("a clean worktree shows only the symbol, like the upstream column: %q", got)
+	r.ExpectedRemote, r.Branches = nil, domain.Known[[]domain.BranchState]{}
+	r.Worktree = domain.KnownValue(domain.WorktreeState{})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "#–|–|off|–|–" {
+		t.Errorf("a healthy repository has no state, known zeros are dashes, and unchecked untracked files are off: %q", got)
+	}
+	r.Upstream = domain.KnownValue(domain.UpstreamState{})
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "∅ no upstream#–|–|off||" {
+		t.Errorf("without an upstream, ahead and behind do not apply: %q", got)
 	}
 	r.Worktree = domain.Known[domain.WorktreeState]{}
-	if got := m.statusText(&r); got != "? unknown" {
-		t.Errorf("unknown state must not be shown as clean: %q", got)
+	r.Upstream = domain.Known[domain.UpstreamState]{}
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "? unknown#?|?|?|?|?" {
+		t.Errorf("unknown state must not be shown as zero: %q", got)
 	}
 	r.Availability = domain.Missing
-	if got := m.statusText(&r); got != "✗ missing" {
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "✗ missing#||||" {
 		t.Errorf("missing = %q", got)
 	}
 
 	m.icons = iconSet("ascii")
 	r.Availability = domain.Available
-	r.Worktree = domain.KnownValue(domain.WorktreeState{Modified: 1})
-	r.Operation = domain.KnownValue(domain.NoOperation)
-	r.ExpectedRemote = nil
-	if got := m.statusText(&r) + " | " + m.upstreamText(&r); got != "*1 | ^1 v2 diverged" {
+	r.Worktree = domain.KnownValue(domain.WorktreeState{Modified: 1, UntrackedChecked: true})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Gone: true})
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "- upstream gone#–|1|–||" {
 		t.Errorf("ascii = %q", got)
 	}
 }
@@ -607,7 +630,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	var bs []domain.BranchState
 	bs = append(bs, domain.BranchState{Name: "main", Upstream: "origin/main", Behind: 2, CommitTime: time.Now()})
 	if got := plain(m.branchesMarker(&domain.Repository{Availability: domain.Available,
-		Branches: domain.KnownValue(bs)})); got != " │ ⎇1" {
+		Branches: domain.KnownValue(bs)})); got != "⎇1" {
 		t.Fatalf("marker = %q", got)
 	}
 	for i := 0; i < 11; i++ {
@@ -705,23 +728,38 @@ func TestOperationsKeepGroupTitleWhenScrolled(t *testing.T) {
 
 func TestColumnsFollowContent(t *testing.T) {
 	// The longest name, "Engine Portal" and a long branch fit without
-	// truncation; the remaining space is not given to the name column.
-	natural := []int{0, 24, 13, 26, 7, 18, 4}
-	cols := columns(140, natural)
-	for i, want := range []int{3, 24, 13, 26, 9, 18, 6} {
+	// truncation; the remaining space is not given to the name column. Count
+	// columns are as wide as their full titles.
+	ic := iconSet("unicode")
+	natural := []int{0, 24, 13, 26, 7, 1, 1, 1, 2, 1, 4}
+	cols := columns(160, natural, ic, false)
+	for i, want := range []int{3, 24, 13, 26, 16, 6, 8, 9, 5, 6, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
 	}
-	// If space is short, the table still fits and keeps every column visible.
+	if !cols[colStaged].right || cols[colName].right {
+		t.Error("only count columns are right-aligned")
+	}
+	// If space is short, count columns switch to their symbols, the table
+	// still fits, and the state shrinks last.
 	for _, iw := range []int{60, 80, 100} {
-		cols := columns(iw, natural)
+		cols := columns(iw, natural, ic, false)
 		if w := tableWidth(cols); w > iw {
 			t.Errorf("iw %d: table width %d", iw, w)
 		}
-		if cols[colStatus].width < 6 || cols[colUpstream].width < 12 {
-			t.Errorf("iw %d: status and upstream shrink last: %+v", iw, cols)
+		if cols[colStaged].title != "✚" || cols[colBehind].title != "↓" || cols[colAhead].width != 2 {
+			t.Errorf("iw %d: count columns must use their symbols: %+v", iw, cols)
 		}
+		if cols[colState].width < 6 {
+			t.Errorf("iw %d: state shrinks last: %+v", iw, cols)
+		}
+	}
+	// The tree names the family in its family rows, so the column is hidden
+	// and its space goes to the full count titles.
+	cols = columns(120, natural, ic, true)
+	if !cols[colFamily].hidden || cols[colStaged].title != "Staged" || tableWidth(cols) > 120 {
+		t.Errorf("tree: %+v", cols)
 	}
 }
 

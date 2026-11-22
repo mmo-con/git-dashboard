@@ -432,8 +432,10 @@ The concrete keys, symbols, and filters are listed in
 
 - lazygit-style panels: rounded borders with the title in the top border and
   secondary information in the bottom border. Table and detail panel sit side
-  by side from 130 columns, otherwise stacked. Dialogs are centered over a
-  dimmed copy of the main view.
+  by side from 130 columns, otherwise stacked; beside the table, the detail
+  panel takes 40 % of the width and at most 70 columns, so wide terminals
+  give the space to the table. Dialogs are centered over a dimmed copy of
+  the main view.
 - **Color is never the only carrier of information.** Every state has a
   symbol with a count or text, and the help view has a legend. Colors apply
   per cell, so problems stand out and healthy rows stay quiet; success has
@@ -449,8 +451,17 @@ The concrete keys, symbols, and filters are listed in
 - The detail panel puts branch, worktree, and errors first, because a small
   panel is cut off at the bottom; it shortens the other branches list before
   dropping section titles.
+- Every count has its own column (staged, modified, untracked, ahead,
+  behind), so the same state can be compared down the table, and a cell
+  needs no symbol. A known zero is `–`, an unknown value `?`, and a count
+  that does not apply stays empty, so neither looks like a clean state.
+  Findings without a count, such as conflicts, an operation in progress, or
+  a missing upstream, share one State column with text, which is empty for
+  a repository without findings.
 - Column widths follow the content of all visible rows, so the table does not
-  shift while scrolling; status and upstream shrink last.
+  shift while scrolling; the State column reserves room for transient states
+  and shrinks last. If the full titles of the count columns do not fit, they
+  are replaced by their symbols instead of squeezing names and branches.
 - The operations view groups rows by status; when it scrolls, the title of
   the first shown group stays visible, because rows carry their status only
   through their group.

@@ -2,8 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/mmo-con/git-dashboard/internal/app"
 	"github.com/mmo-con/git-dashboard/internal/domain"
@@ -13,51 +16,115 @@ func loaded(r *domain.Repository) bool {
 	return !r.Inspection.FinishedAt.IsZero()
 }
 
-// statusSegs describes the worktree. Every symbol carries a count or text, so
-// color is never the only carrier of information.
-func (m *Model) statusSegs(r *domain.Repository) []seg {
+// stateSegs describes what the count columns cannot show: unavailable
+// entries, loading and running operations, unknown state, conflicts and
+// operations in progress, the upstream relation, a remote mismatch, and other
+// branches. It is empty for a repository without findings. Every symbol
+// carries a count or text, so color is never the only carrier of information.
+func (m *Model) stateSegs(r *domain.Repository) []seg {
 	t, ic := m.theme, m.icons
 	if !r.IsAvailable() {
 		return []seg{{ic.unavailable + " " + r.Availability.String(), t.err}}
 	}
-	if !loaded(r) {
-		return []seg{{m.spinnerFrame(), t.dim}}
-	}
-	if !r.Worktree.Valid {
-		return []seg{{"? unknown", t.warn}}
-	}
 	var out []seg
-	add := func(s seg) {
+	add := func(ss ...seg) {
+		if len(ss) == 0 {
+			return
+		}
 		if len(out) > 0 {
 			out = append(out, seg{"  ", t.plain})
 		}
-		out = append(out, s)
+		out = append(out, ss...)
+	}
+	if op, status := m.runningOp(r); op != "" {
+		if status == domain.StatusRunning {
+			verb := map[domain.OperationType]string{domain.OperationFetch: "fetching", domain.OperationUpdate: "updating"}[op]
+			add(seg{m.spinnerFrame() + " " + verb, t.key})
+		} else {
+			add(seg{ic.queued + " queued", t.dim})
+		}
+	} else if last := m.lastOp(r.ID); last != nil && last.Operation == domain.OperationFetch && last.Status == domain.StatusFailed {
+		add(seg{ic.failed + " fetch failed", t.err})
+	}
+	if !loaded(r) {
+		if len(out) == 0 {
+			add(seg{m.spinnerFrame(), t.dim})
+		}
+		return out
+	}
+	if !r.Worktree.Valid || !r.Head.Valid || !r.Upstream.Valid {
+		add(seg{"? unknown", t.warn})
 	}
 	if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
 		add(seg{r.Operation.Value.String(), t.err.Bold(true)})
 	}
-	w := r.Worktree.Value
-	for _, c := range []struct {
-		icon string
-		n    int
-		seg  seg
-	}{
-		{ic.conflict, w.Conflicts, seg{style: t.err}},
-		{ic.staged, w.Staged, seg{style: t.ahead}},
-		{ic.modified, w.Modified, seg{style: t.dirty}},
-		{ic.deleted, w.Deleted, seg{style: t.dirty}},
-		{ic.untracked, w.Untracked, seg{style: t.dim}},
-	} {
-		if c.n > 0 {
-			add(seg{fmt.Sprintf("%s%d", c.icon, c.n), c.seg.style})
-		}
+	if r.Worktree.Valid && r.Worktree.Value.Conflicts > 0 {
+		add(seg{fmt.Sprintf("%s%d conflicts", ic.conflict, r.Worktree.Value.Conflicts), t.err})
 	}
-	if len(out) == 0 {
-		add(seg{ic.clean, t.clean})
+	if r.Head.Valid && r.Upstream.Valid {
+		h, u := r.Head.Value, r.Upstream.Value
+		switch {
+		case h.Unborn:
+			add(seg{"no commits", t.dim})
+		case h.Detached:
+			add(seg{ic.detached + " detached", t.warn})
+		case !u.Configured:
+			add(seg{ic.noUpstream + " no upstream", t.dim})
+		case u.Gone:
+			add(seg{ic.noUpstream + " upstream gone", t.warn})
+		case u.Diverged():
+			add(seg{"diverged", t.err})
+		}
 	}
 	if r.RemoteMismatch() {
 		add(seg{ic.mismatch + "remote", t.warn})
 	}
+	add(m.branchesMarker(r)...)
+	return out
+}
+
+// countSegs returns the cells of the count columns: staged, modified
+// (including deletions in the worktree), untracked, ahead, and behind. "–" is
+// a known zero and "?" an unknown value. A cell stays empty while the
+// repository loads and where the count does not apply, such as ahead and
+// behind without an upstream; the state column names the reason.
+func (m *Model) countSegs(r *domain.Repository) [][]seg {
+	t := m.theme
+	out := make([][]seg, colBehind-colStaged+1)
+	if !r.IsAvailable() || !loaded(r) {
+		return out
+	}
+	num := func(n int, style lipgloss.Style) []seg {
+		if n == 0 {
+			return []seg{{"–", t.dim}}
+		}
+		return []seg{{strconv.Itoa(n), style}}
+	}
+	unknown := []seg{{"?", t.warn}}
+	if r.Worktree.Valid {
+		w := r.Worktree.Value
+		out[0] = num(w.Staged, t.ahead)
+		out[1] = num(w.Modified+w.Deleted, t.dirty)
+		out[2] = num(w.Untracked, t.dim)
+		if !w.UntrackedChecked {
+			out[2] = []seg{{"off", t.dim}}
+		}
+	} else {
+		out[0], out[1], out[2] = unknown, unknown, unknown
+	}
+	if !r.Head.Valid || !r.Upstream.Valid {
+		out[3], out[4] = unknown, unknown
+		return out
+	}
+	h, u := r.Head.Value, r.Upstream.Value
+	if h.Unborn || h.Detached || !u.Configured || u.Gone {
+		return out
+	}
+	ahead, behind := t.ahead, t.behind
+	if u.Diverged() {
+		ahead, behind = t.err, t.err
+	}
+	out[3], out[4] = num(u.Ahead, ahead), num(u.Behind, behind)
 	return out
 }
 
@@ -126,7 +193,7 @@ func (m *Model) branchesMarker(r *domain.Repository) []seg {
 	if r.UnpublishedBranches() > 0 {
 		style = m.theme.warn
 	}
-	return []seg{{" │ ", m.theme.dim}, {fmt.Sprintf("%s%d", m.icons.branches, n), style}}
+	return []seg{{fmt.Sprintf("%s%d", m.icons.branches, n), style}}
 }
 
 // healthLevel is the most important state of a repository, ordered by
@@ -296,7 +363,7 @@ func (m *Model) branchSegs(r *domain.Repository) []seg {
 	return []seg{{m.icons.branch + h.Branch, m.theme.branch}}
 }
 
-func (m *Model) statusText(r *domain.Repository) string   { return plain(m.statusSegs(r)) }
+func (m *Model) stateText(r *domain.Repository) string    { return plain(m.stateSegs(r)) }
 func (m *Model) upstreamText(r *domain.Repository) string { return plain(m.upstreamSegs(r)) }
 
 func (m *Model) spinnerFrame() string {
