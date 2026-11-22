@@ -14,7 +14,7 @@ import (
 	tu "github.com/mmo-con/git-dashboard/internal/testutil"
 )
 
-// TestInspectionPerformance verifies the target from the design: 200
+// TestInspectionPerformance verifies the target from docs/architecture.md: 200
 // repositories are inspected within 2 seconds. Repository creation is not
 // measured. Shared CI runners are sometimes slowed down as a whole, so the
 // measurement is repeated up to three times and the test passes as soon as

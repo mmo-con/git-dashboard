@@ -16,8 +16,8 @@ repository](docs/images/dashboard-tree.png)
 *Shown with `icons = "nerd"` and `preset = "dracula"`; all repositories are
 fictional.*
 
-The design and the decisions behind it are documented in
-[docs/design.md](docs/design.md).
+The architecture and the decisions behind it are documented in
+[docs/architecture.md](docs/architecture.md).
 
 ## Features
 
