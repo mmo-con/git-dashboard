@@ -36,10 +36,11 @@ The architecture and the decisions behind it are documented in
 - Concurrent fetch of the visible or marked repositories with progress,
   cancellation, retry, and an interactive retry in the terminal for
   repositories that need a passphrase.
-- Safe update: `git merge --ff-only --no-autostash @{upstream}` for eligible
-  repositories only, with a preview that explains every skip. The operations
-  view then serves as a worklist: open blocked repositories in lazygit, see
-  which blockers are resolved, and continue with a new preview.
+- Safe update: `git merge --ff-only --no-autostash --no-overwrite-ignore
+  @{upstream}` for eligible repositories only, with a preview that explains
+  every skip. The operations view then serves as a worklist: open blocked
+  repositories in lazygit, see which blockers are resolved, and continue with
+  a new preview.
 - Configurable launchers for a shell, an editor, or a file manager.
 - lazygit-style panels with titled borders, per-cell colors, compact status
   symbols, spinners and progress bars, dialogs as overlays, and header

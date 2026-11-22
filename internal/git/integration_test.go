@@ -356,6 +356,35 @@ func TestFetchAndFastForward(t *testing.T) {
 	}
 }
 
+func TestFastForwardKeepsIgnoredFiles(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Commit(t, origin, ".gitignore", "local.conf\n", "ignore local.conf")
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	loc := validate(t, c, clone)
+
+	tu.WriteFile(t, filepath.Join(origin, "local.conf"), "upstream\n")
+	tu.Git(t, origin, "add", "-f", "local.conf")
+	tu.Git(t, origin, "commit", "-q", "-m", "track local.conf")
+	tu.WriteFile(t, filepath.Join(clone, "local.conf"), "local\n")
+	if err := c.Fetch(context.Background(), loc, git.FetchOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	head := tu.Git(t, clone, "rev-parse", "HEAD")
+	if err := c.MergeFastForwardOnly(context.Background(), loc); err == nil {
+		t.Fatal("a fast-forward that overwrites an ignored file must fail")
+	}
+	if got, _ := os.ReadFile(filepath.Join(clone, "local.conf")); string(got) != "local\n" {
+		t.Fatalf("ignored file was overwritten: %q", got)
+	}
+	if tu.Git(t, clone, "rev-parse", "HEAD") != head {
+		t.Fatal("HEAD changed although the merge was rejected")
+	}
+}
+
 func TestFetchFailureCapturesStderr(t *testing.T) {
 	tu.IsolateGit(t)
 	c := git.New("git")
