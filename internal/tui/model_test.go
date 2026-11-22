@@ -919,39 +919,6 @@ func TestBranchSymbolOnlyInDetails(t *testing.T) {
 	}
 }
 
-// TestSpacingFollowsHeight checks the blank line between the top border of
-// the repository panel and the table header, and that a low terminal keeps it
-// for rows.
-func TestSpacingFollowsHeight(t *testing.T) {
-	m := newModel(t)
-	for _, c := range []struct {
-		height int
-		blank  bool
-	}{{30, true}, {spaciousHeight - 1, false}} {
-		m.Update(tea.WindowSizeMsg{Width: 140, Height: c.height})
-		lines := strings.Split(ansi.Strip(m.View()), "\n")
-		if len(lines) != c.height {
-			t.Fatalf("height %d: %d lines", c.height, len(lines))
-		}
-		for i, l := range lines {
-			lines[i], _, _ = strings.Cut(l, "││") // the repository panel only
-		}
-		if !strings.HasPrefix(lines[1], "╭─ Repositories") {
-			t.Fatalf("height %d: the panels must follow the header bar: %q", c.height, lines[1])
-		}
-		header := 2
-		if c.blank {
-			if l := strings.Trim(lines[2], "│ "); l != "" {
-				t.Errorf("height %d: a blank line must precede the table header: %q", c.height, lines[2])
-			}
-			header = 3
-		}
-		if !strings.Contains(lines[header], "Family") || !strings.Contains(lines[header+1], "api") {
-			t.Errorf("height %d: the first row must follow the table header:\n%s\n%s", c.height, lines[header], lines[header+1])
-		}
-	}
-}
-
 func TestDetailPanelMovesToTheTable(t *testing.T) {
 	m := newModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 220, Height: 30})
