@@ -61,10 +61,34 @@ write into the user interface.
 
 ## Installation
 
+Prebuilt archives for Linux and macOS (amd64 and arm64) are attached to every
+[release](https://github.com/mmo-con/git-dashboard/releases), together with
+`checksums.txt`. Set `VERSION` to the current release:
+
+```sh
+VERSION=v0.2.0
+NAME=git-dashboard_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
+BASE=https://github.com/mmo-con/git-dashboard/releases/download/$VERSION
+curl -LO "$BASE/$NAME.tar.gz" -LO "$BASE/checksums.txt"
+grep " $NAME.tar.gz" checksums.txt | sha256sum -c -   # macOS: shasum -a 256 -c -
+tar xzf "$NAME.tar.gz"
+install -m 755 "$NAME/git-dashboard" ~/.local/bin/    # any directory in PATH
+```
+
+The macOS binaries are not notarized. `curl` downloads run as they are; if
+you download an archive with a browser, macOS blocks the binary until you
+remove the quarantine attribute with
+`xattr -d com.apple.quarantine git-dashboard`.
+
+To build from source:
+
 ```sh
 make build            # builds ./bin/git-dashboard
 make install          # installs into $(go env GOPATH)/bin
 ```
+
+A first look needs no configuration: `git-dashboard ~/src` shows the
+repositories below `~/src`.
 
 ## Usage
 
