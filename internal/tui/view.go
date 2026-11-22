@@ -90,7 +90,7 @@ const (
 	colStaged
 	colModified
 	colUntracked
-	colStashes
+	colStashed
 	colAhead
 	colBehind
 	colCommit
@@ -104,7 +104,7 @@ var colSpecs = []colSpec{
 	colStaged:    {title: "Staged", min: 1, cap: 9, short: func(ic icons) string { return ic.staged }},
 	colModified:  {title: "Modified", min: 1, cap: 9, short: func(ic icons) string { return ic.modified }},
 	colUntracked: {title: "Untracked", min: 1, cap: 9, short: func(ic icons) string { return ic.untracked }},
-	colStashes:   {title: "Stashes", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
+	colStashed:   {title: "Stashed", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
 	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
 	colCommit:    {title: "Commit", min: 3, pref: 6, cap: 6},
@@ -703,7 +703,7 @@ func (m *Model) quickFilters() []quickFilter {
 		{"4", "is:diverged", "diverged", t.err},
 		{"5", "is:error", "errors", t.err},
 		{"6", "is:branches", "branches", t.warn},
-		{"7", "is:stashed", "stashes", t.warn},
+		{"7", "is:stashed", "stashed", t.warn},
 	}
 }
 
