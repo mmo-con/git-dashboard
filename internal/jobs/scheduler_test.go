@@ -43,6 +43,37 @@ func TestParallelismLimit(t *testing.T) {
 	}
 }
 
+// TestJobsUseTheirParallelism verifies that jobs actually run concurrently up
+// to the limit: each job waits until the limit is reached, so a scheduler that
+// serialized them would time out.
+func TestJobsUseTheirParallelism(t *testing.T) {
+	const limit = 3
+	s := NewScheduler(map[Kind]int{KindInspect: limit})
+	var running atomic.Int32
+	full := make(chan struct{})
+	var js []Job
+	for i := 0; i < 2*limit; i++ {
+		js = append(js, Job{Kind: KindInspect, RepositoryID: domain.RepositoryID(rune('a' + i)),
+			Run: func(context.Context) (any, error) {
+				if running.Add(1) == limit {
+					close(full)
+				}
+				select {
+				case <-full:
+				case <-time.After(5 * time.Second):
+					return nil, errors.New("jobs did not run concurrently")
+				}
+				return nil, nil
+			}})
+	}
+	s.Submit(js)
+	for _, e := range collect(t, s, len(js)) {
+		if e.Result.Error != nil {
+			t.Fatal(e.Result.Error)
+		}
+	}
+}
+
 // runConcurrent runs n fetch jobs of distinct stores and returns the peak
 // number of jobs that ran at the same time.
 func runConcurrent(t *testing.T, s *Scheduler, n int) int32 {

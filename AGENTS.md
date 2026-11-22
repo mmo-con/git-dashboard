@@ -12,7 +12,7 @@ section before changing Git integration, jobs, or safety behavior.
 make build              # ./bin/git-dashboard
 make lint               # go vet and gofmt check
 go test -race ./...     # all tests; CI also runs make coverage
-make perf               # performance test: 200 repositories within 2 seconds
+make perf               # local benchmark: 200 repositories within 2 seconds
 ```
 
 Run `make lint` and `go test -race ./...` before every commit.

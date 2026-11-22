@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -382,6 +383,62 @@ func TestFastForwardKeepsIgnoredFiles(t *testing.T) {
 	}
 	if tu.Git(t, clone, "rev-parse", "HEAD") != head {
 		t.Fatal("HEAD changed although the merge was rejected")
+	}
+}
+
+// countingGit returns a client whose Git executable logs one line per process
+// and then runs the real Git, and a function that returns and resets the count.
+func countingGit(t *testing.T) (*git.Client, func() int) {
+	t.Helper()
+	real, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	log := filepath.Join(dir, "log")
+	exe := filepath.Join(dir, "git")
+	script := fmt.Sprintf("#!/bin/sh\necho x >> '%s'\nexec '%s' \"$@\"\n", log, real)
+	if err := os.WriteFile(exe, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return git.New(exe), func() int {
+		data, _ := os.ReadFile(log)
+		os.Remove(log)
+		return strings.Count(string(data), "\n")
+	}
+}
+
+// TestProcessBudget guards the cost model in docs/architecture.md: one
+// validation process per candidate, and three processes per inspection, four
+// for a detached HEAD. Startup time grows with the number of processes, so
+// this replaces a wall-clock measurement that depends on the machine.
+func TestProcessBudget(t *testing.T) {
+	tu.IsolateGit(t)
+	c, processes := countingGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	tu.Git(t, clone, "branch", "feature")
+
+	loc := validate(t, c, clone)
+	if n := processes(); n != 1 {
+		t.Fatalf("validation started %d processes, want 1", n)
+	}
+	for _, branches := range []bool{true, false} {
+		if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: branches}); err != nil {
+			t.Fatal(err)
+		}
+		if n := processes(); n != 3 {
+			t.Fatalf("inspection (branches=%v) started %d processes, want 3", branches, n)
+		}
+	}
+	tu.Git(t, clone, "checkout", "-q", "--detach")
+	if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := processes(); n != 4 {
+		t.Fatalf("inspection of a detached HEAD started %d processes, want 4", n)
 	}
 }
 
