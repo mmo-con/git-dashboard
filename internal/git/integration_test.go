@@ -86,6 +86,40 @@ func TestInspectWorktreeStates(t *testing.T) {
 	}
 }
 
+func TestRecentCommits(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	repo := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "repo"))
+	tu.Commit(t, repo, "a.txt", "a\n", "add a")
+	tu.Commit(t, repo, "b.txt", "b\n", "add b")
+	tu.WriteFile(t, filepath.Join(repo, "c.txt"), "c\n")
+	tu.Git(t, repo, "add", "c.txt")
+	tu.Git(t, repo, "commit", "-q", "-m", "add c", "-m", "body line\nwith a newline")
+	tu.WriteFile(t, filepath.Join(repo, "HEAD"), "a file named like the ref\n")
+	loc := validate(t, c, repo)
+
+	commits, err := c.RecentCommits(context.Background(), loc, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var subjects []string
+	for _, cm := range commits {
+		subjects = append(subjects, cm.Subject)
+		if len(cm.ID) < 40 || cm.ShortID == "" || cm.Author != "Test" || cm.Time.IsZero() {
+			t.Fatalf("incomplete commit: %+v", cm)
+		}
+	}
+	if got := strings.Join(subjects, "|"); got != "add c|add b|add a" {
+		t.Fatalf("subjects = %q, want the newest three without bodies", got)
+	}
+	if commits[0].ID != tu.Git(t, repo, "rev-parse", "HEAD") {
+		t.Fatal("the history must start at HEAD")
+	}
+	if all, err := c.RecentCommits(context.Background(), loc, 10); err != nil || len(all) != 4 {
+		t.Fatalf("a short history returns every commit: %d %v", len(all), err)
+	}
+}
+
 func TestInspectStashes(t *testing.T) {
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())

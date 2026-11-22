@@ -41,6 +41,7 @@ type Interface interface {
 	Inspect(ctx context.Context, loc domain.Location, opts InspectOptions) (domain.Inspection, error)
 	Fetch(ctx context.Context, loc domain.Location, opts FetchOptions) error
 	MergeFastForwardOnly(ctx context.Context, loc domain.Location, target string) error
+	RecentCommits(ctx context.Context, loc domain.Location, n int) ([]domain.CommitSummary, error)
 }
 
 var _ Interface = (*Client)(nil)

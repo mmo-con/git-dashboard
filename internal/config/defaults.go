@@ -13,6 +13,10 @@ const (
 	DefaultLazygitCommand        = "lazygit"
 	DefaultUntracked             = "normal"
 	DefaultBranchesMaxAge        = 30 * 24 * time.Hour
+	DefaultDetailCommits         = 3
+	// MaxDetailCommits bounds [ui].detail_commits; the detail panel is not a
+	// history browser, lazygit is.
+	MaxDetailCommits = 20
 )
 
 // DefaultPinnedBranches are evaluated in every repository, regardless of age
@@ -38,7 +42,7 @@ func Default() *Config {
 			MaxAge:  DefaultBranchesMaxAge,
 		},
 		Lazygit: Lazygit{Command: DefaultLazygitCommand, Enabled: true},
-		UI:      UI{Icons: "unicode", View: "list", Theme: DefaultTheme()},
+		UI:      UI{Icons: "unicode", View: "list", DetailCommits: DefaultDetailCommits, Theme: DefaultTheme()},
 	}
 }
 

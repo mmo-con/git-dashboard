@@ -242,6 +242,13 @@ func build(f *file, baseDir string, getenv func(string) string) (*Config, error)
 			addErr("[ui].view must be \"list\" or \"tree\", not %q", f.UI.View)
 		}
 	}
+	if n := f.UI.DetailCommits; n != nil {
+		if *n < 1 || *n > MaxDetailCommits {
+			addErr("[ui].detail_commits must be between 1 and %d, not %d", MaxDetailCommits, *n)
+		} else {
+			cfg.UI.DetailCommits = *n
+		}
+	}
 	t := f.UI.Theme
 	if t.Preset != "" {
 		if p, ok := ThemePresets[t.Preset]; ok {

@@ -81,7 +81,9 @@ type Lazygit struct {
 type UI struct {
 	Icons string // "unicode", "nerd", or "ascii"
 	View  string // initial repository view: "list" or "tree"
-	Theme Theme
+	// DetailCommits is the number of recent commits in the detail panel.
+	DetailCommits int
+	Theme         Theme
 }
 
 // Theme holds colors: ANSI names, numbers 0-255, or #rrggbb.
@@ -164,9 +166,10 @@ type file struct {
 }
 
 type fileUI struct {
-	Icons string    `toml:"icons"`
-	View  string    `toml:"view"`
-	Theme fileTheme `toml:"theme"`
+	Icons         string    `toml:"icons"`
+	View          string    `toml:"view"`
+	DetailCommits *int      `toml:"detail_commits"`
+	Theme         fileTheme `toml:"theme"`
 }
 
 type fileTheme struct {
