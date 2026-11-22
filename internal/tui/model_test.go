@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -617,8 +618,88 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 		t.Fatalf("unpublished = %d", r.UnpublishedBranches())
 	}
 	lines := m.otherBranchLines(&r)
-	if len(lines) != 12 || !strings.Contains(lines[1], "↓2") || !strings.Contains(lines[11], "+2 more") {
+	if len(lines) != 12 || !strings.Contains(lines[0], "↓2") {
 		t.Fatalf("lines = %q", lines)
+	}
+	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
+		strings.Contains(v, "wip-9") || !strings.Contains(v, "+2 more") {
+		t.Fatalf("the detail panel lists at most %d other branches:\n%s", maxBranchLines, v)
+	}
+}
+
+// TestSmallDetailPanelShortensOtherBranchesFirst checks that many other
+// branches do not push the worktree state or an error out of the panel.
+func TestSmallDetailPanelShortensOtherBranchesFirst(t *testing.T) {
+	m := newModel(t)
+	r := &m.repos[m.index[m.current().ID]]
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	r.Operation = domain.KnownValue(domain.Merging)
+	var bs []domain.BranchState
+	for i := 0; i < 10; i++ {
+		bs = append(bs, domain.BranchState{Name: fmt.Sprintf("wip-%d", i), CommitTime: time.Now()})
+	}
+	r.Branches = domain.KnownValue(bs)
+	m.lastOps[r.ID] = domain.OperationResult{Operation: domain.OperationFetch, Status: domain.StatusFailed, Error: errors.New("offline")}
+	v := strings.Join(m.detailsBox(120, 12), "\n")
+	for _, want := range []string{"merging in progress", "offline", "wip-0", "more"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("a small detail panel must show %q:\n%s", want, v)
+		}
+	}
+	if strings.Contains(v, "wip-9") {
+		t.Errorf("the other branches must be shortened:\n%s", v)
+	}
+}
+
+// TestRefetchPreviewSkipsFailedFetches checks that a failed fetch is the skip
+// reason even if the old state looks up to date, so the repository stays on
+// the worklist of the update.
+func TestRefetchPreviewSkipsFailedFetches(t *testing.T) {
+	m := newModel(t)
+	r := &m.repos[0]
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	r.Worktree.Value.Modified = 0
+	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{{job: jobs.Job{StoreID: r.StoreID},
+		result: domain.OperationResult{Status: domain.StatusFailed, Error: errors.New("remote unavailable")}}}}
+	m.refetch = &refetch{batch: m.batch, targets: []domain.RepositoryID{r.ID}}
+	m.finishRefetch()
+	if m.mode != modeNormal || !m.refetch.ready {
+		t.Fatalf("the preview must not open on its own: mode=%v", m.mode)
+	}
+	keys(m, "b", "u")
+	if m.mode != modeUpdatePreview || len(m.updateSkip) != 1 || m.updateSkip[0].SkipReason != "fetch failed: remote unavailable" {
+		t.Fatalf("skip = %+v", m.updateSkip)
+	}
+}
+
+func TestMonochromeSelectionKeepsDefaultColorsReadable(t *testing.T) {
+	th := newTheme(config.ThemePresets["monochrome"])
+	for _, s := range []lipgloss.Style{th.err, th.key, th.branch, th.dim} {
+		if fg := th.onSelected(s).GetForeground(); fg != th.selectedFg {
+			t.Errorf("the default foreground is not readable on the selected background, got %v", fg)
+		}
+	}
+}
+
+func TestOperationsKeepGroupTitleWhenScrolled(t *testing.T) {
+	m := newModel(t)
+	var rows []opRow
+	for i := 0; i < 40; i++ {
+		rows = append(rows, opRow{job: jobs.Job{RepositoryID: domain.RepositoryID(fmt.Sprint(i))},
+			result: domain.OperationResult{Status: domain.StatusCancelled}})
+	}
+	m.batch = &batch{op: domain.OperationFetch, rows: rows}
+	keys(m, "b")
+	for i := 0; i < 30; i++ {
+		keys(m, "j")
+	}
+	if v := m.View(); !strings.Contains(v, "CANCELLED 40") || !strings.Contains(v, "– 30 ") {
+		t.Fatalf("the title of the shown group must stay visible:\n%s", v)
 	}
 }
 

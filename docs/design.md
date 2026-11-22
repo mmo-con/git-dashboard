@@ -441,7 +441,7 @@ The update deliberately uses `merge --ff-only` against the already fetched upstr
 - it is independent of `pull.rebase`, `pull.ff`, and other pull configuration;
 - `--no-autostash` guarantees that no stash is created even if `merge.autoStash` is configured.
 
-Users fetch first, either with `F` or with `f` in the preview. `f` fetches exactly the repositories of the preview and shows the progress in the operations view; once the fetch and the inspections that follow it are finished, the preview is computed again and reopened. Repositories whose fetch failed are skipped with the fetch error as reason. The fetch never updates on its own: the reopened preview must be confirmed like any other, and a cancelled fetch does not reopen it. The preview shows the age of the last fetch for every repository.
+Users fetch first, either with `F` or with `f` in the preview. `f` fetches exactly the repositories of the preview and shows the progress in the operations view; once the fetch and the inspections that follow it are finished, `u` in the operations view computes the preview again for the same repositories and opens it. The preview never opens on its own, so that a key pressed for another view cannot confirm an update. Repositories whose fetch failed are skipped with the fetch error as reason, even if their old state looks up to date, so they stay on the worklist. The fetch never updates on its own: the new preview must be confirmed like any other, and a cancelled fetch offers no preview. The preview shows the age of the last fetch for every repository.
 
 Before execution, Git Dashboard shows:
 
@@ -1465,14 +1465,14 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 - The `Commit` column shows the age of the latest commit.
 - In the tree, repositories are connected to their family row by guide lines (`├─`, `└─`). Each family row, and the detail panel of a family row, summarizes the shown repositories by their health level, such as `✗1 error  ●2 dirty`, or shows `✓ all healthy`; every repository counts once, at its most important level.
 - The right side of the header shows a spinner while the inventory loads or repositories are inspected, and a progress bar while a batch runs. Rows of repositories with a running job show a spinner in the upstream column.
-- The footer shows only the most important key hints for the current mode and context, `?` lists all keys. With marks, fetch and update name the marked repositories and `A` clears the marks; on a family row `Enter` expands or collapses; an active text filter adds `Esc`. The operations view shows cancel while the batch runs, retry when it has failed rows, continue for a finished update, and the terminal retry for a selected failed fetch. Messages appear at the right end of the footer and disappear after 4 seconds (errors after 10 seconds); details remain available through `e` and `b`.
+- The footer shows only the most important key hints for the current mode and context, `?` lists all keys. With marks, fetch and update name the marked repositories and `A` clears the marks; on a family row `Enter` expands or collapses; an active text filter adds `Esc`. The operations view shows cancel while the batch runs, retry when it has failed rows, continue for a finished update, the update preview after a fetch started from the preview, and the terminal retry for a selected failed fetch. Messages appear at the right end of the footer and disappear after 4 seconds (errors after 10 seconds); details remain available through `e` and `b`.
 - Dialogs (help, errors, sorting, operations, confirmations, update preview, launchers) are centered boxes over a dimmed copy of the main view.
-- The operations view shows a progress bar with percentage and counts, and groups the repositories by status: running, failed, cancelled, skipped, queued, and completed. `j`/`k` follow this order; the selection stays on its repository when the repository moves to another group.
+- The operations view shows a progress bar with percentage and counts, and groups the repositories by status: running, failed, cancelled, skipped, queued, and completed. `j`/`k` follow this order; the selection stays on its repository when the repository moves to another group. When the list scrolls, the title of the first shown group stays visible, because the rows show their status only through their group.
 - Missing and otherwise unavailable entries keep their normal sort position and show their state in the status column.
 - A remote mismatch is shown as a short `≠remote` marker in the status column; the detail panel shows the configured and the actual URL.
 - Linked worktrees of the same store are listed in the detail panel.
 - The bottom border of the detail panel shows how the repository entered the inventory: `configured` for a `[[repositories]]` entry, or `discovered in <root>` with the discovery root.
-- The detail panel groups its content into titled sections: branch, other branches, worktree (nonzero counts only), last commit and fetch time, remotes, linked worktrees, and errors last. Labels and remote names are aligned. If the panel is too small, blank lines are dropped first, then the section titles.
+- The detail panel groups its content into titled sections: branch, worktree (nonzero counts only), and errors first, so they stay visible in a small panel, then other branches (at most ten), last commit and fetch time, remotes, and linked worktrees. Labels and remote names are aligned. If the panel is too small, blank lines are dropped first, then the other branches list is shortened, then the section titles are dropped.
 - Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. Columns are separated by three spaces, more than the two between the elements of a cell, so a cell never seems to continue into the next column; the cursor and mark stay one space before the name cell. If space is short, branch, name, and family shrink before status and upstream.
 - Colors, theme presets, and the symbol set are configurable in `[ui]` (see `docs/configuration.md`).
 
@@ -1508,7 +1508,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 | `u` | open safe-update preview for marked or visible repositories | 4 |
 | `Enter` | open the selected row in lazygit (operations view) | 4 |
 | `u` | continue a finished update batch with a new preview (operations view) | 4 |
-| `f` | fetch the repositories of the preview and reopen it (update preview) | 4 |
+| `f` | fetch the repositories of the preview; `u` in the operations view opens the new preview (update preview) | 4 |
 | `o` | open launcher menu | 5 |
 
 Input modes prevent conflicts between text entry and global shortcuts.
@@ -1540,7 +1540,7 @@ Color is never the only information carrier. Every state is expressed by a symbo
 | `≠remote` | remote mismatch | yellow |
 | `!` | health symbol: other attention, such as a remote mismatch or other branches | yellow, or magenta if no branch holds unpublished work |
 | `◆` | marked | cyan |
-| `▌` | cursor | cyan (`selected_accent`); the selected row uses a subtle background on which names and secondary text take the selected foreground, while semantic colors are kept |
+| `▌` | cursor | cyan (`selected_accent`); the selected row uses a subtle background on which names, secondary text, and text in the terminal's default color take the selected foreground, while other semantic colors are kept |
 
 Three symbol sets are available through `[ui].icons`: `unicode` (default), `nerd` for Nerd Font icons, and `ascii` for limited terminals. The `NO_COLOR` environment variable disables all colors.
 

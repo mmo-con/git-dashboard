@@ -50,7 +50,7 @@ var Bindings = []BindingGroup{
 	}},
 	{"Update preview", []Binding{
 		{"Enter / y", "start the update"},
-		{"f", "fetch, then show the preview again"},
+		{"f", "fetch; then u in the operations view"},
 	}},
 	{"Operations view", []Binding{
 		{"Enter", "open row in lazygit"},
