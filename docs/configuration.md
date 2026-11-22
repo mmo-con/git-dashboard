@@ -186,7 +186,7 @@ symbols and text.
 | `inactive_border` | `gray` | other panel borders |
 | `title` | `green` | application title |
 | `selected_background` | `237` | selected row |
-| `selected_foreground` | `bright-white` | names and secondary text in the selected row; semantic colors are kept |
+| `selected_foreground` | `bright-white` | names, secondary text, and text in the terminal's default color in the selected row; other semantic colors are kept |
 | `selected_accent` | `cyan` | cursor of the selected row |
 | `key` | `cyan` | key hints, marks, running operations |
 | `branch` | `cyan` | branch names |

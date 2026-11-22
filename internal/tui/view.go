@@ -362,12 +362,17 @@ const (
 	detailText detailKind = iota
 	detailBlank
 	detailSection
+	// detailBranch is a line of the other branches list, which is shortened
+	// before other content is dropped.
+	detailBranch
 )
 
 // details collects the lines of the detail panel, grouped into sections.
 type details struct {
 	lines []string
 	kinds []detailKind
+	// more renders the line that replaces n hidden other branches.
+	more func(n int) string
 }
 
 func (d *details) add(l string, k detailKind) {
@@ -386,25 +391,50 @@ func (d *details) section(title string, style lipgloss.Style) {
 	d.add(style.Render(strings.ToUpper(title)), detailSection)
 }
 
-// fit returns at most n lines. If the panel is too small, blank lines are
-// dropped first, then the section titles.
+// fit returns at most n lines if possible. At most maxBranchLines other
+// branches are listed. If the panel is too small, blank lines are dropped
+// first, then the other branches list is shortened, then the section titles
+// are dropped.
 func (d *details) fit(n int) []string {
-	keep := func(drop ...detailKind) []string {
+	total := 0
+	for _, k := range d.kinds {
+		if k == detailBranch {
+			total++
+		}
+	}
+	render := func(branches int, drop ...detailKind) []string {
 		var out []string
+		seen := 0
 		for i, l := range d.lines {
-			if !slices.Contains(drop, d.kinds[i]) {
+			k := d.kinds[i]
+			if k == detailBranch {
+				seen++
+				if seen <= branches {
+					out = append(out, l)
+				}
+				if seen == total && total > branches {
+					out = append(out, d.more(total-branches))
+				}
+				continue
+			}
+			if !slices.Contains(drop, k) {
 				out = append(out, l)
 			}
 		}
 		return out
 	}
-	switch {
-	case len(d.lines) <= n:
-		return keep()
-	case len(keep(detailBlank)) <= n:
-		return keep(detailBlank)
+	shown := min(total, maxBranchLines)
+	if out := render(shown); len(out) <= n {
+		return out
 	}
-	return keep(detailBlank, detailSection)
+	for _, drop := range [][]detailKind{{detailBlank}, {detailBlank, detailSection}} {
+		for b := shown; b >= 0; b-- {
+			if out := render(b, drop...); len(out) <= n {
+				return out
+			}
+		}
+	}
+	return render(0, detailBlank, detailSection)
 }
 
 // detailLabelWidth aligns the labels of the detail panel.
@@ -414,17 +444,21 @@ func (m *Model) label(s string) seg {
 	return seg{runewidth.FillRight(s, detailLabelWidth), m.theme.dim}
 }
 
+// detailLines builds the detail panel. The current branch, the worktree, and
+// errors come first, so they stay visible when the panel is cut off at the
+// bottom.
 func (m *Model) detailLines(r *domain.Repository) *details {
 	t := m.theme
 	now := m.now()
-	d := &details{}
+	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) }}
 	d.text(seg{r.Path, t.dim})
 	d.text(m.label("family"), seg{string(r.Family), t.key})
 	if r.Workspace != "" && r.Workspace != r.Path {
 		d.text(m.label("workspace"), seg{r.Workspace, t.dim})
 	}
 
-	if r.IsAvailable() && loaded(r) {
+	inspected := r.IsAvailable() && loaded(r)
+	if inspected {
 		d.section("branch", t.header)
 		b := append([]seg{}, m.branchSegs(r)...)
 		if r.Upstream.Valid && r.Upstream.Value.Configured {
@@ -433,20 +467,27 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 		b = append(b, seg{"  ", t.plain})
 		d.text(append(b, m.upstreamSegs(r)...)...)
 
-		if bs := m.otherBranchLines(r); len(bs) > 0 {
-			d.add("", detailBlank)
-			d.add(bs[0], detailSection)
-			for _, l := range bs[1:] {
-				d.add(l, detailText)
-			}
-		}
-
 		if r.Worktree.Valid {
 			d.section("worktree", t.header)
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
 				d.text(seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
 			}
 			d.text(m.worktreeSegs(r.Worktree.Value)...)
+		}
+	}
+
+	if e := m.firstError(r); e != "" {
+		d.section("error", t.err.Bold(true))
+		d.text(seg{m.icons.failed + " " + firstLine(e), t.err})
+		d.text(seg{"press e for details", t.dim})
+	}
+
+	if inspected {
+		if bs := m.otherBranchLines(r); len(bs) > 0 {
+			d.section("other branches", t.header)
+			for _, l := range bs {
+				d.add(l, detailBranch)
+			}
 		}
 
 		if r.LastCommit.Valid {
@@ -485,12 +526,6 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 				d.text(seg{p, t.dim})
 			}
 		}
-	}
-
-	if e := m.firstError(r); e != "" {
-		d.section("error", t.err.Bold(true))
-		d.text(seg{m.icons.failed + " " + firstLine(e), t.err})
-		d.text(seg{"press e for details", t.dim})
 	}
 	return d
 }
@@ -648,7 +683,7 @@ func (m *Model) footerLine() string {
 	case modeConfirmFetch:
 		left = " " + m.hints("Enter/y", "confirm", "Esc/n", "cancel")
 	case modeUpdatePreview:
-		left = " " + m.hints("Enter/y", "update", "f", "fetch and refresh preview", "j/k", "move", "Esc/n", "cancel")
+		left = " " + m.hints("Enter/y", "update", "f", "fetch first", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
 	case modeSort, modeLaunchers:
@@ -720,6 +755,9 @@ func (m *Model) operationHints() []string {
 		if b.done() && b.op == domain.OperationUpdate {
 			pairs = append(pairs, "u", "continue")
 		}
+		if f := m.refetch; f != nil && f.ready && f.batch == b {
+			pairs = append(pairs, "u", "update preview")
+		}
 		if m.overlayIdx < len(b.rows) {
 			if row := b.rows[m.overlayIdx]; row.job.Operation == domain.OperationFetch && row.result.Status == domain.StatusFailed {
 				pairs = append(pairs, "t", "retry in terminal")
@@ -768,11 +806,14 @@ func window(lines []string, selected, rows int) []string {
 	if len(lines) <= rows || rows <= 0 {
 		return lines
 	}
-	start := max(selected-rows/2, 0)
-	if start+rows > len(lines) {
-		start = len(lines) - rows
-	}
+	start := windowStart(len(lines), selected, rows)
 	return lines[start : start+rows]
+}
+
+// windowStart is the first of rows lines out of n that keep selected near
+// the middle; n must be greater than rows.
+func windowStart(n, selected, rows int) int {
+	return min(max(selected-rows/2, 0), n-rows)
 }
 
 // selectable renders a plain text line of a list, highlighted if selected.
@@ -961,11 +1002,18 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		counts[domain.StatusSucceeded], counts[domain.StatusFailed], counts[domain.StatusSkipped])
 	bar := m.progressBar(done, total, max(iw-ansi.StringWidth(summary), 10))
 	head := []string{bar + summary}
-	if m.refetch != nil && m.refetch.batch == m.batch {
-		head = append(head, t.dim.Render("The update preview opens again when the fetch is finished."))
+	if f := m.refetch; f != nil && f.batch == m.batch {
+		note := "Press u for the update preview once the fetch is finished."
+		if f.ready {
+			note = "Fetch finished. Press u for the update preview."
+		}
+		head = append(head, t.dim.Render(note))
 	}
 
 	var list []string
+	// group holds for every line the index of its group title; the blank
+	// line before a title belongs to the title.
+	var group []int
 	selLine := 0
 	for _, g := range opGroups {
 		if counts[g.status] == 0 {
@@ -984,11 +1032,14 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		case domain.StatusCancelled:
 			icon = "–"
 		}
+		title := len(list) + 1
 		list = append(list, "", t.header.Render(fmt.Sprintf("%s %d", strings.ToUpper(g.title), counts[g.status])))
+		group = append(group, title, title)
 		for i, row := range m.batch.rows {
 			if row.result.Status != g.status {
 				continue
 			}
+			group = append(group, title)
 			name := string(row.job.RepositoryID)
 			if r := m.repo(row.job.RepositoryID); r != nil {
 				name = r.Name
@@ -1032,8 +1083,26 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	if m.batch.done() {
 		state = "finished"
 	}
-	body := append(head, window(list, selLine, rows-len(head)-len(detail))...)
+	body := append(head, operationWindow(list, group, selLine, rows-len(head)-len(detail))...)
 	return fmt.Sprintf("%s ─ %d repositories ─ %s", m.batch.op, total, state), append(body, detail...)
+}
+
+// operationWindow returns at most rows lines around the selected line. If the
+// title of the first shown group is scrolled off, it is kept as the first
+// line, because the rows carry their status only through their group.
+func operationWindow(list []string, group []int, selected, rows int) []string {
+	if len(list) <= rows || rows < 2 {
+		return window(list, selected, rows)
+	}
+	start := windowStart(len(list), selected, rows)
+	if group[start] >= start {
+		return list[start : start+rows]
+	}
+	start = windowStart(len(list), selected, rows-1)
+	if group[start] >= start {
+		return list[start:min(start+rows, len(list))]
+	}
+	return append([]string{list[group[start]]}, list[start:start+rows-1]...)
 }
 
 func (m *Model) viewConfirmFetch(iw, rows int) (string, []string) {

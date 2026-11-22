@@ -55,6 +55,10 @@ type refetch struct {
 	targets     []domain.RepositoryID
 	hidden      int
 	inspections []uint64
+	// ready is set once the fetch and the inspections are finished; failed
+	// then holds the fetch error of each failed store.
+	ready  bool
+	failed map[domain.StoreID]string
 }
 
 // visit remembers which batch row was opened in lazygit.
@@ -122,8 +126,8 @@ type Model struct {
 	updateSkip    []app.UpdateCandidate
 	updateTargets []domain.RepositoryID
 	previewReturn mode
-	// refetch is the fetch started from the update preview, after which the
-	// preview is opened again.
+	// refetch is the fetch started from the update preview, after which u in
+	// the operations view opens the preview again.
 	refetch    *refetch
 	quitReturn mode
 	visit      *visit

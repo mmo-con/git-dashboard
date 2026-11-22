@@ -227,8 +227,8 @@ func TestActionsOnUnavailableRepositories(t *testing.T) {
 }
 
 // TestFetchFromUpdatePreviewRefreshesIt fetches the preview's repositories
-// from the preview and checks that the preview opens again with the fetched
-// state, skips a failed fetch, and does not update on its own.
+// from the preview and checks that u opens the preview again with the
+// fetched state, skips a failed fetch, and does not update on its own.
 func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())
@@ -262,9 +262,16 @@ func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
 	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
 		t.Fatalf("f must fetch the preview's repositories: mode=%v", m.mode)
 	}
+	// Leaving the operations view must not let the preview open on its own,
+	// where the next Enter would confirm an update.
+	keys(m, "esc")
 	pump(t, m)
+	if m.mode != modeNormal || m.refetch == nil || !m.refetch.ready {
+		t.Fatalf("the preview must wait for u after the fetch: mode=%v", m.mode)
+	}
+	keys(m, "b", "u")
 	if m.mode != modeUpdatePreview || m.refetch != nil {
-		t.Fatalf("the preview must open again after the fetch: mode=%v", m.mode)
+		t.Fatalf("u in the operations view must open the preview: mode=%v", m.mode)
 	}
 	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != behind {
 		t.Fatalf("the preview must use the fetched state: ok=%+v", m.updateOK)
