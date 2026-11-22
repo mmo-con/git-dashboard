@@ -433,8 +433,12 @@ The concrete keys, symbols, and filters are listed in
 - lazygit-style panels: rounded borders with the title in the top border and
   secondary information in the bottom border. Table and detail panel sit side
   by side from 130 columns, otherwise stacked; beside the table, the detail
-  panel takes 40 % of the width and at most 70 columns, so wide terminals
-  give the space to the table. Dialogs are centered over a dimmed copy of
+  panel takes 40 % of the width and at most 70 columns, so the table gets
+  the space it needs first. If the table needs less than the rest, the
+  repository panel is only as wide as the table and the detail panel moves
+  left to it, growing up to 100 columns, so no empty band separates the
+  two. The selected row is highlighted only to the right edge of the table,
+  like the table header. Dialogs are centered over a dimmed copy of
   the main view.
 - From 24 lines, a blank line separates the header bar from the panels and
   the table header from the first row, so the top of the screen does not

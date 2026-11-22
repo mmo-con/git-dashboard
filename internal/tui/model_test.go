@@ -754,10 +754,10 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 	// A commit column too narrow for the full time shows the date only
 	// instead of a truncated time.
 	m.repos[0].LastCommit = domain.KnownValue(&domain.CommitSummary{Time: now.Add(-400 * 24 * time.Hour)})
-	if v := ansi.Strip(strings.Join(m.reposBox(160, 10, true), "\n")); !strings.Contains(v, "Oct 18 2025 12:00") {
+	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 160, 10, true), "\n")); !strings.Contains(v, "Oct 18 2025 12:00") {
 		t.Errorf("a wide table shows the full time:\n%s", v)
 	}
-	if v := ansi.Strip(strings.Join(m.reposBox(70, 10, true), "\n")); !strings.Contains(v, " 2025") || strings.Contains(v, "2025…") {
+	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 70, 10, true), "\n")); !strings.Contains(v, " 2025") || strings.Contains(v, "2025…") {
 		t.Errorf("a narrow table shows the date only:\n%s", v)
 	}
 }
@@ -950,6 +950,27 @@ func TestSpacingFollowsHeight(t *testing.T) {
 			t.Errorf("height %d: the first row must follow: %q", c.height, row)
 		}
 	}
+}
+
+// TestDetailPanelMovesToTheTable checks that on a wide terminal the
+// repository panel is only as wide as its table and the detail panel takes
+// the space left over, within its limit.
+func TestDetailPanelMovesToTheTable(t *testing.T) {
+	m := newModel(t)
+	m.Update(tea.WindowSizeMsg{Width: 220, Height: 30})
+	need := m.tableNeed(m.measureTable())
+	if dw := 220 - need; dw <= maxDetailWidth || dw > maxWideDetailWidth {
+		t.Fatalf("the test table must leave between %d and %d columns: need %d", maxDetailWidth, maxWideDetailWidth, need)
+	}
+	for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+		if i := strings.Index(l, "╮╭"); i >= 0 {
+			if got := runewidth.StringWidth(l[:i]) + 1; got != need {
+				t.Fatalf("the repository panel is %d wide, want %d:\n%s", got, need, l)
+			}
+			return
+		}
+	}
+	t.Fatal("the panels must be side by side")
 }
 
 func TestConfiguredViewAndTreeMarkers(t *testing.T) {
