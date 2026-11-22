@@ -81,6 +81,10 @@ skipped with the fetch error, even if they looked up to date before. Nothing
 is updated until the new preview is confirmed. A cancelled fetch offers no
 preview.
 
+A repository that changed after the preview opened, for example because
+another tool fetched new upstream commits, is skipped with
+`… since the preview; press u for a new preview`.
+
 ## Operations view
 
 | Key | Action |

@@ -240,16 +240,25 @@ A repository is eligible only if every condition holds:
 - the branch is behind and not ahead of its upstream;
 - no other mutating job and no interactive session is active for its store.
 
-The update runs `merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` instead of
-`pull --ff-only`: it applies exactly the state shown in the preview because
-it does not contact the network, it is independent of `pull.*`
-configuration, and `--no-autostash` guarantees that no stash is created even
+The update runs `merge --ff-only --no-autostash --no-overwrite-ignore
+@{upstream}` instead of `pull --ff-only`: it does not contact the network, so
+it applies what was fetched before the preview; it is independent of `pull.*`
+configuration; and `--no-autostash` guarantees that no stash is created even
 with `merge.autoStash`. Git refuses to overwrite untracked files on its own,
 but by default replaces ignored files, such as a local configuration that the
 upstream starts to track; `--no-overwrite-ignore` makes such a collision fail
 like any other, so the repository stays on the worklist with Git's message
-and no file or branch is changed. Every condition is checked again under the store lock
-immediately before the merge; a changed repository is skipped with a reason.
+and no file or branch is changed.
+
+Every condition is checked again under the store lock immediately before the
+merge; a changed repository is skipped with a reason. The fresh state must
+also match the confirmed preview: the same branch, HEAD commit, upstream, and
+number of commits behind. A fetch by another tool after the preview, a branch
+switch, or a new local commit therefore skips the repository with a request
+for a new preview instead of applying more than was shown. The comparison
+does not cover an upstream that was rewritten to a different commit with the
+same distance, and the store lock coordinates only Git Dashboard's own jobs:
+an external Git process between the recheck and the merge is not excluded.
 Git Dashboard never creates a merge commit, a rebase, or a stash.
 
 The preview lists the repositories to update and every skip with its reason

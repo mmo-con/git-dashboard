@@ -65,7 +65,8 @@ func PlanUpdate(targets []domain.Repository, storeBusy func(domain.StoreID) bool
 }
 
 // UpdateJobs creates fast-forward jobs. Each job inspects the repository again
-// while holding the store lock and skips it if any condition no longer holds.
+// while holding the store lock and skips it if any condition no longer holds
+// or if the state differs from the preview the user confirmed.
 func UpdateJobs(client git.Interface, all []domain.Repository, eligible []UpdateCandidate, timeout time.Duration) []jobs.Job {
 	var out []jobs.Job
 	for _, c := range eligible {
@@ -88,9 +89,31 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 				if reason := Eligibility(fresh, false); reason != "" {
 					return nil, &jobs.SkipError{Reason: "update skipped: " + reason}
 				}
+				if change := changedSincePreview(r, fresh); change != "" {
+					return nil, &jobs.SkipError{Reason: "update skipped: " + change + " since the preview; press u for a new preview"}
+				}
 				return nil, client.MergeFastForwardOnly(ctx, r.Location)
 			},
 		})
 	}
 	return out
+}
+
+// changedSincePreview names the part of the state that differs between the
+// confirmed preview and a fresh inspection, or returns "". A new upstream
+// commit changes the number of commits behind.
+func changedSincePreview(preview, fresh domain.Repository) string {
+	ph, fh := preview.Head.Value, fresh.Head.Value
+	pu, fu := preview.Upstream.Value, fresh.Upstream.Value
+	switch {
+	case ph.Branch != fh.Branch:
+		return "branch changed"
+	case ph.CommitID != fh.CommitID:
+		return "HEAD moved"
+	case pu.Ref != fu.Ref:
+		return "upstream changed"
+	case pu.Behind != fu.Behind:
+		return "upstream moved"
+	}
+	return ""
 }
