@@ -168,8 +168,9 @@ symbols and text.
 | `branch` | `cyan` | branch names |
 | `clean` | `gray` | clean and up-to-date states |
 | `dirty` | `yellow` | modified and deleted entries |
-| `ahead` | `green` | commits ahead, staged entries, successes |
+| `ahead` | `green` | commits ahead, staged entries |
 | `behind` | `magenta` | commits behind |
+| `success` | `green` | finished operations, progress bars, confirmations |
 | `error` | `red` | conflicts, divergence, failures |
 | `warning` | `yellow` | warnings, stale fetches, remote mismatch |
 | `dim` | `gray` | secondary text |
