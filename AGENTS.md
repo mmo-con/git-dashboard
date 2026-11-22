@@ -70,6 +70,11 @@ Documentation and code comments are written in English.
 
 ## Commits
 
+- Commit each completed feature, fix, or other logical change automatically
+  after the required checks pass. If a check fails or cannot be run, report
+  it and do not commit automatically.
+- Include only changes belonging to the task. Do not stage or commit existing
+  user changes without explicit permission.
 - Subject: `<area>: <summary>` in lowercase imperative, without a period, for
   example `tui: group the operations view by status` or
   `config: add built-in theme presets`. Areas are package or topic names such
@@ -77,3 +82,11 @@ Documentation and code comments are written in English.
 - Body: wrapped at 72 characters; describes the new behavior and why, not the
   diff.
 - One logical change per commit.
+- Do not push, merge, or rewrite history without explicit permission.
+
+## Branches
+
+- For larger changes, such as multi-step features, broad refactors, or
+  architectural changes, ask before creating a feature branch unless already
+  on an appropriate branch.
+- Do not switch branches with uncommitted changes without explicit permission.
