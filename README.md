@@ -13,8 +13,8 @@ to [lazygit](https://github.com/jesseduffield/lazygit).
 symbols, family summaries, and the detail panel of the selected
 repository](docs/images/dashboard-tree.png)
 
-*Shown with `icons = "nerd"` and `preset = "dracula"`; all repositories are
-fictional.*
+*Shown with `icons = "unicode"` and `preset = "gruvbox-dark"`; all repositories
+and data are fictional.*
 
 The architecture and the decisions behind it are documented in
 [docs/architecture.md](docs/architecture.md).
