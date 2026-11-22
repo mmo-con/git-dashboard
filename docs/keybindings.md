@@ -114,7 +114,7 @@ is updated until the new preview is confirmed.
 
 | Unicode | ASCII | Meaning |
 |---|---|---|
-| `✓ clean` | `ok clean` | clean worktree |
+| `✓` | `ok` | clean worktree; the detail panel shows `✓ clean` |
 | `✚n` | `+n` | staged entries |
 | `●n` | `*n` | modified entries |
 | `−n` | `-n` | deleted entries |

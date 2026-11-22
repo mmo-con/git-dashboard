@@ -322,6 +322,12 @@ func TestStatusTexts(t *testing.T) {
 	if got := m.upstreamText(&r); got != "↑1 ↓2 diverged" {
 		t.Errorf("upstream = %q", got)
 	}
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	r.ExpectedRemote = nil
+	r.Worktree = domain.KnownValue(domain.WorktreeState{UntrackedChecked: true})
+	if got := m.statusText(&r); got != "✓" {
+		t.Errorf("a clean worktree shows only the symbol, like the upstream column: %q", got)
+	}
 	r.Worktree = domain.Known[domain.WorktreeState]{}
 	if got := m.statusText(&r); got != "? unknown" {
 		t.Errorf("unknown state must not be shown as clean: %q", got)
