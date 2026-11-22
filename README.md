@@ -63,16 +63,18 @@ write into the user interface.
 
 Prebuilt archives for Linux and macOS (amd64 and arm64) are attached to every
 [release](https://github.com/mmo-con/git-dashboard/releases), together with
-`checksums.txt`. Set `VERSION` to the current release:
+`checksums.txt`. Set `VERSION` to the current release. Each step runs only
+if the previous one succeeded, so nothing is unpacked or installed when a
+download fails or the checksum does not match:
 
 ```sh
 VERSION=v0.2.0
 NAME=git-dashboard_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
 BASE=https://github.com/mmo-con/git-dashboard/releases/download/$VERSION
-curl -LO "$BASE/$NAME.tar.gz" -LO "$BASE/checksums.txt"
-grep " $NAME.tar.gz" checksums.txt | sha256sum -c -   # macOS: shasum -a 256 -c -
-tar xzf "$NAME.tar.gz"
-install -m 755 "$NAME/git-dashboard" ~/.local/bin/    # any directory in PATH
+curl -fL -O "$BASE/$NAME.tar.gz" -O "$BASE/checksums.txt" &&
+  grep " $NAME.tar.gz\$" checksums.txt | sha256sum -c - &&   # macOS: shasum -a 256 -c -
+  tar xzf "$NAME.tar.gz" &&
+  install -m 755 "$NAME/git-dashboard" ~/.local/bin/        # any directory in PATH
 ```
 
 The macOS binaries are not notarized. `curl` downloads run as they are; if
