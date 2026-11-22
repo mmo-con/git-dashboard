@@ -21,7 +21,7 @@ cursor moves within the current view before the list scrolls again.
 | Key | Action |
 |---|---|
 | `/` | text filter |
-| `1` … `7` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashes; press again to clear |
+| `1` … `7` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashed; press again to clear |
 | `Esc` | clear the text filter or close the current overlay |
 | `Tab` / `Shift+Tab` | next / previous family |
 | `t` | search and choose a family |
@@ -135,7 +135,7 @@ is updated until the new preview is confirmed.
 | Staged | staged entries |
 | Modified | entries modified or deleted in the worktree and not staged |
 | Untracked | untracked entries |
-| Stashes | stash entries of the repository; linked worktrees share them |
+| Stashed | number of stash entries of the repository; linked worktrees share them |
 | Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
 | Commit | age of the latest commit |
 
