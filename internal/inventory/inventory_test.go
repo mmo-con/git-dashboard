@@ -91,7 +91,7 @@ func TestDiscoveryAndPrecedence(t *testing.T) {
 	if p := got["company/frontend"].BranchPolicy; p.ReportMissing || strings.Join(p.Pinned, ",") != "main,master" {
 		t.Errorf("global pinned branches: %+v", p)
 	}
-	if r := got["company/frontend"]; r.Family != "All" || r.Source != domain.InventorySourceDiscovered {
+	if r := got["company/frontend"]; r.Family != "All" || r.Source != domain.InventorySourceDiscovered || r.DiscoveryRoot == "" {
 		t.Errorf("first discovery root supplies defaults: %+v", r)
 	}
 	if r := got["missing"]; r.Availability != domain.Missing {

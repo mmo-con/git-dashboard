@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -305,7 +307,33 @@ func (m *Model) detailsBox(w, h int) []string {
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
-	return m.box(r.Name, string(r.Source), lines, w, h, false)
+	return m.box(r.Name, sourceLabel(r), lines, w, h, false)
+}
+
+// sourceLabel describes how the repository entered the inventory.
+func sourceLabel(r *domain.Repository) string {
+	if r.Source != domain.InventorySourceDiscovered {
+		return "configured"
+	}
+	if r.DiscoveryRoot == "" {
+		return "discovered"
+	}
+	return "discovered in " + shortenHome(r.DiscoveryRoot)
+}
+
+// shortenHome replaces the home directory at the start of path with ~.
+func shortenHome(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || home == "/" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(filepath.Separator)); ok {
+		return "~/" + rest
+	}
+	return path
 }
 
 type detailKind int

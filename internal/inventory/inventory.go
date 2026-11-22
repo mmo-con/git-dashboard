@@ -133,6 +133,7 @@ func resolve(ctx context.Context, cfg *config.Config, c *candidate, v Validator)
 			r.Family = domain.FamilyID(c.discovery.Family)
 		}
 		ws = c.discovery.Workspace
+		r.DiscoveryRoot = c.discovery.Root
 	}
 	if e := c.explicit; e != nil {
 		r.Source = domain.InventorySourceExplicit
