@@ -473,13 +473,17 @@ The concrete keys, symbols, and filters are listed in
   codes; they also verify that events produced during a handover arrive
   afterward. The real lazygit handover is tested manually: alternate screen,
   input, resize, redraw, refresh.
-- **Performance test** (`make perf`): 200 generated repositories must be
-  inspected within 2 seconds. Each attempt starts a new application; because
-  shared CI runners are sometimes slowed down as a whole, one of up to three
-  attempts must meet the target.
-- **CI** runs lint, tests with the race detector, coverage, and the
-  performance test on Linux with Git 2.34 (the minimum), Linux with the latest
-  Git, and macOS.
+- **Performance** is guarded by deterministic tests: a counting wrapper
+  around the real Git verifies the process budget of validation and
+  inspection (see 10), and a scheduler test verifies that jobs actually run
+  in parallel up to their limit. These are the two properties that determine
+  startup time, and they do not depend on the speed of the machine.
+- **Benchmark** (`make perf`, local only): 200 generated repositories must be
+  inspected within 2 seconds. It is not part of CI because starting processes
+  on shared runners, especially macOS, is slow and erratic enough to miss the
+  target without any change in the code.
+- **CI** runs lint and tests with the race detector and coverage on Linux
+  with Git 2.34 (the minimum), Linux with the latest Git, and macOS.
 
 ## 12. Decisions
 
