@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,6 +23,10 @@ const wideLayout = 130
 // maxDetailWidth limits the detail panel beside the table, which gets the
 // remaining width for its columns.
 const maxDetailWidth = 70
+
+// maxWideDetailWidth limits the detail panel when the table needs less than
+// the remaining width and the panel moves left to the table.
+const maxWideDetailWidth = 100
 
 // spaciousHeight is the minimum height for blank lines below the header bar
 // and below the table header; lower terminals keep the lines for rows.
@@ -52,15 +57,23 @@ func (m *Model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-// mainArea returns the repository and detail panels for h lines.
+// mainArea returns the repository and detail panels for h lines. Beside the
+// table, the detail panel takes 40 % of the width and at most
+// maxDetailWidth columns; if the table needs less than the rest, the panel
+// moves left to the table and grows up to maxWideDetailWidth.
 func (m *Model) mainArea(h int) []string {
 	active := m.mode == modeNormal || m.mode == modeFilter
+	t := m.measureTable()
 	if m.width >= wideLayout {
-		rw := m.width - min(m.width*40/100, maxDetailWidth)
-		return joinColumns(m.reposBox(rw, h, active), m.detailsBox(m.width-rw, h))
+		dw := min(m.width*40/100, maxDetailWidth)
+		if need := m.tableNeed(t); need < m.width-dw {
+			dw = max(min(m.width-need, maxWideDetailWidth), dw)
+		}
+		rw := m.width - dw
+		return joinColumns(m.reposBox(t, rw, h, active), m.detailsBox(dw, h))
 	}
 	dh := stackedDetailsHeight(h)
-	return append(m.reposBox(m.width, h-dh, active), m.detailsBox(m.width, dh)...)
+	return append(m.reposBox(t, m.width, h-dh, active), m.detailsBox(m.width, dh)...)
 }
 
 func stackedDetailsHeight(h int) int {
@@ -212,33 +225,73 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	}, append(m.countSegs(r), []seg{age})...)
 }
 
-func (m *Model) reposBox(w, h int, active bool) []string {
-	iw := w - 2
-	now := m.now()
-	// All visible rows are measured, so the widths do not change on scrolling.
-	cells := make([][][]seg, len(m.rows))
-	natural := make([]int, len(colSpecs))
+// repoTable holds the cells of all rows of the repository table. All rows
+// are measured, not only the visible ones, so the widths do not change on
+// scrolling.
+type repoTable struct {
+	now time.Time
+	// cells holds the cells of a repository row from the health column on;
+	// family holds a family row of the tree without the cursor.
+	cells   [][][]seg
+	family  [][]seg
+	natural []int
+	// familyWidth is the width of the widest family row with its cursor.
+	familyWidth int
+}
+
+func (m *Model) measureTable() repoTable {
+	t := repoTable{now: m.now(), cells: make([][][]seg, len(m.rows)), family: make([][]seg, len(m.rows)),
+		natural: make([]int, len(colSpecs))}
+	var health map[domain.FamilyID][]healthLevel
+	if m.tree {
+		health = m.familyHealth()
+	}
 	for i, row := range m.rows {
 		if row.count > 0 {
+			toggle := m.icons.collapsed
+			if m.expanded[row.family] {
+				toggle = m.icons.expanded
+			}
+			ss := []seg{
+				{"   " + toggle + " ", m.theme.dim}, {string(row.family), m.theme.bold},
+				{fmt.Sprintf(" (%d)", row.count), m.theme.dim},
+			}
+			if summary := m.familySummary(health[row.family]); len(summary) > 0 {
+				ss = append(append(ss, seg{"   ", m.theme.plain}), summary...)
+			}
+			t.family[i] = ss
+			t.familyWidth = max(t.familyWidth, 1+runewidth.StringWidth(domain.Printable(plain(ss))))
 			continue
 		}
-		cells[i] = m.rowCells(m.repo(row.id), now)
+		t.cells[i] = m.rowCells(m.repo(row.id), t.now)
 		if m.tree {
 			guide := m.icons.treeItem
 			if i+1 == len(m.rows) || m.rows[i+1].count > 0 {
 				guide = m.icons.treeLast
 			}
-			cells[i][0] = append([]seg{{guide, m.theme.dim}}, cells[i][0]...)
+			t.cells[i][0] = append([]seg{{guide, m.theme.dim}}, t.cells[i][0]...)
 		}
-		for j, c := range cells[i] {
-			natural[j+colHealth] = max(natural[j+colHealth], runewidth.StringWidth(plain(c)))
+		for j, c := range t.cells[i] {
+			t.natural[j+colHealth] = max(t.natural[j+colHealth], runewidth.StringWidth(plain(c)))
 		}
 	}
-	cols := columns(iw, natural, m.icons, m.tree)
-	var health map[domain.FamilyID][]healthLevel
-	if m.tree {
-		health = m.familyHealth()
-	}
+	return t
+}
+
+// tableNeed is the width of a repository panel that shows the table without
+// shrinking or space left over.
+func (m *Model) tableNeed(t repoTable) int {
+	cols := columns(math.MaxInt/2, t.natural, m.icons, m.tree)
+	return max(tableWidth(cols), t.familyWidth) + 2
+}
+
+// reposBox renders the repository table in a panel of size w×h. The
+// selection is highlighted to the right edge of the table, not of the panel.
+func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
+	iw := w - 2
+	now, cells := t.now, t.cells
+	cols := columns(iw, t.natural, m.icons, m.tree)
+	tw := min(tableWidth(cols), iw)
 	var lines []string
 	var header strings.Builder
 	for j, c := range cols {
@@ -265,23 +318,14 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			cursor = m.icons.cursor
 		}
 		if entry.count > 0 {
-			toggle := m.icons.collapsed
-			if m.expanded[entry.family] {
-				toggle = m.icons.expanded
-			}
-			ss := []seg{
-				{cursor, m.theme.accent}, {"   " + toggle + " ", m.theme.dim}, {string(entry.family), m.theme.bold},
-				{fmt.Sprintf(" (%d)", entry.count), m.theme.dim},
-			}
-			if summary := m.familySummary(health[entry.family]); len(summary) > 0 {
-				ss = append(append(ss, seg{"   ", m.theme.plain}), summary...)
-			}
+			ss := append([]seg{{cursor, m.theme.accent}}, t.family[i]...)
 			if i == m.cursor {
 				for k := range ss {
 					ss[k].style = m.theme.onSelected(ss[k].style)
 				}
 			}
-			lines = append(lines, renderCell(ss, iw, base))
+			w := min(max(tw, runewidth.StringWidth(domain.Printable(plain(ss)))), iw)
+			lines = append(lines, renderCell(ss, w, base))
 			continue
 		}
 		// A narrow commit column shortens the time instead of truncating it.
@@ -317,7 +361,6 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			}
 			b.WriteString(renderCell(row[j], w, base))
 		}
-		b.WriteString(base.Render(strings.Repeat(" ", max(iw-tableWidth(cols), 0))))
 		lines = append(lines, b.String())
 	}
 
