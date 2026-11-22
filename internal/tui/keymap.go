@@ -48,6 +48,10 @@ var Bindings = []BindingGroup{
 		{"F", "fetch visible repositories"},
 		{"u", "safe update preview"},
 	}},
+	{"Update preview", []Binding{
+		{"Enter / y", "start the update"},
+		{"f", "fetch, then show the preview again"},
+	}},
 	{"Operations view", []Binding{
 		{"Enter", "open row in lazygit"},
 		{"c", "cancel the running batch"},

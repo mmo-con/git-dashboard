@@ -112,6 +112,7 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 	m.rebuildFamilies()
 	m.recompute()
 	m.inspecting = map[uint64]int{}
+	m.refetch = nil
 	m.refresh(m.allIDs())
 	if len(m.warnings) > 0 {
 		m.setError(fmt.Sprintf("%d configuration warning(s); press e for details", len(m.warnings)))
@@ -159,10 +160,85 @@ func (m *Model) applyEvents(events []jobs.Event) {
 		for id := range reinspect {
 			ids = append(ids, id)
 		}
-		m.refresh(ids)
+		id := m.refresh(ids)
+		if m.refetch != nil && m.refetch.batch == m.batch && id != 0 {
+			m.refetch.inspections = append(m.refetch.inspections, id)
+		}
 	}
 	app.RefreshStoreFetchTimes(m.repos)
 	m.recompute()
+	m.reopenPreview()
+}
+
+// reopenPreview opens the update preview again once the fetch started from it
+// and the following inspections are finished. Repositories whose fetch
+// failed are skipped. A cancelled fetch does not reopen the preview.
+func (m *Model) reopenPreview() {
+	f := m.refetch
+	if f == nil {
+		return
+	}
+	if f.batch != m.batch {
+		m.refetch = nil
+		return
+	}
+	if !f.batch.done() {
+		return
+	}
+	for _, id := range f.inspections {
+		if _, pending := m.inspecting[id]; pending {
+			return
+		}
+	}
+	m.refetch = nil
+	failed := map[domain.StoreID]string{}
+	for _, row := range f.batch.rows {
+		switch row.result.Status {
+		case domain.StatusCancelled:
+			m.setMessage("fetch cancelled; press u for a new update preview")
+			return
+		case domain.StatusFailed:
+			reason := "fetch failed"
+			if row.result.Error != nil {
+				reason += ": " + firstLine(row.result.Error.Error())
+			}
+			failed[row.job.StoreID] = reason
+		}
+	}
+	if m.mode != modeOperations && m.mode != modeNormal {
+		m.setMessage("fetch finished; press u for the update preview")
+		return
+	}
+	var targets []domain.Repository
+	for _, id := range f.targets {
+		if r := m.repo(id); r != nil {
+			targets = append(targets, *r)
+		}
+	}
+	m.openUpdatePreview(targets, f.hidden, modeOperations)
+	var ok []app.UpdateCandidate
+	for _, c := range m.updateOK {
+		if reason, bad := failed[c.Repository.StoreID]; bad {
+			c.SkipReason = reason
+			m.updateSkip = append([]app.UpdateCandidate{c}, m.updateSkip...)
+			continue
+		}
+		ok = append(ok, c)
+	}
+	m.updateOK = ok
+}
+
+// openUpdatePreview plans the update of targets and shows the preview; Esc
+// returns to ret.
+func (m *Model) openUpdatePreview(targets []domain.Repository, hidden int, ret mode) {
+	m.fetchHidden = hidden
+	m.updateTargets = make([]domain.RepositoryID, 0, len(targets))
+	for _, r := range targets {
+		m.updateTargets = append(m.updateTargets, r.ID)
+	}
+	m.updateOK, m.updateSkip = app.PlanUpdate(targets, func(s domain.StoreID) bool { return m.storeBusy(s) != "" })
+	m.previewReturn = ret
+	m.mode, m.overlayIdx = modeUpdatePreview, 0
 }
 
 func (m *Model) summarizeBatch() {
@@ -329,10 +405,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		m.mode = modeConfirmFetch
 	case "u":
 		targets, hidden := m.targets()
-		m.fetchHidden = hidden
-		m.updateOK, m.updateSkip = app.PlanUpdate(targets, func(s domain.StoreID) bool { return m.storeBusy(s) != "" })
-		m.previewReturn = modeNormal
-		m.mode, m.overlayIdx = modeUpdatePreview, 0
+		m.openUpdatePreview(targets, hidden, modeNormal)
 	}
 	return nil
 }
@@ -547,9 +620,30 @@ func (m *Model) keyUpdatePreview(key string) tea.Cmd {
 		}
 		js := app.UpdateJobs(m.app.Git, m.repos, m.updateOK, m.app.Config.Git.FetchTimeout)
 		m.submitBatch(domain.OperationUpdate, js, open)
+	case "f":
+		return m.fetchPreviewTargets()
 	case "esc", "n", "q":
 		m.mode = m.previewReturn
 	}
+	return nil
+}
+
+// fetchPreviewTargets fetches the repositories of the update preview and
+// opens the preview again afterward. It never updates on its own.
+func (m *Model) fetchPreviewTargets() tea.Cmd {
+	var targets []domain.Repository
+	for _, id := range m.updateTargets {
+		if r := m.repo(id); r != nil {
+			targets = append(targets, *r)
+		}
+	}
+	hidden := m.fetchHidden
+	m.startFetch(targets)
+	if m.mode != modeOperations || m.batch == nil || m.batch.done() {
+		return nil
+	}
+	m.refetch = &refetch{batch: m.batch, targets: m.updateTargets, hidden: hidden}
+	m.updateTargets = nil
 	return nil
 }
 
@@ -576,10 +670,7 @@ func (m *Model) continueUpdate() {
 		m.setMessage("nothing left to update")
 		return
 	}
-	m.fetchHidden = 0
-	m.updateOK, m.updateSkip = app.PlanUpdate(targets, func(s domain.StoreID) bool { return m.storeBusy(s) != "" })
-	m.previewReturn = modeOperations
-	m.mode, m.overlayIdx = modeUpdatePreview, 0
+	m.openUpdatePreview(targets, 0, modeOperations)
 }
 
 type launcherItem struct {

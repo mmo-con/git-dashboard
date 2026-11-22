@@ -625,8 +625,10 @@ func (m *Model) footerLine() string {
 		left = " " + m.hints("↑/↓", "move", "Enter", "choose", "Esc", "cancel", "Ctrl+U", "erase search")
 	case modeOperations:
 		left = " " + m.hints(m.operationHints()...)
-	case modeConfirmFetch, modeUpdatePreview:
+	case modeConfirmFetch:
 		left = " " + m.hints("Enter/y", "confirm", "Esc/n", "cancel")
+	case modeUpdatePreview:
+		left = " " + m.hints("Enter/y", "update", "f", "fetch and refresh preview", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
 	case modeSort, modeLaunchers:
@@ -939,6 +941,9 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		counts[domain.StatusSucceeded], counts[domain.StatusFailed], counts[domain.StatusSkipped])
 	bar := m.progressBar(done, total, max(iw-ansi.StringWidth(summary), 10))
 	head := []string{bar + summary}
+	if m.refetch != nil && m.refetch.batch == m.batch {
+		head = append(head, t.dim.Render("The update preview opens again when the fetch is finished."))
+	}
 
 	var list []string
 	selLine := 0
@@ -1076,7 +1081,7 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 	}
 	head := []string{
 		t.bold.Render(fmt.Sprintf("%d repositories will be fast-forwarded, %d skipped.", len(m.updateOK), len(m.updateSkip))),
-		t.dim.Render("git merge --ff-only --no-autostash @{upstream} · no network access; fetch first with F"),
+		t.dim.Render("git merge --ff-only --no-autostash @{upstream} · no network access; press f to fetch first"),
 	}
 	if m.fetchHidden > 0 {
 		head = append(head, t.warn.Render(m.hiddenMarksNotice()))

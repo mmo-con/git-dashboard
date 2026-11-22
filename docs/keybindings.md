@@ -64,6 +64,20 @@ repositories includes all of them; the confirmation states how many are hidden.
 The repository panel shows the total number of marks and the `A` shortcut
 whenever any marks are set, including when all marked rows are hidden.
 
+## Update preview
+
+| Key | Action |
+|---|---|
+| `j` / `k` | move |
+| `Enter` / `y` | start the update |
+| `f` | fetch the repositories of the preview, then show the preview again |
+| `Esc` / `n` | cancel |
+
+`f` shows the fetch in the operations view. When the fetch and the following
+inspection are finished, the preview opens again with the fetched state;
+repositories whose fetch failed are skipped. Nothing is updated until the new
+preview is confirmed. A cancelled fetch does not reopen the preview.
+
 ## Operations view
 
 | Key | Action |
