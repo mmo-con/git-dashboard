@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -251,89 +252,181 @@ func (m *Model) detailsBox(w, h int) []string {
 	if r == nil {
 		return m.box("Details", "", nil, w, h, false)
 	}
-	lines := m.detailLines(r)
-	if len(lines) > h-2 {
-		compact := lines[:0:0]
-		for _, l := range lines {
-			if l != "" {
-				compact = append(compact, l)
-			}
-		}
-		lines = compact
-	}
+	lines := m.detailLines(r).fit(h - 2)
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
 	return m.box(r.Name, string(r.Source), lines, w, h, false)
 }
 
-func (m *Model) detailLines(r *domain.Repository) []string {
+type detailKind int
+
+const (
+	detailText detailKind = iota
+	detailBlank
+	detailSection
+)
+
+// details collects the lines of the detail panel, grouped into sections.
+type details struct {
+	lines []string
+	kinds []detailKind
+}
+
+func (d *details) add(l string, k detailKind) {
+	d.lines = append(d.lines, l)
+	d.kinds = append(d.kinds, k)
+}
+
+func (d *details) text(ss ...seg) { d.add(line(ss...), detailText) }
+
+// section starts a titled section, separated from the previous one by a
+// blank line.
+func (d *details) section(title string, style lipgloss.Style) {
+	if len(d.lines) > 0 {
+		d.add("", detailBlank)
+	}
+	d.add(style.Render(strings.ToUpper(title)), detailSection)
+}
+
+// fit returns at most n lines. If the panel is too small, blank lines are
+// dropped first, then the section titles.
+func (d *details) fit(n int) []string {
+	keep := func(drop ...detailKind) []string {
+		var out []string
+		for i, l := range d.lines {
+			if !slices.Contains(drop, d.kinds[i]) {
+				out = append(out, l)
+			}
+		}
+		return out
+	}
+	switch {
+	case len(d.lines) <= n:
+		return keep()
+	case len(keep(detailBlank)) <= n:
+		return keep(detailBlank)
+	}
+	return keep(detailBlank, detailSection)
+}
+
+// detailLabelWidth aligns the labels of the detail panel.
+const detailLabelWidth = 10
+
+func (m *Model) label(s string) seg {
+	return seg{runewidth.FillRight(s, detailLabelWidth), m.theme.dim}
+}
+
+func (m *Model) detailLines(r *domain.Repository) *details {
 	t := m.theme
 	now := m.now()
-	var out []string
-	out = append(out, line(seg{r.Path, t.dim}))
+	d := &details{}
+	d.text(seg{r.Path, t.dim})
+	d.text(m.label("family"), seg{string(r.Family), t.key})
 	if r.Workspace != "" && r.Workspace != r.Path {
-		out = append(out, line(seg{"workspace ", t.bold}, seg{r.Workspace, t.dim}))
+		d.text(m.label("workspace"), seg{r.Workspace, t.dim})
 	}
-	out = append(out, line(seg{string(r.Family), t.key}))
 
 	if r.IsAvailable() && loaded(r) {
-		out = append(out, "")
+		d.section("branch", t.header)
 		b := append([]seg{}, m.branchSegs(r)...)
 		if r.Upstream.Valid && r.Upstream.Value.Configured {
 			b = append(b, seg{" → " + r.Upstream.Value.Ref, t.dim})
 		}
 		b = append(b, seg{"  ", t.plain})
-		out = append(out, line(append(b, m.upstreamSegs(r)...)...))
+		d.text(append(b, m.upstreamSegs(r)...)...)
 
-		if r.Remotes.Valid {
-			for _, rem := range r.Remotes.Value {
-				out = append(out, line(seg{rem.Name + " ", t.bold}, seg{domain.RedactURL(rem.URL), t.dim}))
-			}
-			if len(r.Remotes.Value) == 0 {
-				out = append(out, line(seg{"no remotes", t.dim}))
-			}
-		}
-		if r.RemoteMismatch() {
-			out = append(out, line(seg{m.icons.mismatch + " expected " + remoteName(r.ExpectedRemote) + ": " +
-				domain.RedactURL(r.ExpectedRemote.URL), t.warn}))
-		}
 		if bs := m.otherBranchLines(r); len(bs) > 0 {
-			out = append(append(out, ""), bs...)
-		}
-
-		out = append(out, "")
-		if r.LastCommit.Valid {
-			if c := r.LastCommit.Value; c != nil {
-				out = append(out, line(seg{c.ShortID + " ", t.warn}, seg{c.Subject, t.plain}))
-				out = append(out, line(seg{c.Author + " · " + ago(now, c.Time) + " · ", t.dim}, m.fetchSeg(now, r)))
-			} else {
-				out = append(out, line(seg{"no commits yet", t.dim}))
+			d.add("", detailBlank)
+			d.add(bs[0], detailSection)
+			for _, l := range bs[1:] {
+				d.add(l, detailText)
 			}
 		}
 
 		if r.Worktree.Valid {
-			out = append(out, "")
-			w := r.Worktree.Value
-			parts := []seg{}
+			d.section("worktree", t.header)
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
-				parts = append(parts, seg{r.Operation.Value.String() + " in progress · ", t.err})
+				d.text(seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
 			}
-			untracked := fmt.Sprintf("untracked %d", w.Untracked)
-			if !w.UntrackedChecked {
-				untracked = "untracked not checked"
-			}
-			parts = append(parts, seg{fmt.Sprintf("staged %d · modified %d · deleted %d · renamed %d · conflicts %d · %s",
-				w.Staged, w.Modified, w.Deleted, w.Renamed, w.Conflicts, untracked), t.dim})
-			out = append(out, line(parts...))
+			d.text(m.worktreeSegs(r.Worktree.Value)...)
 		}
-		for _, p := range m.worktreeSiblings(r) {
-			out = append(out, line(seg{"worktree " + p, t.dim}))
+
+		if r.LastCommit.Valid {
+			d.section("last commit", t.header)
+			if c := r.LastCommit.Value; c != nil {
+				d.text(seg{c.ShortID + "  ", t.warn}, seg{c.Subject, t.plain})
+				d.text(seg{c.Author + " · " + ago(now, c.Time), t.dim})
+			} else {
+				d.text(seg{"no commits yet", t.dim})
+			}
+			d.text(m.fetchSeg(now, r))
+		}
+
+		if r.Remotes.Valid {
+			d.section("remotes", t.header)
+			nameWidth := 0
+			for _, rem := range r.Remotes.Value {
+				nameWidth = max(nameWidth, runewidth.StringWidth(domain.Printable(rem.Name)))
+			}
+			for _, rem := range r.Remotes.Value {
+				name := runewidth.FillRight(domain.Printable(rem.Name), nameWidth)
+				d.text(seg{name + "  ", t.bold}, seg{domain.RedactURL(rem.URL), t.dim})
+			}
+			if len(r.Remotes.Value) == 0 {
+				d.text(seg{"no remotes", t.dim})
+			}
+			if r.RemoteMismatch() {
+				d.text(seg{m.icons.mismatch + " expected " + remoteName(r.ExpectedRemote) + ": " +
+					domain.RedactURL(r.ExpectedRemote.URL), t.warn})
+			}
+		}
+
+		if siblings := m.worktreeSiblings(r); len(siblings) > 0 {
+			d.section("linked worktrees", t.header)
+			for _, p := range siblings {
+				d.text(seg{p, t.dim})
+			}
 		}
 	}
 
 	if e := m.firstError(r); e != "" {
-		out = append(out, "", line(seg{m.icons.failed + " " + firstLine(e), t.err}), line(seg{"press e for details", t.dim}))
+		d.section("error", t.err.Bold(true))
+		d.text(seg{m.icons.failed + " " + firstLine(e), t.err})
+		d.text(seg{"press e for details", t.dim})
+	}
+	return d
+}
+
+// worktreeSegs lists the nonzero worktree counts with their symbols.
+func (m *Model) worktreeSegs(w domain.WorktreeState) []seg {
+	t, ic := m.theme, m.icons
+	var out []seg
+	for _, c := range []struct {
+		icon, label string
+		n           int
+		style       lipgloss.Style
+	}{
+		{ic.conflict, "conflicts", w.Conflicts, t.err},
+		{ic.staged, "staged", w.Staged, t.ok},
+		{"", "renamed", w.Renamed, t.dim},
+		{ic.modified, "modified", w.Modified, t.dirty},
+		{ic.deleted, "deleted", w.Deleted, t.dirty},
+		{ic.untracked, "untracked", w.Untracked, t.dim},
+	} {
+		if c.n == 0 {
+			continue
+		}
+		if len(out) > 0 {
+			out = append(out, seg{"   ", t.plain})
+		}
+		out = append(out, seg{fmt.Sprintf("%s%d %s", c.icon, c.n, c.label), c.style})
+	}
+	if len(out) == 0 {
+		out = append(out, seg{ic.clean + " clean", t.clean})
+	}
+	if !w.UntrackedChecked {
+		out = append(out, seg{"   untracked not checked", t.dim})
 	}
 	return out
 }

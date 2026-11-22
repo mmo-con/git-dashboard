@@ -1458,6 +1458,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 - Missing and otherwise unavailable entries keep their normal sort position and show their state in the status column.
 - A remote mismatch is shown as a short `≠remote` marker in the status column; the detail panel shows the configured and the actual URL.
 - Linked worktrees of the same store are listed in the detail panel.
+- The detail panel groups its content into titled sections: branch, other branches, worktree (nonzero counts only), last commit and fetch time, remotes, linked worktrees, and errors last. Labels and remote names are aligned. If the panel is too small, blank lines are dropped first, then the section titles.
 - Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. If space is short, branch, name, and family shrink before status and upstream.
 - Colors and the symbol set are configurable in `[ui]` (see `docs/configuration.md`).
 
