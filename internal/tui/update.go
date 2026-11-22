@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -272,7 +273,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		m.mode, m.overlayIdx = modeError, 0
 	case "b":
 		if m.batch != nil {
-			m.mode, m.overlayIdx = modeOperations, 0
+			m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
 		} else {
 			m.setMessage("no operations yet")
 		}
@@ -411,6 +412,26 @@ func (m *Model) keyFamily(msg tea.KeyMsg) {
 	}
 }
 
+// moveOpRow moves the selection of the operations view in display order.
+// The selection is the index of a batch row, so it stays on the same
+// repository when the row moves to another status group.
+func (m *Model) moveOpRow(key string) bool {
+	order := m.opOrder()
+	pos := max(slices.Index(order, m.overlayIdx), 0)
+	switch key {
+	case "j", "down":
+		pos = min(pos+1, len(order)-1)
+	case "k", "up":
+		pos = max(pos-1, 0)
+	default:
+		return false
+	}
+	if len(order) > 0 {
+		m.overlayIdx = order[pos]
+	}
+	return true
+}
+
 func (m *Model) moveOverlay(key string, n int) bool {
 	switch key {
 	case "j", "down":
@@ -452,11 +473,7 @@ func (m *Model) keyError(key string) tea.Cmd {
 }
 
 func (m *Model) keyOperations(key string) tea.Cmd {
-	n := 0
-	if m.batch != nil {
-		n = len(m.batch.rows)
-	}
-	if m.moveOverlay(key, n) {
+	if m.moveOpRow(key) {
 		return nil
 	}
 	switch key {
@@ -660,7 +677,7 @@ func (m *Model) submitBatch(op domain.OperationType, js []jobs.Job, skipped []ap
 		})
 	}
 	m.batch = b
-	m.mode, m.overlayIdx = modeOperations, 0
+	m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
 	if len(js) == 0 {
 		m.setMessage(fmt.Sprintf("nothing to %s; %d blocked repositories listed", op, len(skipped)))
 		return
