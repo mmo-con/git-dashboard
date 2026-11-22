@@ -368,7 +368,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		}
 	case "?":
 		m.mode, m.overlayIdx = modeHelp, 0
-	case "1", "2", "3", "4", "5", "6":
+	case "1", "2", "3", "4", "5", "6", "7":
 		q := m.quickFilters()[key[0]-'1']
 		if strings.TrimSpace(m.filter.Text) == q.token {
 			m.filter.Text = ""

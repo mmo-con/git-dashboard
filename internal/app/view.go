@@ -16,7 +16,7 @@ type Filter struct {
 // StateKeywords lists the supported "is:" filter tokens.
 var StateKeywords = []string{
 	"is:dirty", "is:clean", "is:behind", "is:ahead", "is:diverged", "is:noupstream",
-	"is:error", "is:unavailable", "is:mismatch", "is:marked", "is:branches", "is:unpublished",
+	"is:error", "is:unavailable", "is:mismatch", "is:marked", "is:branches", "is:unpublished", "is:stashed",
 }
 
 // Matches reports whether r passes the filter. Text tokens are combined with
@@ -67,6 +67,8 @@ func matchState(tok string, r *domain.Repository, marked bool) bool {
 		return len(r.Branches.Value) > 0
 	case "is:unpublished":
 		return r.UnpublishedBranches() > 0
+	case "is:stashed":
+		return r.Stashes.Valid && r.Stashes.Value > 0
 	}
 	return false
 }

@@ -91,6 +91,7 @@ const (
 	colUntracked
 	colAhead
 	colBehind
+	colStashes
 	colCommit
 )
 
@@ -103,6 +104,7 @@ var colSpecs = []colSpec{
 	colUntracked: {title: "Untracked", min: 1, cap: 9, short: func(ic icons) string { return ic.untracked }},
 	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
 	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
+	colStashes:   {title: "Stashes", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colCommit:    {title: "Commit", min: 3, pref: 6, cap: 6},
 }
 
@@ -547,6 +549,15 @@ func (m *Model) detailLines(r *domain.Repository) *details {
 				d.text(seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
 			}
 			d.text(m.worktreeSegs(r.Worktree.Value)...)
+			// An unknown count is shown as "?" in the table; a failed
+			// inspection has its own section.
+			if r.Stashes.Valid && r.Stashes.Value > 0 {
+				s := []seg{{fmt.Sprintf("%s%d stash entries", m.icons.stash, r.Stashes.Value), t.warn}}
+				if len(m.worktreeSiblings(r)) > 0 {
+					s = append(s, seg{"  shared by all worktrees", t.dim})
+				}
+				d.text(s...)
+			}
 		}
 	}
 
@@ -686,6 +697,7 @@ func (m *Model) quickFilters() []quickFilter {
 		{"4", "is:diverged", "diverged", t.err},
 		{"5", "is:error", "errors", t.err},
 		{"6", "is:branches", "branches", t.warn},
+		{"7", "is:stashed", "stashes", t.warn},
 	}
 }
 
