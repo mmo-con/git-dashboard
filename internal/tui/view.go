@@ -193,7 +193,14 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		if m.marks[entry.id] {
 			mark = seg{m.icons.mark, m.theme.key}
 		}
-		row := append([][]seg{{{cursor, m.theme.key}, mark}}, cells[i]...)
+		row := append([][]seg{{{cursor, m.theme.accent}, mark}}, cells[i]...)
+		if i == m.cursor {
+			for _, cell := range row {
+				for k := range cell {
+					cell[k].style = m.theme.onSelected(cell[k].style)
+				}
+			}
+		}
 		var parts []string
 		for j, c := range cols {
 			parts = append(parts, renderCell(row[j], c.width, base))

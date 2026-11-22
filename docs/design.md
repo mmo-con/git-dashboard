@@ -1536,7 +1536,7 @@ Color is never the only information carrier. Every state is expressed by a symbo
 | `≠remote` | remote mismatch | yellow |
 | `!` | health column: other attention, such as a remote mismatch or other branches | yellow, or magenta if no branch holds unpublished work |
 | `◆` | marked | cyan |
-| `▌` | cursor | cyan, together with the selected background |
+| `▌` | cursor | cyan (`selected_accent`); the selected row uses a subtle background on which names and secondary text take the selected foreground, while semantic colors are kept |
 
 Three symbol sets are available through `[ui].icons`: `unicode` (default), `nerd` for Nerd Font icons, and `ascii` for limited terminals. The `NO_COLOR` environment variable disables all colors.
 

@@ -161,7 +161,9 @@ symbols and text.
 | `active_border` | `green` | border and title of the focused panel or dialog |
 | `inactive_border` | `gray` | other panel borders |
 | `title` | `green` | application title |
-| `selected_background` | `blue` | selected row |
+| `selected_background` | `237` | selected row |
+| `selected_foreground` | `bright-white` | names and secondary text in the selected row; semantic colors are kept |
+| `selected_accent` | `cyan` | cursor of the selected row |
 | `key` | `cyan` | key hints, marks, running operations |
 | `branch` | `cyan` | branch names |
 | `clean` | `gray` | clean and up-to-date states |
