@@ -414,6 +414,20 @@ func TestFooterHintsFollowContext(t *testing.T) {
 	}
 }
 
+func TestFamilySummaryCountsHealthLevels(t *testing.T) {
+	m := newModel(t)
+	got := plain(m.familySummary([]healthLevel{healthOK, healthDirty, healthError, healthDirty, healthUnknown}))
+	if got != "✗1 error  ●2 dirty" {
+		t.Errorf("summary = %q", got)
+	}
+	if got := plain(m.familySummary([]healthLevel{healthOK, healthOK})); got != "✓ all healthy" {
+		t.Errorf("healthy summary = %q", got)
+	}
+	if got := plain(m.familySummary([]healthLevel{healthOK, healthUnknown})); got != "" {
+		t.Errorf("a family that is still inspected must not be called healthy: %q", got)
+	}
+}
+
 func TestQuickFiltersToggle(t *testing.T) {
 	m := newModel(t)
 	keys(m, "1")
@@ -589,8 +603,8 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 		t.Fatal("view = \"tree\" must start in the tree with ASCII markers")
 	}
 	keys(m, "enter")
-	if !strings.Contains(m.View(), "[-] Work (1)") {
-		t.Fatal("expanded family must use the ASCII marker")
+	if v := m.View(); !strings.Contains(v, "[-] Work (1)") || !strings.Contains(v, "`- api") {
+		t.Fatal("expanded family must use the ASCII markers")
 	}
 
 	// A reload keeps the view the user switched to unless the configured

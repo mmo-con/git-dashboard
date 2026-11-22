@@ -154,13 +154,21 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		}
 		cells[i] = m.rowCells(m.repo(row.id), now)
 		if m.tree {
-			cells[i][0] = append([]seg{{"  ", m.theme.dim}}, cells[i][0]...)
+			guide := m.icons.treeItem
+			if i+1 == len(m.rows) || m.rows[i+1].count > 0 {
+				guide = m.icons.treeLast
+			}
+			cells[i][0] = append([]seg{{guide, m.theme.dim}}, cells[i][0]...)
 		}
 		for j, c := range cells[i] {
 			natural[j+colName] = max(natural[j+colName], runewidth.StringWidth(plain(c)))
 		}
 	}
 	cols := columns(iw, natural)
+	var health map[domain.FamilyID][]healthLevel
+	if m.tree {
+		health = m.familyHealth()
+	}
 	var lines []string
 	var header []string
 	for _, c := range cols {
@@ -185,8 +193,19 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			if m.expanded[entry.family] {
 				toggle = m.icons.expanded
 			}
-			text := fmt.Sprintf("%s  %s %s (%d)", cursor, toggle, domain.Printable(string(entry.family)), entry.count)
-			lines = append(lines, base.Render(fitANSI(text, iw)))
+			ss := []seg{
+				{cursor, m.theme.accent}, {"  " + toggle + " ", m.theme.dim}, {string(entry.family), m.theme.bold},
+				{fmt.Sprintf(" (%d)", entry.count), m.theme.dim},
+			}
+			if summary := m.familySummary(health[entry.family]); len(summary) > 0 {
+				ss = append(append(ss, seg{"   ", m.theme.plain}), summary...)
+			}
+			if i == m.cursor {
+				for k := range ss {
+					ss[k].style = m.theme.onSelected(ss[k].style)
+				}
+			}
+			lines = append(lines, renderCell(ss, iw, base))
 			continue
 		}
 		mark := seg{" ", m.theme.plain}
@@ -272,10 +291,11 @@ func (m *Model) detailsBox(w, h int) []string {
 		if m.expanded[row.family] {
 			action = "collapse"
 		}
-		return m.box(string(row.family), "", []string{
-			fmt.Sprintf(" Matching repositories: %d", row.count),
-			" Enter: " + action + " family",
-		}, w, h, false)
+		lines := []string{fmt.Sprintf(" Matching repositories: %d", row.count)}
+		if summary := m.familySummary(m.familyHealth()[row.family]); len(summary) > 0 {
+			lines = append(lines, " "+line(summary...))
+		}
+		return m.box(string(row.family), "", append(lines, "", " Enter: "+action+" family"), w, h, false)
 	}
 	r := m.current()
 	if r == nil {
