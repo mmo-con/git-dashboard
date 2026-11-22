@@ -530,7 +530,9 @@ The concrete keys, symbols, and filters are listed in
   on shared runners, especially macOS, is slow and erratic enough to miss the
   target without any change in the code.
 - **CI** runs lint and tests with the race detector and coverage on Linux
-  with Git 2.34 (the minimum), Linux with the latest Git, and macOS.
+  with Git 2.34 (the minimum), Linux with the latest Git, and macOS. A
+  version-tag push creates a release draft only after this matrix passes;
+  publication remains a manual decision.
 
 ## 12. Decisions
 
