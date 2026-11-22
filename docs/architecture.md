@@ -449,6 +449,10 @@ The concrete keys, symbols, and filters are listed in
   the health of their repositories.
 - The footer shows only the actions that apply to the current mode, row, and
   selection; `?` shows all keys.
+- The table header is a bar in its own colors, so the columns stand apart
+  from the rows. Header counters with matches are boxes in their state
+  color, so problems are visible at a glance; the active quick filter is
+  bracketed, because reverse video and colors are lost with `NO_COLOR`.
 - The detail panel puts branch, worktree, and errors first, because a small
   panel is cut off at the bottom; it shortens the other branches list before
   dropping section titles.

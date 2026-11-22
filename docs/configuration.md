@@ -194,6 +194,8 @@ symbols and text.
 | `selected_background` | `237` | selected row |
 | `selected_foreground` | `bright-white` | names, secondary text, and text in the terminal's default color in the selected row; other semantic colors are kept |
 | `selected_accent` | `cyan` | cursor of the selected row |
+| `header_background` | `24` | background of the table header |
+| `header_foreground` | `bright-white` | titles in the table header |
 | `key` | `cyan` | key hints, marks, running operations |
 | `branch` | `cyan` | branch names |
 | `clean` | `gray` | clean and up-to-date states |

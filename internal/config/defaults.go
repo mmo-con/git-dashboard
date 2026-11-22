@@ -51,6 +51,8 @@ func DefaultTheme() Theme {
 		SelectedBackground: "237",
 		SelectedForeground: "bright-white",
 		SelectedAccent:     "cyan",
+		HeaderBackground:   "24",
+		HeaderForeground:   "bright-white",
 		Key:                "cyan",
 		Branch:             "cyan",
 		Clean:              "gray",

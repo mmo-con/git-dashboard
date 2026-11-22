@@ -34,6 +34,12 @@ cursor moves within the current view before the list scrolls again.
 | `?` | help |
 | `q` / `Ctrl+C` | quit; while a fetch or update batch runs, asks first, because quitting cancels it |
 
+The header shows the quick filters with their key and the number of
+matching repositories in the current family. A counter with matches is a
+box in its state color, a counter without matches is dimmed, and the active
+quick filter is bracketed, for example `[1 dirty 3]`, so it is recognizable
+without colors.
+
 ## Repository
 
 | Key | Action |
