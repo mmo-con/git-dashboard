@@ -25,7 +25,9 @@ The architecture and the decisions behind it are documented in
   include and exclude patterns and clear precedence rules.
 - Status per repository: branch, detached or unborn HEAD, operations in
   progress, staged/modified/deleted/renamed/conflicting/untracked entries,
-  upstream state, remotes, latest commit, and last fetch time.
+  upstream state, stash entries, remotes, latest commit, and last fetch time.
+  Stash entries are only reported, as a count and with a quick filter;
+  applying or dropping them stays with lazygit.
 - Other local branches that need attention, such as a stale `main` or a
   branch with unpushed work, shown as a count with details in the side panel;
   old and ignored branches are filtered out, pinned branches always count.
@@ -43,7 +45,7 @@ The architecture and the decisions behind it are documented in
   lazygit, see which blockers are resolved, and continue with a new preview.
 - Configurable launchers for a shell, an editor, or a file manager.
 - lazygit-style panels with titled borders, one column per count (staged,
-  modified, untracked, ahead, behind) plus a State column for everything
+  modified, untracked, ahead, behind, stashes) plus a State column for everything
   else, per-cell colors, spinners and progress bars, dialogs as overlays, and
   header counters that double as quick filters. Colors, built-in theme presets
   (such as high contrast, Catppuccin, Dracula, and Gruvbox), and the symbol

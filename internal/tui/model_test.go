@@ -331,10 +331,11 @@ func TestStatusTexts(t *testing.T) {
 	r.ExpectedRemote = &domain.ExpectedRemote{URL: "git@a:b.git"}
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:c.git"}})
 	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip"}})
+	r.Stashes = domain.KnownValue(3)
 	if got := m.stateText(&r); got != "merging  ✘1 conflicts  diverged  ≠remote  ⎇1" {
 		t.Errorf("state = %q", got)
 	}
-	if got := countText(m, &r); got != "2|4|4|1|2" {
+	if got := countText(m, &r); got != "2|4|4|1|2|3" {
 		t.Errorf("counts = %q; modified includes deletions", got)
 	}
 	if got := m.upstreamText(&r); got != "↑1 ↓2 diverged" {
@@ -345,20 +346,22 @@ func TestStatusTexts(t *testing.T) {
 	r.ExpectedRemote, r.Branches = nil, domain.Known[[]domain.BranchState]{}
 	r.Worktree = domain.KnownValue(domain.WorktreeState{})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "#–|–|off|–|–" {
+	r.Stashes = domain.KnownValue(0)
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "#–|–|off|–|–|–" {
 		t.Errorf("a healthy repository has no state, known zeros are dashes, and unchecked untracked files are off: %q", got)
 	}
 	r.Upstream = domain.KnownValue(domain.UpstreamState{})
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "∅ no upstream#–|–|off||" {
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "∅ no upstream#–|–|off|||–" {
 		t.Errorf("without an upstream, ahead and behind do not apply: %q", got)
 	}
 	r.Worktree = domain.Known[domain.WorktreeState]{}
 	r.Upstream = domain.Known[domain.UpstreamState]{}
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "? unknown#?|?|?|?|?" {
+	r.Stashes = domain.Known[int]{}
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "? unknown#?|?|?|?|?|?" {
 		t.Errorf("unknown state must not be shown as zero: %q", got)
 	}
 	r.Availability = domain.Missing
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "✗ missing#||||" {
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "✗ missing#|||||" {
 		t.Errorf("missing = %q", got)
 	}
 
@@ -366,8 +369,41 @@ func TestStatusTexts(t *testing.T) {
 	r.Availability = domain.Available
 	r.Worktree = domain.KnownValue(domain.WorktreeState{Modified: 1, UntrackedChecked: true})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Gone: true})
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "- upstream gone#–|1|–||" {
+	r.Stashes = domain.KnownValue(1)
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "- upstream gone#–|1|–|||1" {
 		t.Errorf("ascii = %q", got)
+	}
+}
+
+func TestStashHints(t *testing.T) {
+	m := newModel(t)
+	for i := range m.repos {
+		r := &m.repos[i]
+		r.Availability = domain.Available
+		r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+		r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+		r.Stashes = domain.KnownValue(0)
+	}
+	api := m.repo("/r/api")
+	api.Stashes = domain.KnownValue(2)
+	keys(m, "7")
+	if m.filter.Text != "is:stashed" || names(m) != "api" {
+		t.Fatalf("7 must show the repositories with stash entries: %q", names(m))
+	}
+	detail := func() string { return strings.Join(m.detailLines(api).fit(100), "\n") }
+	if v := detail(); !strings.Contains(v, "≡2 stash entries") || strings.Contains(v, "shared") {
+		t.Fatalf("detail:\n%s", v)
+	}
+	m.repo("/r/frontend").StoreID = api.StoreID
+	if v := detail(); !strings.Contains(v, "≡2 stash entries  shared by all worktrees") {
+		t.Fatalf("a store with linked worktrees must say that they share the stash:\n%s", v)
+	}
+	api.Stashes = domain.Known[int]{}
+	if v := detail(); strings.Contains(v, "stash") {
+		t.Fatalf("an unknown count must not be reported as a number of stash entries:\n%s", v)
+	}
+	if got := countText(m, api); !strings.HasSuffix(got, "|?") {
+		t.Fatalf("the table must show an unknown count as ?: %q", got)
 	}
 }
 
@@ -385,6 +421,12 @@ func TestHealthPrefersTheMostImportantState(t *testing.T) {
 		}
 	}
 	check("✓", true)
+	r.Stashes = domain.KnownValue(1)
+	check("!", false)
+	if s, _ := m.health(&r); s.style.GetForeground() != m.theme.warn.GetForeground() {
+		t.Error("stash entries are unpublished work and must be highlighted as a warning")
+	}
+	r.Stashes = domain.KnownValue(0)
 	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip"}})
 	check("!", false)
 	r.Upstream.Value.Ahead = 1
@@ -731,9 +773,9 @@ func TestColumnsFollowContent(t *testing.T) {
 	// truncation; the remaining space is not given to the name column. Count
 	// columns are as wide as their full titles.
 	ic := iconSet("unicode")
-	natural := []int{0, 24, 13, 26, 7, 1, 1, 1, 2, 1, 4}
+	natural := []int{0, 24, 13, 26, 7, 1, 1, 1, 2, 1, 1, 4}
 	cols := columns(160, natural, ic, false)
-	for i, want := range []int{3, 24, 13, 26, 16, 6, 8, 9, 5, 6, 6} {
+	for i, want := range []int{3, 24, 13, 26, 16, 6, 8, 9, 5, 6, 7, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}

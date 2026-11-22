@@ -443,17 +443,18 @@ The concrete keys, symbols, and filters are listed in
   honored.
 - A health symbol before each name shows the most important state of the
   row, by priority: errors, critical states (conflicts, operations in
-  progress, divergence), dirty, behind, ahead, other attention. Only healthy
-  names are not emphasized. Family rows summarize the health of their
-  repositories.
+  progress, divergence), dirty, behind, ahead, other attention (other
+  branches, stash entries, a remote mismatch, a detached HEAD, or a gone
+  upstream). Only healthy names are not emphasized. Family rows summarize
+  the health of their repositories.
 - The footer shows only the actions that apply to the current mode, row, and
   selection; `?` shows all keys.
 - The detail panel puts branch, worktree, and errors first, because a small
   panel is cut off at the bottom; it shortens the other branches list before
   dropping section titles.
 - Every count has its own column (staged, modified, untracked, ahead,
-  behind), so the same state can be compared down the table, and a cell
-  needs no symbol. A known zero is `–`, an unknown value `?`, and a count
+  behind, stashes), so the same state can be compared down the table, and a
+  cell needs no symbol. A known zero is `–`, an unknown value `?`, and a count
   that does not apply stays empty, so neither looks like a clean state.
   Findings without a count, such as conflicts, an operation in progress, or
   a missing upstream, share one State column with text, which is empty for

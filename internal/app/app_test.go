@@ -208,6 +208,7 @@ func TestStateTokens(t *testing.T) {
 		{"is:error", &domain.Repository{Inspection: domain.InspectionInfo{Err: errors.New("x")}}, up(domain.UpstreamState{})},
 		{"is:mismatch", &domain.Repository{ExpectedRemote: &domain.ExpectedRemote{URL: "a"},
 			Remotes: domain.KnownValue([]domain.Remote{{Name: "origin", URL: "b"}})}, up(domain.UpstreamState{})},
+		{"is:stashed", &domain.Repository{Stashes: domain.KnownValue(1)}, &domain.Repository{Stashes: domain.KnownValue(0)}},
 		{"is:unknown-token", nil, up(domain.UpstreamState{})},
 	}
 	for _, tc := range cases {

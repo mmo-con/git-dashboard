@@ -84,13 +84,13 @@ func (m *Model) stateSegs(r *domain.Repository) []seg {
 }
 
 // countSegs returns the cells of the count columns: staged, modified
-// (including deletions in the worktree), untracked, ahead, and behind. "–" is
-// a known zero and "?" an unknown value. A cell stays empty while the
-// repository loads and where the count does not apply, such as ahead and
-// behind without an upstream; the state column names the reason.
+// (including deletions in the worktree), untracked, ahead, behind, and stash
+// entries. "–" is a known zero and "?" an unknown value. A cell stays empty
+// while the repository loads and where the count does not apply, such as
+// ahead and behind without an upstream; the state column names the reason.
 func (m *Model) countSegs(r *domain.Repository) [][]seg {
 	t := m.theme
-	out := make([][]seg, colBehind-colStaged+1)
+	out := make([][]seg, colStashes-colStaged+1)
 	if !r.IsAvailable() || !loaded(r) {
 		return out
 	}
@@ -101,6 +101,10 @@ func (m *Model) countSegs(r *domain.Repository) [][]seg {
 		return []seg{{strconv.Itoa(n), style}}
 	}
 	unknown := []seg{{"?", t.warn}}
+	out[5] = unknown
+	if r.Stashes.Valid {
+		out[5] = num(r.Stashes.Value, t.warn)
+	}
 	if r.Worktree.Valid {
 		w := r.Worktree.Value
 		out[0] = num(w.Staged, t.ahead)
@@ -213,8 +217,9 @@ const (
 
 // healthOf classifies r: errors and unavailable entries first, then
 // conflicts, operations in progress, and divergence, a dirty worktree,
-// behind, ahead, and other attention such as a remote mismatch or other
-// branches. Repositories that are not inspected yet are unknown.
+// behind, ahead, and other attention such as a remote mismatch, other
+// branches, or stash entries. Repositories that are not inspected yet are
+// unknown.
 func (m *Model) healthOf(r *domain.Repository) healthLevel {
 	if !r.IsAvailable() || m.firstError(r) != "" {
 		return healthError
@@ -232,15 +237,18 @@ func (m *Model) healthOf(r *domain.Repository) healthLevel {
 		return healthBehind
 	case u.Ahead > 0:
 		return healthAhead
-	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone:
+	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone || stashed(r):
 		return healthAttention
 	}
 	return healthOK
 }
 
+func stashed(r *domain.Repository) bool { return r.Stashes.Valid && r.Stashes.Value > 0 }
+
 // healthSeg returns the symbol of a health level, and its label for family
 // summaries. Other attention is highlighted as a warning only if it involves
-// unpublished work, a remote mismatch, a detached HEAD, or a gone upstream.
+// unpublished work (including stash entries), a remote mismatch, a detached
+// HEAD, or a gone upstream.
 func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
 	t, ic := m.theme, m.icons
 	switch l {
@@ -269,7 +277,7 @@ func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
 // available, inspected repository without findings.
 func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
 	l := m.healthOf(r)
-	warn := r.UnpublishedBranches() > 0 || r.RemoteMismatch() ||
+	warn := r.UnpublishedBranches() > 0 || r.RemoteMismatch() || stashed(r) ||
 		(r.Head.Valid && r.Head.Value.Detached) || (r.Upstream.Valid && r.Upstream.Value.Gone)
 	s, _ = m.healthSeg(l, warn)
 	return s, l == healthOK
