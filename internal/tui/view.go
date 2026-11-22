@@ -228,7 +228,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		}
 		header.WriteString(strings.Repeat(" ", colGap(j)) + align(c.title, c.width, c.right))
 	}
-	lines = append(lines, m.theme.header.Render(header.String()))
+	lines = append(lines, m.theme.tableHeader.Render(header.String()))
 
 	rows := h - 3
 	if len(m.rows) == 0 {
@@ -713,15 +713,21 @@ func (m *Model) headerLine() string {
 				n++
 			}
 		}
-		label := fmt.Sprintf("%s %d", q.label, n)
-		style := q.style
-		if n == 0 {
-			style = t.dim
-		}
+		// Counters with matches are boxes in their state color; the active
+		// filter is bracketed, so it is recognizable without color.
+		label := fmt.Sprintf("%s %s %d", q.key, q.label, n)
+		open, end := " ", " "
 		if strings.TrimSpace(m.filter.Text) == q.token {
-			style = style.Reverse(true)
+			open, end = "[", "]"
 		}
-		left += "  " + t.key.Render(q.key) + " " + style.Render(label)
+		chip := q.style.Reverse(true)
+		if n == 0 {
+			chip = t.dim
+			if open == "[" {
+				chip = chip.Reverse(true)
+			}
+		}
+		left += " " + chip.Render(open+label+end)
 	}
 
 	var right string

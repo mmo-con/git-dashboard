@@ -15,6 +15,7 @@ type theme struct {
 	selected       lipgloss.Style
 	accent         lipgloss.Style
 	header         lipgloss.Style
+	tableHeader    lipgloss.Style
 	key            lipgloss.Style
 	branch         lipgloss.Style
 	clean          lipgloss.Style
@@ -43,6 +44,7 @@ func newTheme(t config.Theme) theme {
 		selected:       lipgloss.NewStyle().Background(c(t.SelectedBackground)).Foreground(c(t.SelectedForeground)).Bold(true),
 		accent:         fg(t.SelectedAccent).Bold(true),
 		header:         fg(t.Dim).Bold(true),
+		tableHeader:    lipgloss.NewStyle().Background(c(t.HeaderBackground)).Foreground(c(t.HeaderForeground)).Bold(true),
 		key:            fg(t.Key).Bold(true),
 		branch:         fg(t.Branch),
 		clean:          fg(t.Clean),

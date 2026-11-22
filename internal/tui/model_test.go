@@ -113,6 +113,17 @@ func TestRepoViewportKeepsContextAndLetsCursorMoveBackUp(t *testing.T) {
 	}
 }
 
+func TestQuickFilterHeaderMarksActiveFilter(t *testing.T) {
+	m := newModel(t)
+	if h := m.headerLine(); !strings.Contains(h, " 1 dirty 1 ") || strings.Contains(h, "[") {
+		t.Fatalf("header = %q", h)
+	}
+	keys(m, "1")
+	if h := m.headerLine(); !strings.Contains(h, "[1 dirty 1]") || strings.Contains(h, "[2") {
+		t.Fatalf("the active quick filter must be bracketed: %q", h)
+	}
+}
+
 func TestFilterFamilyAndSelection(t *testing.T) {
 	m := newModel(t)
 	if names(m) != "api dotfiles frontend" {

@@ -92,6 +92,8 @@ type Theme struct {
 	SelectedBackground string
 	SelectedForeground string
 	SelectedAccent     string
+	HeaderBackground   string
+	HeaderForeground   string
 	Key                string
 	Branch             string
 	Clean              string
@@ -175,6 +177,8 @@ type fileTheme struct {
 	SelectedBackground string `toml:"selected_background"`
 	SelectedForeground string `toml:"selected_foreground"`
 	SelectedAccent     string `toml:"selected_accent"`
+	HeaderBackground   string `toml:"header_background"`
+	HeaderForeground   string `toml:"header_foreground"`
 	Key                string `toml:"key"`
 	Branch             string `toml:"branch"`
 	Clean              string `toml:"clean"`
