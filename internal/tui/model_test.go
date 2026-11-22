@@ -401,7 +401,7 @@ func TestStashHints(t *testing.T) {
 	if m.filter.Text != "is:stashed" || names(m) != "api" {
 		t.Fatalf("7 must show the repositories with stash entries: %q", names(m))
 	}
-	detail := func() string { return strings.Join(m.detailLines(api).fit(100), "\n") }
+	detail := func() string { return strings.Join(m.detailLines(api, 60).fit(100), "\n") }
 	if v := detail(); !strings.Contains(v, "≡2 stash entries") || strings.Contains(v, "shared") {
 		t.Fatalf("detail:\n%s", v)
 	}
@@ -697,7 +697,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	if len(lines) != 12 || !strings.Contains(lines[0], "↓2") {
 		t.Fatalf("lines = %q", lines)
 	}
-	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
+	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
 		strings.Contains(v, "wip-9") || !strings.Contains(v, "+2 more") {
 		t.Fatalf("the detail panel lists at most %d other branches:\n%s", maxBranchLines, v)
 	}
@@ -705,6 +705,44 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 
 // TestSmallDetailPanelShortensOtherBranchesFirst checks that many other
 // branches do not push the worktree state or an error out of the panel.
+func TestDetailSectionsAndCommitLine(t *testing.T) {
+	m := newModel(t)
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return now }
+	r := repo("svc", "Work", false)
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
+	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Author: "Sam",
+		Time: now.Add(-5 * time.Hour), Subject: "Show delivery estimate"})
+	lines := m.detailLines(&r, 40).fit(100)
+	v := strings.Join(lines, "\n")
+	if !strings.Contains(v, "c28633b  5h ago  Show delivery estimate") || strings.Contains(v, "Sam") {
+		t.Fatalf("the commit must be one line of hash, date, and subject:\n%s", v)
+	}
+	found := false
+	for _, l := range lines {
+		if strings.HasPrefix(l, "── BRANCH ─") {
+			found = true
+			if w := lipgloss.Width(l); w != 40 {
+				t.Errorf("a section rule must span the panel: width %d, want 40", w)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("sections must be titled within a rule:\n%s", v)
+	}
+
+	for d, want := range map[time.Duration]string{
+		30 * time.Second: "just now", 5 * time.Minute: "5m ago", 3 * 24 * time.Hour: "3d ago",
+		30 * 24 * time.Hour: "Oct 23", 400 * 24 * time.Hour: "2025-10-18",
+	} {
+		if got := commitDate(now, now.Add(-d)); got != want {
+			t.Errorf("commitDate(-%v) = %q, want %q", d, got, want)
+		}
+	}
+}
+
 func TestSmallDetailPanelShortensOtherBranchesFirst(t *testing.T) {
 	m := newModel(t)
 	r := &m.repos[m.index[m.current().ID]]
