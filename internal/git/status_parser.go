@@ -14,6 +14,9 @@ type Status struct {
 	Head     domain.HeadState
 	Upstream domain.UpstreamState
 	Worktree domain.WorktreeState
+	// Stashes is the "# stash" header, which Git prints with --show-stash
+	// only if there are stash entries.
+	Stashes int
 }
 
 // ParseStatus parses NUL-delimited porcelain v2 output. Unknown header lines
@@ -96,6 +99,12 @@ func parseHeader(rec string, st *Status, hasAB *bool) error {
 			return fmt.Errorf("malformed branch.ab header %q", value)
 		}
 		st.Upstream.Ahead, st.Upstream.Behind = a, b
+	case "stash":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 0 {
+			return fmt.Errorf("malformed stash header %q", value)
+		}
+		st.Stashes = n
 	}
 	return nil
 }
