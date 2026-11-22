@@ -14,6 +14,7 @@ import (
 	"github.com/mmo-con/git-dashboard/internal/domain"
 	"github.com/mmo-con/git-dashboard/internal/inventory"
 	"github.com/mmo-con/git-dashboard/internal/jobs"
+	tu "github.com/mmo-con/git-dashboard/internal/testutil"
 )
 
 func writeConfig(t *testing.T, m *Model, body string) string {
@@ -59,6 +60,24 @@ func TestReloadActivatesConfigurationInUpdateLoop(t *testing.T) {
 	}
 	if m.loadingInventory || len(m.repos) != 0 {
 		t.Fatalf("the inventory of the reloaded configuration must replace the old one: %d", len(m.repos))
+	}
+}
+
+func TestReloadKeepsScanPath(t *testing.T) {
+	tu.IsolateGit(t)
+	m := newModel(t)
+	base := tu.Canonical(t, t.TempDir())
+	configured := tu.InitRepo(t, filepath.Join(base, "configured"))
+	scanned := tu.InitRepo(t, filepath.Join(base, "scan", "api"))
+	writeConfig(t, m, "[git]\nfetch_parallelism = 1\n[[repositories]]\npath = \""+configured+"\"\n")
+	m.app.SetScanRoot(filepath.Join(base, "scan"))
+
+	m.Update(m.reload()())
+	if len(m.repos) != 1 || m.repos[0].Path != scanned {
+		t.Fatalf("reload must rescan the path instead of the configured repositories: %+v", m.repos)
+	}
+	if m.app.Config.Git.FetchParallelism != 1 {
+		t.Fatal("settings of the configuration file must apply in scan mode")
 	}
 }
 

@@ -28,7 +28,7 @@ cursor moves within the current view before the list scrolls again.
 | `v` | switch between the flat list and the family tree |
 | `s` | choose sorting |
 | `r` | refresh visible repository state |
-| `R` | reload configuration, rebuild inventory, refresh all; a new Git executable, parallelism limits, lazygit, and launchers take effect at once |
+| `R` | reload configuration, rebuild inventory, refresh all; a new Git executable, parallelism limits, lazygit, and launchers take effect at once. When started with a path, the same path is scanned again |
 | `e` | show error details and warnings |
 | `b` | show the operations view |
 | `?` | help |

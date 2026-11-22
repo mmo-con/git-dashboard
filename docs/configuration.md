@@ -8,7 +8,13 @@ Git Dashboard reads a TOML file. The file is located in this order:
    `~/.config/git-dashboard/config.toml`.
 
 If no file exists, Git Dashboard starts with an empty inventory and shows the
-expected path. `git-dashboard --check` validates the file and prints the
+expected path.
+
+`git-dashboard <path>` replaces `[[repositories]]` and `[[discovery]]` with a
+single discovery below `<path>` with the defaults described below
+(`max_depth = 3`, no exclusions, family `Ungrouped`, symbolic links not
+followed). All other settings of the file apply; `R` scans the same path
+again. `git-dashboard --check` validates the file and prints the
 resolved inventory without starting the user interface.
 
 Syntax errors, type errors, and unknown fields prevent startup. Problems with
