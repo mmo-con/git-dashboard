@@ -23,13 +23,32 @@ const wideLayout = 130
 // remaining width for its columns.
 const maxDetailWidth = 70
 
+// spaciousHeight is the minimum height for blank lines below the header bar
+// and below the table header; lower terminals keep the lines for rows.
+const spaciousHeight = 24
+
+// spacing is the number of blank lines below the header bar and below the
+// table header.
+func (m *Model) spacing() int {
+	if m.height >= spaciousHeight {
+		return 1
+	}
+	return 0
+}
+
+// mainHeight is the height of the panels between header bar and footer.
+func (m *Model) mainHeight() int { return max(m.height-2-m.spacing(), 4) }
+
 func (m *Model) View() string {
-	main := m.mainArea(max(m.height-2, 4))
+	main := m.mainArea(m.mainHeight())
 	if modal := m.modal(len(main)); modal != nil {
 		main = m.overlay(main, modal)
 	}
-	lines := append([]string{m.headerLine()}, main...)
-	lines = append(lines, m.footerLine())
+	lines := []string{m.headerLine()}
+	for range m.spacing() {
+		lines = append(lines, "")
+	}
+	lines = append(append(lines, main...), m.footerLine())
 	return strings.Join(lines, "\n")
 }
 
@@ -53,11 +72,11 @@ func stackedDetailsHeight(h int) int {
 
 // tableRows is the number of repository rows that fit into the table.
 func (m *Model) tableRows() int {
-	h := max(m.height-2, 4)
+	h := m.mainHeight()
 	if m.width < wideLayout {
 		h -= stackedDetailsHeight(h)
 	}
-	return max(h-3, 1)
+	return max(h-3-m.spacing(), 1)
 }
 
 func (m *Model) pageSize() int { return max(m.tableRows()-1, 1) }
@@ -229,8 +248,11 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		header.WriteString(strings.Repeat(" ", colGap(j)) + align(c.title, c.width, c.right))
 	}
 	lines = append(lines, m.theme.tableHeader.Render(header.String()))
-
 	rows := h - 3
+	if m.spacing() > 0 && rows > 1 {
+		lines = append(lines, "")
+		rows--
+	}
 	if len(m.rows) == 0 {
 		lines = append(lines, m.theme.dim.Render(domain.Printable(m.emptyText())))
 	}

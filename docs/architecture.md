@@ -436,6 +436,9 @@ The concrete keys, symbols, and filters are listed in
   panel takes 40 % of the width and at most 70 columns, so wide terminals
   give the space to the table. Dialogs are centered over a dimmed copy of
   the main view.
+- From 24 lines, a blank line separates the header bar from the panels and
+  the table header from the first row, so the top of the screen does not
+  read as one block. Lower terminals keep these lines for rows.
 - **Color is never the only carrier of information.** Every state has a
   symbol with a count or text, and the help view has a legend. Colors apply
   per cell, so problems stand out and healthy rows stay quiet; success has
