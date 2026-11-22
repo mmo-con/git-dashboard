@@ -96,7 +96,7 @@ described in [docs/configuration.md](docs/configuration.md), and all keys in
 make test             # unit and integration tests (requires git)
 make test-race        # tests with the race detector
 make coverage         # race-detector tests with a Markdown coverage report
-make perf             # performance test: 200 repositories within 2 seconds
+make perf             # local benchmark: 200 repositories within 2 seconds
 make lint             # go vet and gofmt check
 make release          # cross-compiled archives and checksums in ./dist
 ```

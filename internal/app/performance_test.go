@@ -14,11 +14,12 @@ import (
 	tu "github.com/mmo-con/git-dashboard/internal/testutil"
 )
 
-// TestInspectionPerformance verifies the target from docs/architecture.md: 200
-// repositories are inspected within 2 seconds. Repository creation is not
-// measured. Shared CI runners are sometimes slowed down as a whole, so the
-// measurement is repeated up to three times and the test passes as soon as
-// one run meets the target. Enable with GIT_DASHBOARD_PERF=1.
+// TestInspectionPerformance is a local benchmark for the target in
+// docs/architecture.md: 200 repositories are inspected within 2 seconds.
+// Repository creation is not measured. The measurement is repeated up to three
+// times and passes as soon as one run meets the target. It is not run in CI,
+// where TestProcessBudget and TestJobsUseTheirParallelism guard the cost model
+// deterministically. Enable with GIT_DASHBOARD_PERF=1.
 func TestInspectionPerformance(t *testing.T) {
 	if os.Getenv("GIT_DASHBOARD_PERF") == "" {
 		t.Skip("set GIT_DASHBOARD_PERF=1 to run the performance test")

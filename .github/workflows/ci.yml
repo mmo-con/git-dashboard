@@ -49,4 +49,3 @@ jobs:
         run: |
           echo "**${{ matrix.name }}**" >> "$GITHUB_STEP_SUMMARY"
           sh scripts/coverage-summary.sh coverage.out >> "$GITHUB_STEP_SUMMARY"
-      - run: make perf
