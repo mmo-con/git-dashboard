@@ -1456,7 +1456,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 │                                                                            ││ ≠ expected origin: git@github.com:company/api.git│
 │                                                                            ││                                                  │
 ╰─────────────────────────────────────── 1 marked · A: clear marks │ 1 of 4 ─╯╰─────────────────────────────────────── explicit ─╯
- Enter lazygit │ v tree/list │ f fetch │ F fetch shown │ u update │ Space mark │ / filter │ t families │ ? help │ q quit
+ Enter lazygit │ f fetch marked │ u update marked │ A clear marks │ / filter │ ? all keys
 ```
 
 - The header shows counters for the current family. The digits `1`–`6` apply the corresponding state filter; pressing the digit again clears it.
@@ -1464,7 +1464,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 - A one-character health column after the name shows the most important state of the row: errors and unavailable entries, conflicts, operations in progress, or divergence first, then a dirty worktree, behind, ahead, and other attention (`!`, such as a remote mismatch or other branches). Only healthy repositories show `✓`; their names are not emphasized, so rows that need attention stand out.
 - The `Commit` column shows the age of the latest commit.
 - The right side of the header shows a spinner while the inventory loads or repositories are inspected, and a progress bar while a batch runs. Rows of repositories with a running job show a spinner in the upstream column.
-- The footer shows key hints for the current mode. Messages appear at the right end of the footer and disappear after 4 seconds (errors after 10 seconds); details remain available through `e` and `b`.
+- The footer shows only the most important key hints for the current mode and context, `?` lists all keys. With marks, fetch and update name the marked repositories and `A` clears the marks; on a family row `Enter` expands or collapses; an active text filter adds `Esc`. The operations view shows cancel while the batch runs, retry when it has failed rows, continue for a finished update, and the terminal retry for a selected failed fetch. Messages appear at the right end of the footer and disappear after 4 seconds (errors after 10 seconds); details remain available through `e` and `b`.
 - Dialogs (help, errors, sorting, operations, confirmations, update preview, launchers) are centered boxes over a dimmed copy of the main view.
 - Missing and otherwise unavailable entries keep their normal sort position and show their state in the status column.
 - A remote mismatch is shown as a short `≠remote` marker in the status column; the detail panel shows the configured and the actual URL.

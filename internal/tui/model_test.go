@@ -383,6 +383,37 @@ func TestSelectedRowKeepsSemanticColorsReadable(t *testing.T) {
 	}
 }
 
+func TestFooterHintsFollowContext(t *testing.T) {
+	m := newModel(t)
+	hints := func() string { return strings.Join(m.normalHints(), " ") }
+	if h := hints(); !strings.Contains(h, "Enter lazygit") || !strings.Contains(h, "F fetch shown") || strings.Contains(h, "clear") {
+		t.Errorf("default hints = %q", h)
+	}
+	keys(m, " ", "/", "api", "enter")
+	if h := hints(); !strings.Contains(h, "f fetch marked") || !strings.Contains(h, "A clear marks") ||
+		!strings.Contains(h, "Esc clear filter") || strings.Contains(h, "fetch shown") {
+		t.Errorf("hints with marks and filter = %q", h)
+	}
+	keys(m, "esc", "A", "v")
+	if h := hints(); !strings.HasPrefix(h, "Enter expand") {
+		t.Errorf("hints on a family row = %q", h)
+	}
+
+	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{
+		{job: jobs.Job{Operation: domain.OperationFetch}, result: domain.OperationResult{Status: domain.StatusRunning}},
+		{job: jobs.Job{Operation: domain.OperationFetch}, result: domain.OperationResult{Status: domain.StatusFailed}},
+	}}
+	ops := func() string { return strings.Join(m.operationHints(), " ") }
+	if h := ops(); !strings.Contains(h, "c cancel") || strings.Contains(h, "retry") {
+		t.Errorf("running batch hints = %q", h)
+	}
+	m.batch.rows[0].result.Status = domain.StatusSucceeded
+	m.overlayIdx = 1
+	if h := ops(); strings.Contains(h, "cancel") || !strings.Contains(h, "x retry failed") || !strings.Contains(h, "t retry in terminal") {
+		t.Errorf("finished batch hints = %q", h)
+	}
+}
+
 func TestQuickFiltersToggle(t *testing.T) {
 	m := newModel(t)
 	keys(m, "1")
