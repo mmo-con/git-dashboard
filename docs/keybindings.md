@@ -21,7 +21,7 @@ cursor moves within the current view before the list scrolls again.
 | Key | Action |
 |---|---|
 | `/` | text filter |
-| `1` … `6` | quick filter: dirty, behind, ahead, diverged, errors, other branches; press again to clear |
+| `1` … `7` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashes; press again to clear |
 | `Esc` | clear the text filter or close the current overlay |
 | `Tab` / `Shift+Tab` | next / previous family |
 | `t` | search and choose a family |
@@ -129,6 +129,7 @@ is updated until the new preview is confirmed.
 | Modified | entries modified or deleted in the worktree and not staged |
 | Untracked | untracked entries |
 | Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
+| Stashes | stash entries of the repository; linked worktrees share them |
 | Commit | age of the latest commit |
 
 In the count columns, `–` is a known zero and `?` an unknown value. A cell
@@ -150,8 +151,9 @@ titled with their symbols, for example `✚` for Staged.
 | `✘n conflicts` | `!n conflicts` | conflicting entries |
 | `↑n` / `↓n` | `^n` / `vn` | commits ahead of / behind the upstream |
 | `⎇n` | `brn` | other local branches that need attention |
+| `≡n` | `$n` | stash entries |
 | `≠remote` | `!=remote` | remote URL differs from the configured `remote` |
-| `!` | `~` | health symbol: other attention, such as a remote mismatch or other branches |
+| `!` | `~` | health symbol: other attention, such as a remote mismatch, other branches, or stash entries |
 | `✗` | `x` | unavailable entry or failed fetch |
 | `◆` | `*` | marked for batch operations |
 | `▸` / `▾` | `[+]` / `[-]` | collapsed / expanded family in the tree |
@@ -182,3 +184,4 @@ Plain tokens match the name or the path case-insensitively. State tokens:
 | `is:marked` | marked repositories |
 | `is:branches` | other local branches need attention |
 | `is:unpublished` | another local branch has no upstream, a gone upstream, unpushed commits, or is missing |
+| `is:stashed` | the repository has stash entries |
