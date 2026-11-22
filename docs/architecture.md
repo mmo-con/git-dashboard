@@ -440,9 +440,10 @@ The concrete keys, symbols, and filters are listed in
   two. The selected row is highlighted only to the right edge of the table,
   like the table header. Dialogs are centered over a dimmed copy of
   the main view.
-- From 24 lines, a blank line separates the header bar from the panels and
-  the table header from the first row, so the top of the screen does not
-  read as one block. Lower terminals keep these lines for rows.
+- From 24 lines, a blank line separates the top border of the repository
+  panel from the table header, so the header bar, the panel title, and the
+  table header do not read as one block. Lower terminals keep the line for
+  rows.
 - **Color is never the only carrier of information.** Every state has a
   symbol with a count or text, and the help view has a legend. Colors apply
   per cell, so problems stand out and healthy rows stay quiet; success has
