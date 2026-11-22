@@ -160,6 +160,6 @@ func (m *Model) progressBar(done, total, w int) string {
 		return ""
 	}
 	full := done * w / total
-	return m.theme.ok.Render(strings.Repeat(m.icons.barFull, full)) +
+	return m.theme.success.Render(strings.Repeat(m.icons.barFull, full)) +
 		m.theme.dim.Render(strings.Repeat(m.icons.barEmpty, w-full))
 }

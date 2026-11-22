@@ -1517,7 +1517,7 @@ Marks persist when filters change. A batch action on marked repositories always 
 
 ### 13.3 Status representation
 
-Color is never the only information carrier. Every state is expressed by a symbol with a count or by text, and the help view contains a legend. Colors are applied per cell rather than per row, so problems stand out while clean repositories stay unobtrusive. Status symbols are separated by two spaces.
+Color is never the only information carrier. Every state is expressed by a symbol with a count or by text, and the help view contains a legend. Colors are applied per cell rather than per row, so problems stand out while clean repositories stay unobtrusive. Status symbols are separated by two spaces. Colors follow a small hierarchy: neutral gray for clean states and secondary text, the accent color for the cursor, keys, branch names, and running operations, yellow for local changes and stale or unexpected state, red for conflicts, divergence, and failures, and a separate success color for finished operations, so that success is not confused with commits ahead.
 
 | Unicode | Meaning | Default color |
 |---|---|---|

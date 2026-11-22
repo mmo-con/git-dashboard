@@ -23,7 +23,7 @@ type theme struct {
 	behind         lipgloss.Style
 	err            lipgloss.Style
 	warn           lipgloss.Style
-	ok             lipgloss.Style
+	success        lipgloss.Style
 	dim            lipgloss.Style
 	bold           lipgloss.Style
 	plain          lipgloss.Style
@@ -51,7 +51,7 @@ func newTheme(t config.Theme) theme {
 		behind:         fg(t.Behind),
 		err:            fg(t.Error),
 		warn:           fg(t.Warning),
-		ok:             fg(t.Ahead),
+		success:        fg(t.Success),
 		dim:            fg(t.Dim),
 		bold:           lipgloss.NewStyle().Bold(true),
 		plain:          lipgloss.NewStyle(),

@@ -260,6 +260,7 @@ func build(f *file, baseDir string, getenv func(string) string) (*Config, error)
 		{"dirty", t.Dirty, &cfg.UI.Theme.Dirty},
 		{"ahead", t.Ahead, &cfg.UI.Theme.Ahead},
 		{"behind", t.Behind, &cfg.UI.Theme.Behind},
+		{"success", t.Success, &cfg.UI.Theme.Success},
 		{"error", t.Error, &cfg.UI.Theme.Error},
 		{"warning", t.Warning, &cfg.UI.Theme.Warning},
 		{"dim", t.Dim, &cfg.UI.Theme.Dim},

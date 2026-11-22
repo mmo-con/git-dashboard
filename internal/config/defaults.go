@@ -57,6 +57,7 @@ func DefaultTheme() Theme {
 		Dirty:              "yellow",
 		Ahead:              "green",
 		Behind:             "magenta",
+		Success:            "green",
 		Error:              "red",
 		Warning:            "yellow",
 		Dim:                "gray",
