@@ -4,7 +4,7 @@ import (
 	"context"
 	"os/exec"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 func fetchArgs(opts FetchOptions) []string {

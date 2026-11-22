@@ -1,10 +1,10 @@
 package tui
 
 import (
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/inventory"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/inventory"
+	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
 type inventoryMsg struct {

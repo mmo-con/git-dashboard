@@ -12,12 +12,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	"github.com/mmo-con/git-dashboard/internal/inventory"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/inventory"
+	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
 func repo(name string, family domain.FamilyID, dirty bool) domain.Repository {
@@ -117,6 +117,9 @@ func TestRepoViewportKeepsContextAndLetsCursorMoveBackUp(t *testing.T) {
 
 func TestQuickFilterHeaderMarksActiveFilter(t *testing.T) {
 	m := newModel(t)
+	if view := m.View(); !strings.Contains(view, "headquarters") {
+		t.Fatalf("view lacks application name: %q", view)
+	}
 	if h := m.headerLine(); !strings.Contains(h, " 1 dirty 1 ") || strings.Contains(h, "[") {
 		t.Fatalf("header = %q", h)
 	}

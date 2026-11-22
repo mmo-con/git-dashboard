@@ -74,7 +74,7 @@ func (c *Client) CheckVersion(ctx context.Context) (Version, error) {
 		return v, fmt.Errorf("cannot run %s: %w", c.run.executable, err)
 	}
 	if !v.AtLeast(MinimumVersion) {
-		return v, fmt.Errorf("git %s is too old; Git Dashboard requires git %d.%d or newer", v.Raw, MinimumVersion.Major, MinimumVersion.Minor)
+		return v, fmt.Errorf("git %s is too old; headquarters requires git %d.%d or newer", v.Raw, MinimumVersion.Major, MinimumVersion.Minor)
 	}
 	c.stashHeader = v.AtLeast(stashHeaderVersion)
 	return v, nil

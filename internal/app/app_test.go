@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
 func behindRepo() domain.Repository {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 func exists(path string) bool {

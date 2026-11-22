@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // collect drains events until n final events have arrived.

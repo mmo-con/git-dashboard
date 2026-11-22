@@ -1,20 +1,25 @@
 # Configuration
 
-Git Dashboard reads a TOML file. The file is located in this order:
+headquarters reads a TOML file. The file is located in this order:
 
 1. the `--config <path>` command-line option;
-2. the `GIT_DASHBOARD_CONFIG` environment variable;
-3. `$XDG_CONFIG_HOME/git-dashboard/config.toml`, falling back to
-   `~/.config/git-dashboard/config.toml`.
+2. the `HEADQUARTERS_CONFIG` environment variable;
+3. `$XDG_CONFIG_HOME/headquarters/config.toml`, falling back to
+   `~/.config/headquarters/config.toml`.
 
-If no file exists, Git Dashboard starts with an empty inventory and shows the
+If no file exists, headquarters starts with an empty inventory and shows the
 expected path.
 
-`git-dashboard <path>` replaces `[[repositories]]` and `[[discovery]]` with a
+After upgrading from the previous project name, move the existing configuration
+file to the new location or select it with `--config` or `HEADQUARTERS_CONFIG`.
+The previous configuration location and environment variable are not read
+automatically.
+
+`headquarters <path>` replaces `[[repositories]]` and `[[discovery]]` with a
 single discovery below `<path>` with the defaults described below
 (`max_depth = 3`, no exclusions, family `Ungrouped`, symbolic links not
 followed). All other settings of the file apply; `R` scans the same path
-again. `git-dashboard --check` validates the file and prints the
+again. `headquarters --check` validates the file and prints the
 resolved inventory without starting the user interface.
 
 Syntax errors, type errors, and unknown fields prevent startup. Problems with
@@ -116,7 +121,7 @@ Durations use Go syntax, for example `"500ms"`, `"10s"`, or `"2m"`.
 
 ## `[branches]`
 
-Besides the checked-out branch, Git Dashboard reports other local branches
+Besides the checked-out branch, headquarters reports other local branches
 (`refs/heads`) that need attention. The table shows only their number, for
 example `⎇2`; the detail panel lists them. Row state, header counters `1`–`5`,
 sorting, and the safe update keep referring to the checked-out branch only.

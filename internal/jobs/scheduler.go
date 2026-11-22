@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // Kind selects the concurrency pool of a job.

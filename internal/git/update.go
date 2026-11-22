@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // MergeFastForwardOnly fast-forwards the current branch to target, the full

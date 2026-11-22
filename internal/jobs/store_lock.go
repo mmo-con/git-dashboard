@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // StoreLocks serializes mutating work per repository store. Interactive

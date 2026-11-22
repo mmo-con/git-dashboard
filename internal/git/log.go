@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // RecentCommits returns up to n commits reachable from HEAD, newest first,

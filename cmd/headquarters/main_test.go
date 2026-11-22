@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tu "github.com/mmo-con/git-dashboard/internal/testutil"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 func runCLI(t *testing.T, env map[string]string, args ...string) (code int, stdout, stderr string) {
@@ -27,14 +27,14 @@ func writeConfig(t *testing.T, content string) string {
 }
 
 func TestVersionAndUsage(t *testing.T) {
-	if code, out, _ := runCLI(t, nil, "--version"); code != 0 || out != "git-dashboard dev\n" {
+	if code, out, _ := runCLI(t, nil, "--version"); code != 0 || out != "headquarters dev\n" {
 		t.Fatalf("--version: code=%d out=%q", code, out)
 	}
 	if code, _, errOut := runCLI(t, nil, "--unknown"); code != 2 || !strings.Contains(errOut, "flag provided but not defined") {
 		t.Fatalf("unknown flag: code=%d stderr=%q", code, errOut)
 	}
-	if code, _, _ := runCLI(t, nil, "-h"); code != 0 {
-		t.Fatalf("-h must succeed: code=%d", code)
+	if code, _, errOut := runCLI(t, nil, "-h"); code != 0 || !strings.Contains(errOut, "usage: headquarters [options] [path]") {
+		t.Fatalf("-h: code=%d stderr=%q", code, errOut)
 	}
 }
 
@@ -98,7 +98,7 @@ func TestCheckWithoutConfigurationFile(t *testing.T) {
 	tu.IsolateGit(t)
 	dir := t.TempDir()
 	code, out, _ := runCLI(t, map[string]string{"XDG_CONFIG_HOME": dir}, "--check")
-	want := "no configuration file at " + filepath.Join(dir, "git-dashboard", "config.toml")
+	want := "no configuration file at " + filepath.Join(dir, "headquarters", "config.toml")
 	if code != 0 || !strings.Contains(out, want) || !strings.Contains(out, "0 repositories") {
 		t.Fatalf("code=%d out=%q", code, out)
 	}

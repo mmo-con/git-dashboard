@@ -10,10 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
-	"github.com/mmo-con/git-dashboard/internal/launcher"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/launcher"
 )
 
 // Toast durations for informational and error messages.

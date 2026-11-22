@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 func loaded(r *domain.Repository) bool {

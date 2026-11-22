@@ -3,7 +3,7 @@ package launcher
 import (
 	"os/exec"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/headquarters/internal/config"
 )
 
 // Placeholders are replaced when they form a complete argument: {path} by the

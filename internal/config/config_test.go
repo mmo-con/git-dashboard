@@ -124,14 +124,14 @@ func TestPathExpansion(t *testing.T) {
 
 func TestLocate(t *testing.T) {
 	e := map[string]string{"HOME": "/home/u"}
-	if p, _ := Locate("", env(e)); p != "/home/u/.config/git-dashboard/config.toml" {
+	if p, _ := Locate("", env(e)); p != "/home/u/.config/headquarters/config.toml" {
 		t.Errorf("default: %s", p)
 	}
 	e["XDG_CONFIG_HOME"] = "/xdg"
-	if p, _ := Locate("", env(e)); p != "/xdg/git-dashboard/config.toml" {
+	if p, _ := Locate("", env(e)); p != "/xdg/headquarters/config.toml" {
 		t.Errorf("xdg: %s", p)
 	}
-	e[EnvConfig] = "~/gd.toml"
+	e["HEADQUARTERS_CONFIG"] = "~/gd.toml"
 	if p, _ := Locate("", env(e)); p != "/home/u/gd.toml" {
 		t.Errorf("env: %s", p)
 	}

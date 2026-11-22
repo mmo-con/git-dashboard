@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/headquarters/internal/config"
 )
 
 func TestBrowserURL(t *testing.T) {

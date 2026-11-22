@@ -83,9 +83,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release create "$RELEASE_TAG" \
-            "dist/git-dashboard_${RELEASE_TAG}_linux_amd64.tar.gz" \
-            "dist/git-dashboard_${RELEASE_TAG}_linux_arm64.tar.gz" \
-            "dist/git-dashboard_${RELEASE_TAG}_darwin_amd64.tar.gz" \
-            "dist/git-dashboard_${RELEASE_TAG}_darwin_arm64.tar.gz" \
+            "dist/headquarters_${RELEASE_TAG}_linux_amd64.tar.gz" \
+            "dist/headquarters_${RELEASE_TAG}_linux_arm64.tar.gz" \
+            "dist/headquarters_${RELEASE_TAG}_darwin_amd64.tar.gz" \
+            "dist/headquarters_${RELEASE_TAG}_darwin_arm64.tar.gz" \
             dist/checksums.txt \
             --verify-tag --draft --title "$RELEASE_TAG" --generate-notes

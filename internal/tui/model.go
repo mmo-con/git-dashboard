@@ -9,9 +9,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
 type mode int
@@ -94,7 +94,7 @@ func (b *batch) done() bool {
 	return true
 }
 
-// Model is the Bubble Tea model of Git Dashboard.
+// Model is the Bubble Tea model of headquarters.
 type Model struct {
 	app *app.Application
 

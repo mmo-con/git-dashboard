@@ -13,8 +13,8 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // wideLayout is the minimum width for table and details side by side.
@@ -785,7 +785,7 @@ func (m *Model) quickFilters() []quickFilter {
 
 func (m *Model) headerLine() string {
 	t := m.theme
-	left := t.title.Render(" Git Dashboard ")
+	left := t.title.Render(" headquarters ")
 	scope := app.Filter{Family: m.filter.Family}
 	for _, q := range m.quickFilters() {
 		n := 0

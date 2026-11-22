@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // seg is a styled piece of text within a cell.

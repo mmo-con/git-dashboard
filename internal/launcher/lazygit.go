@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os/exec"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/headquarters/internal/config"
 )
 
 // Lazygit starts lazygit in a worktree.

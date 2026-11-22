@@ -1,6 +1,6 @@
-# Git Dashboard — Architecture and Decisions
+# headquarters — Architecture and Decisions
 
-This document explains how Git Dashboard works and why. It records the
+This document explains how headquarters works and why. It records the
 contracts with Git, the safety rules, and the decisions behind them. What the
 user configures and which keys exist is described in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md);
@@ -8,15 +8,15 @@ this document does not repeat it.
 
 ## 1. Purpose and scope
 
-Git Dashboard manages a curated collection of local Git repositories: it shows
+headquarters manages a curated collection of local Git repositories: it shows
 their state side by side, groups them into families, runs safe batch
 operations such as fetch and fast-forward updates, and hands all detailed work
 within one repository over to lazygit.
 
-> Git Dashboard manages the repository collection. lazygit manages the
+> headquarters manages the repository collection. lazygit manages the
 > individual repository.
 
-Non-goals. Git Dashboard does not:
+Non-goals. headquarters does not:
 
 - implement a Git user interface, create commits, or resolve conflicts;
 - merge, rebase, stash, reset, or force-push on its own;
@@ -43,7 +43,7 @@ dependency and build trees, pick up unrelated repositories, change its result
 whenever something is cloned below a root, and make startup cost
 unpredictable.
 
-A path on the command line (`git-dashboard ~/src`) replaces both with one
+A path on the command line (`headquarters ~/src`) replaces both with one
 discovery below that path, using the discovery defaults. It lets a user look
 at a directory without writing an inventory first. Only the inventory is
 replaced; the remaining settings of the configuration file still apply, so
@@ -223,7 +223,7 @@ Every Git process started while the TUI owns the terminal:
 
 Text from external sources (commit subjects, names, URLs, stderr, directory
 names) is displayed with control characters replaced, so it cannot inject
-terminal escape sequences. Git Dashboard never changes Git configuration,
+terminal escape sequences. headquarters never changes Git configuration,
 including `safe.directory`.
 
 ### 3.5 Validation outcomes
@@ -288,10 +288,10 @@ commit. A fetch by another tool after the plan, including a rewritten
 upstream with the same distance, a branch switch, or a new local commit
 therefore skips the repository with a request to try again instead of
 applying something that was not planned. The store lock coordinates
-only Git Dashboard's own jobs; an external Git process between the recheck
+only headquarters's own jobs; an external Git process between the recheck
 and the merge is not excluded, but cannot change the commit that the merge
 applies.
-Git Dashboard never creates a merge commit, a rebase, or a stash.
+headquarters never creates a merge commit, a rebase, or a stash.
 
 `u` and `U` open a confirmation that lists the targets with their state
 before the fetch and describes what the update does in plain words instead
@@ -358,13 +358,13 @@ lazygit, the interactive fetch retry, and launchers run as synchronous
 foreground child processes through Bubble Tea's `tea.ExecProcess`: working
 directory is the worktree root, stdin, stdout, and stderr are the terminal,
 and the environment is the user's without the redirecting `GIT_*` variables.
-Git Dashboard emits no terminal escape sequences of its own. Interactive
+headquarters emits no terminal escape sequences of its own. Interactive
 children are never bound to a cancellable context; cancelling dashboard work
 must not kill an interactive session.
 
 While a child owns the terminal:
 
-- Git Dashboard does not render or read keys;
+- headquarters does not render or read keys;
 - running batch jobs continue; they cannot touch the terminal (see 3.4);
 - workers never block on the user interface. They report to the scheduler,
   which buffers events in an unbounded queue; one forwarder delivers them to
@@ -376,7 +376,7 @@ While a child owns the terminal:
 Afterward, the terminal mode and size are restored and all entries of the
 store are inspected again, regardless of the exit status, since changes may
 have happened before a failure. Filter and selection are kept. If terminal
-restoration fails, Git Dashboard exits with a fatal error instead of running
+restoration fails, headquarters exits with a fatal error instead of running
 with a corrupted screen.
 
 lazygit runs as a separate process instead of being embedded because its
@@ -391,7 +391,7 @@ startup and reported on `Enter`; the dashboard stays usable.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/git-dashboard` | flags, configuration lookup, version check, `--check` |
+| `cmd/headquarters` | flags, configuration lookup, version check, `--check` |
 | `internal/config` | strict TOML decoding, defaults, path expansion, validation, theme presets |
 | `internal/inventory` | discovery, patterns, identity, precedence, validation states |
 | `internal/git` | isolated command runner, parsers, inspection, fetch, update |

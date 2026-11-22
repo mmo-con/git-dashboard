@@ -1,4 +1,4 @@
-// Package domain contains the core models of Git Dashboard. It does not depend
+// Package domain contains the core models of headquarters. It does not depend
 // on the TUI, on process execution, or on Git output formats.
 package domain
 
