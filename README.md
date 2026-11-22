@@ -5,7 +5,7 @@
 <h1 align="center">headquarters</h1>
 
 <p align="center">
-  A CLI dashboard that groups local Git repositories in a table view, runs batch fetches &amp; pulls, and launches <code>lazygit</code> per repo.
+  A CLI dashboard that groups local Git repositories in a table view, runs batch fetches and safe fast-forward updates, and launches <code>lazygit</code> per repo.
 </p>
 
 <p align="center">
@@ -28,6 +28,19 @@ to [lazygit](https://github.com/jesseduffield/lazygit).
 ![headquarters in the tree view: repositories grouped by family with health
 symbols, family summaries, and the detail panel of the selected
 repository](docs/images/headquarters-screenshot.png)
+
+## Quick start
+
+[Install headquarters](#installation), then point it at a directory containing
+your repositories. No configuration file is needed:
+
+```sh
+headquarters ~/src
+```
+
+Use `j` / `k` to navigate, `Enter` to open a repository in lazygit, `f` to
+fetch, and `u` for a safe update after confirmation. Press `?` for help or `q`
+to quit. See [key bindings](docs/keybindings.md) for all shortcuts.
 
 The architecture and the decisions behind it are documented in
 [docs/architecture.md](docs/architecture.md).
@@ -78,20 +91,23 @@ write into the user interface.
 
 ## Installation
 
-Prebuilt archives for Linux and macOS (amd64 and arm64) are attached to every
-[release](https://github.com/mmo-con/headquarters/releases), together with
-`checksums.txt`. Set `VERSION` to the current release. Each step runs only
-if the previous one succeeded, so nothing is unpacked or installed when a
-download fails or the checksum does not match:
+Starting with v1.0.0, prebuilt archives for Linux and macOS (amd64 and arm64)
+are attached to each [release](https://github.com/mmo-con/headquarters/releases),
+together with `checksums.txt`. Set `VERSION` to the desired release. Each step
+runs only if the previous one succeeded, so nothing is unpacked or installed
+when a download fails or the checksum does not match:
 
 ```sh
-VERSION=vX.Y.Z                            # a release containing headquarters archives
+VERSION=v1.0.0
 NAME=headquarters_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
 BASE=https://github.com/mmo-con/headquarters/releases/download/$VERSION
-curl -fL -O "$BASE/$NAME.tar.gz" -O "$BASE/checksums.txt" &&
-  grep " $NAME.tar.gz\$" checksums.txt | sha256sum -c - &&   # macOS: shasum -a 256 -c -
+curl -fL -O "$BASE/$NAME.tar.gz" &&
+  curl -fL -O "$BASE/checksums.txt" &&
+  grep " $NAME.tar.gz\$" checksums.txt |
+    (if command -v sha256sum >/dev/null; then sha256sum -c -; else shasum -a 256 -c -; fi) &&
   tar xzf "$NAME.tar.gz" &&
-  install -m 755 "$NAME/headquarters" ~/.local/bin/        # any directory in PATH
+  mkdir -p ~/.local/bin &&
+  install -m 755 "$NAME/headquarters" ~/.local/bin/   # any directory in PATH
 ```
 
 The macOS binaries are not notarized. `curl` downloads run as they are; if
@@ -105,9 +121,6 @@ To build from source:
 make build            # builds ./bin/headquarters
 make install          # installs into $(go env GOPATH)/bin
 ```
-
-A first look needs no configuration: `headquarters ~/src` shows the
-repositories below `~/src`.
 
 ## Usage
 
