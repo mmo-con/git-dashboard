@@ -9,6 +9,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/mattn/go-runewidth"
 
 	"github.com/mmo-con/git-dashboard/internal/app"
 	"github.com/mmo-con/git-dashboard/internal/config"
@@ -822,9 +824,9 @@ func TestColumnsFollowContent(t *testing.T) {
 	// truncation; the remaining space is not given to the name column. Count
 	// columns are as wide as their full titles.
 	ic := iconSet("unicode")
-	natural := []int{0, 24, 13, 26, 7, 1, 1, 1, 2, 1, 1, 4}
+	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 2, 1, 1, 4}
 	cols := columns(160, natural, ic, false)
-	for i, want := range []int{3, 24, 13, 26, 16, 6, 8, 9, 5, 6, 7, 6} {
+	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 5, 6, 7, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
@@ -851,6 +853,35 @@ func TestColumnsFollowContent(t *testing.T) {
 	cols = columns(120, natural, ic, true)
 	if !cols[colFamily].hidden || cols[colStaged].title != "Staged" || tableWidth(cols) > 120 {
 		t.Errorf("tree: %+v", cols)
+	}
+}
+
+// TestNamesStartInOneColumn checks that health symbols of different widths
+// do not shift the names.
+func TestNamesStartInOneColumn(t *testing.T) {
+	m := newModel(t)
+	m.icons = iconSet("ascii")
+	r := &m.repos[m.index["/r/frontend"]]
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	if s, healthy := m.health(r); !healthy || s.text != "ok" {
+		t.Fatalf("frontend must be healthy: %q", s.text)
+	}
+	col := map[string]int{}
+	for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+		for _, name := range []string{"frontend", "dotfiles"} {
+			if _, seen := col[name]; seen || !strings.HasPrefix(l, "│") {
+				continue
+			}
+			if i := strings.Index(l, " "+name+" "); i >= 0 {
+				col[name] = runewidth.StringWidth(l[:i])
+			}
+		}
+	}
+	if len(col) != 2 || col["frontend"] != col["dotfiles"] {
+		t.Fatalf("names must start in one column: %v", col)
 	}
 }
 
