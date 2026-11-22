@@ -36,14 +36,3 @@ func FetchJobs(client git.Interface, all, targets []domain.Repository, opts git.
 	}
 	return out
 }
-
-// StoreCount returns the number of distinct available stores among repos.
-func StoreCount(repos []domain.Repository) int {
-	seen := map[domain.StoreID]bool{}
-	for _, r := range repos {
-		if r.IsAvailable() && r.StoreID != "" {
-			seen[r.StoreID] = true
-		}
-	}
-	return len(seen)
-}

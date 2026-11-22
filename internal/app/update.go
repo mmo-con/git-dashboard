@@ -92,7 +92,7 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 					return nil, &jobs.SkipError{Reason: "update skipped: " + reason}
 				}
 				if change := changedSincePreview(r, fresh); change != "" {
-					return nil, &jobs.SkipError{Reason: "update skipped: " + change + " since the preview; press u for a new preview"}
+					return nil, &jobs.SkipError{Reason: "update skipped: " + change + " since the update was planned; press u to try again"}
 				}
 				return nil, client.MergeFastForwardOnly(ctx, r.Location, r.Upstream.Value.CommitID)
 			},

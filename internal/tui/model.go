@@ -24,7 +24,6 @@ const (
 	modeError
 	modeSort
 	modeOperations
-	modeConfirmFetch
 	modeUpdatePreview
 	modeLaunchers
 	modeConfirmQuit
@@ -47,18 +46,13 @@ type opRow struct {
 	revisitedAt time.Time
 }
 
-// refetch remembers the targets of an update preview while they are fetched,
-// and the inspections that follow the fetch. The preview is recomputed only
-// after these inspections, so it reflects the fetched upstream state.
+// refetch remembers the targets of a confirmed update while they are
+// fetched, and the inspections that follow the fetch. The update is planned
+// only after these inspections, so it applies the fetched upstream state.
 type refetch struct {
 	batch       *batch
 	targets     []domain.RepositoryID
-	hidden      int
 	inspections []uint64
-	// ready is set once the fetch and the inspections are finished; failed
-	// then holds the fetch error of each failed store.
-	ready  bool
-	failed map[domain.StoreID]string
 }
 
 // visit remembers which batch row was opened in lazygit.
@@ -120,14 +114,13 @@ type Model struct {
 	batch   *batch
 	lastOps map[domain.RepositoryID]domain.OperationResult
 
-	fetchTargets  []domain.Repository
-	fetchHidden   int
+	updateHidden  int
 	updateOK      []app.UpdateCandidate
 	updateSkip    []app.UpdateCandidate
 	updateTargets []domain.RepositoryID
 	previewReturn mode
-	// refetch is the fetch started from the update preview, after which u in
-	// the operations view opens the preview again.
+	// refetch is the fetch of a confirmed update; the update starts on its
+	// own once the fetch and the following inspections are finished.
 	refetch    *refetch
 	quitReturn mode
 	visit      *visit
@@ -263,8 +256,10 @@ func (m *Model) pendingInspect() int {
 }
 
 // batchRunning reports whether the current fetch or update batch has
-// unfinished jobs.
-func (m *Model) batchRunning() bool { return m.batch != nil && !m.batch.done() }
+// unfinished jobs, or a confirmed update still waits for its fetch.
+func (m *Model) batchRunning() bool {
+	return (m.batch != nil && !m.batch.done()) || m.refetch != nil
+}
 
 // recompute applies filter and sorting while keeping the cursor on the same
 // repository where possible.
@@ -426,9 +421,17 @@ func (m *Model) allIDs() []domain.RepositoryID {
 	return ids
 }
 
-// targets returns the marked repositories if any are marked, otherwise the
-// visible ones, and the number of marked repositories hidden from the list.
-func (m *Model) targets() (list []domain.Repository, hidden int) {
+// targets returns the targets of a batch and the number of marked
+// repositories hidden from the list. With visible, these are the visible
+// repositories regardless of marks; otherwise the marked repositories if any
+// are marked, else the repository under the cursor.
+func (m *Model) targets(visible bool) (list []domain.Repository, hidden int) {
+	if visible {
+		for _, id := range m.visible {
+			list = append(list, *m.repo(id))
+		}
+		return list, 0
+	}
 	if len(m.marks) > 0 {
 		vis := map[domain.RepositoryID]bool{}
 		for _, id := range m.visible {
@@ -444,8 +447,8 @@ func (m *Model) targets() (list []domain.Repository, hidden int) {
 		}
 		return list, hidden
 	}
-	for _, id := range m.visible {
-		list = append(list, *m.repo(id))
+	if r := m.current(); r != nil {
+		list = append(list, *r)
 	}
 	return list, 0
 }

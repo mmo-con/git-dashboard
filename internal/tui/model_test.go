@@ -191,24 +191,30 @@ func TestFamilyTreeNavigationSortingAndFiltering(t *testing.T) {
 func TestFamilyTreeBatchScope(t *testing.T) {
 	m := newModel(t)
 	keys(m, " ", "v", "g", "enter") // mark api, then expand only Personal
-	keys(m, "f")
-	if len(m.fetchTargets) != 1 || m.fetchTargets[0].Name != "api" || m.fetchHidden != 1 {
-		t.Fatalf("marked fetch must include collapsed repo: targets=%+v, hidden=%d", m.fetchTargets, m.fetchHidden)
+	if ts, hidden := m.targets(false); len(ts) != 1 || ts[0].Name != "api" || hidden != 1 {
+		t.Fatalf("marked targets must include the collapsed repo: targets=%+v, hidden=%d", ts, hidden)
+	}
+	if ts, hidden := m.targets(true); len(ts) != 1 || ts[0].Name != "dotfiles" || hidden != 0 {
+		t.Fatal("F and U must act on expanded repos only, regardless of marks")
+	}
+	keys(m, "u")
+	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "api" || m.updateHidden != 1 {
+		t.Fatal("u must include explicitly marked collapsed repos")
 	}
 	if !strings.Contains(m.View(), "hidden by filters or collapsed groups") {
-		t.Fatal("fetch confirmation must explain hidden marks")
+		t.Fatal("the update confirmation must explain hidden marks")
 	}
-	keys(m, "esc", "F")
-	if len(m.fetchTargets) != 1 || m.fetchTargets[0].Name != "dotfiles" || m.fetchHidden != 0 {
-		t.Fatal("F must fetch only expanded repos, regardless of marks")
-	}
-	keys(m, "esc", "u")
-	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "api" || m.fetchHidden != 1 {
-		t.Fatal("the update preview must include explicitly marked collapsed repos")
+	keys(m, "esc", "U")
+	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "dotfiles" || m.updateHidden != 0 {
+		t.Fatal("U must confirm the expanded repos, regardless of marks")
 	}
 	keys(m, "esc", "A", "u")
-	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "dotfiles" || m.fetchHidden != 0 {
-		t.Fatal("the update preview without marks must omit collapsed repos")
+	if m.mode != modeNormal || m.message != "no repository selected" {
+		t.Fatalf("u without marks on a family row selects nothing: mode=%v message=%q", m.mode, m.message)
+	}
+	keys(m, "j", "u")
+	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "dotfiles" {
+		t.Fatal("u without marks must confirm the repository under the cursor")
 	}
 	keys(m, "esc", "a")
 	if len(m.marks) != 1 || !m.marks["/r/dotfiles"] {
@@ -226,7 +232,7 @@ func TestFamilyPickerCombinesWithFiltersAndPreservesMarks(t *testing.T) {
 	if m.mode != modeNormal || m.filter.Family != "Work" || m.filter.Text != "is:dirty" || names(m) != "api" {
 		t.Fatalf("pick Work: family=%q, text=%q, repos=%q", m.filter.Family, m.filter.Text, names(m))
 	}
-	if _, hidden := m.targets(); len(m.marks) != 3 || hidden != 2 {
+	if _, hidden := m.targets(false); len(m.marks) != 3 || hidden != 2 {
 		t.Fatalf("picking a family must preserve all marks: marks=%v hidden=%d", m.marks, hidden)
 	}
 	keys(m, "tab")
@@ -263,23 +269,23 @@ func TestMarksTargetsAndHiddenCount(t *testing.T) {
 		t.Fatalf("marks = %v", m.marks)
 	}
 	keys(m, "/", "f", "r", "o", "n", "t", "enter")
-	targets, hidden := m.targets()
+	targets, hidden := m.targets(false)
 	if len(targets) != 2 || hidden != 2 {
 		t.Fatalf("targets=%d hidden=%d", len(targets), hidden)
 	}
 	if !strings.Contains(m.View(), "2 marked · A: clear marks") {
 		t.Fatal("repository panel must show the count and shortcut even when all marks are hidden")
 	}
-	keys(m, "f")
-	if m.mode != modeConfirmFetch || m.fetchHidden != 2 {
-		t.Fatalf("f with marks must open the confirmation: mode=%v hidden=%d", m.mode, m.fetchHidden)
+	keys(m, "u")
+	if m.mode != modeUpdatePreview || m.updateHidden != 2 {
+		t.Fatalf("u with marks must open the confirmation: mode=%v hidden=%d", m.mode, m.updateHidden)
 	}
 	if !strings.Contains(m.View(), "Includes 2 marked repositories hidden by the filter") {
 		t.Fatal("confirmation must mention hidden marks")
 	}
 	keys(m, "esc", "A")
-	if t2, _ := m.targets(); len(t2) != 1 || len(m.marks) != 0 {
-		t.Fatalf("without marks the visible rows are targets: %d", len(t2))
+	if t2, _ := m.targets(false); len(t2) != 1 || len(m.marks) != 0 {
+		t.Fatalf("without marks the cursor row is the target: %d", len(t2))
 	}
 	if strings.Contains(m.View(), "A: clear marks") {
 		t.Fatal("repository panel must hide the shortcut once marks are cleared")
@@ -594,15 +600,17 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	m := newModel(t)
 	now := time.Now().Add(time.Hour)
 	m.now = func() time.Time { return now }
-	api, frontend := *m.repo("/r/api"), *m.repo("/r/frontend")
-
-	keys(m, "u")
-	m.updateOK = nil
-	m.updateSkip = []app.UpdateCandidate{
-		{Repository: api, SkipReason: "worktree contains local changes"},
-		{Repository: frontend, SkipReason: app.ReasonUpToDate},
+	for _, id := range []domain.RepositoryID{"/r/api", "/r/frontend"} {
+		r := m.repo(id)
+		r.Availability = domain.Available
+		r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+		r.Operation = domain.KnownValue(domain.NoOperation)
+		r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
 	}
-	keys(m, "enter")
+	api := *m.repo("/r/api")
+
+	m.refetch = &refetch{targets: []domain.RepositoryID{"/r/api", "/r/frontend"}}
+	m.runUpdate(nil, true)
 	if m.mode != modeOperations || m.batch == nil || len(m.batch.rows) != 1 || m.batch.rows[0].job.RepositoryID != api.ID {
 		t.Fatalf("blocked repositories must form the worklist, up-to-date ones not: mode=%v batch=%+v", m.mode, m.batch)
 	}
@@ -786,10 +794,10 @@ func TestSmallDetailPanelShortensOtherBranchesFirst(t *testing.T) {
 	}
 }
 
-// TestRefetchPreviewSkipsFailedFetches checks that a failed fetch is the skip
-// reason even if the old state looks up to date, so the repository stays on
-// the worklist of the update.
-func TestRefetchPreviewSkipsFailedFetches(t *testing.T) {
+// TestUpdateAfterFailedFetchSkipsStore checks that a failed fetch is the
+// skip reason even if the old state looks up to date, so the repository
+// stays on the worklist, and that the update starts without opening a view.
+func TestUpdateAfterFailedFetchSkipsStore(t *testing.T) {
 	m := newModel(t)
 	r := &m.repos[0]
 	r.Availability = domain.Available
@@ -801,12 +809,33 @@ func TestRefetchPreviewSkipsFailedFetches(t *testing.T) {
 		result: domain.OperationResult{Status: domain.StatusFailed, Error: errors.New("remote unavailable")}}}}
 	m.refetch = &refetch{batch: m.batch, targets: []domain.RepositoryID{r.ID}}
 	m.finishRefetch()
-	if m.mode != modeNormal || !m.refetch.ready {
-		t.Fatalf("the preview must not open on its own: mode=%v", m.mode)
+	if m.mode != modeNormal || m.refetch != nil {
+		t.Fatalf("the update must not open a view on its own: mode=%v", m.mode)
 	}
-	keys(m, "b", "u")
-	if m.mode != modeUpdatePreview || len(m.updateSkip) != 1 || m.updateSkip[0].SkipReason != "fetch failed: remote unavailable" {
-		t.Fatalf("skip = %+v", m.updateSkip)
+	if m.batch.op != domain.OperationUpdate || len(m.batch.rows) != 1 ||
+		m.batch.rows[0].result.Error.Error() != "fetch failed: remote unavailable" {
+		t.Fatalf("rows = %+v", m.batch.rows)
+	}
+}
+
+// TestCancelDuringFetchCancelsUpdate checks that c drops the confirmed update
+// even if the remaining fetches still succeed.
+func TestCancelDuringFetchCancelsUpdate(t *testing.T) {
+	m := newModel(t)
+	r := m.repos[0]
+	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{{job: jobs.Job{StoreID: r.StoreID},
+		result: domain.OperationResult{Status: domain.StatusRunning}}}}
+	m.refetch = &refetch{batch: m.batch, targets: []domain.RepositoryID{r.ID}}
+	m.mode = modeOperations
+	keys(m, "R")
+	if m.loadingInventory {
+		t.Fatal("R must not drop an update that waits for its fetch")
+	}
+	keys(m, "c")
+	m.batch.rows[0].result.Status = domain.StatusSucceeded
+	m.finishRefetch()
+	if m.refetch != nil || m.batch.op != domain.OperationFetch || m.message != "update cancelled" {
+		t.Fatalf("the update must not start after c: op=%s message=%q", m.batch.op, m.message)
 	}
 }
 

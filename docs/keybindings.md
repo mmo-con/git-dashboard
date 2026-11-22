@@ -56,40 +56,43 @@ without colors.
 | `A` | clear all marks |
 | `f` | fetch marked repositories, or the repository under the cursor if none are marked |
 | `F` | fetch visible repositories |
-| `u` | safe-update preview for marked repositories, or visible ones if none are marked |
+| `u` | safe update of marked repositories, or the repository under the cursor if none are marked |
+| `U` | safe update of visible repositories |
+
+A fetch starts at once. An update asks for confirmation first.
 
 The view at startup is set with `[ui].view` in the configuration. In the
 tree, families are listed alphabetically, with the current sort order
 applied within each family. Filters still apply. Families start collapsed and
 retain their expansion state when you switch between views.
 
-`a` and `F` act only on matching repositories in expanded families, as
-does `u` when there are no marks. Rows outside the viewport still count.
-Marks persist when filters change or families collapse. A batch on marked
-repositories includes all of them; the confirmation states how many are hidden.
+`a`, `F`, and `U` act only on matching repositories in expanded families,
+regardless of marks. Rows outside the viewport still count. Marks persist
+when filters change or families collapse. A batch on marked repositories
+includes all of them; the update confirmation and the fetch message state
+how many are hidden.
 The repository panel shows the total number of marks and the `A` shortcut
 whenever any marks are set, including when all marked rows are hidden.
 
-## Update preview
+## Update confirmation
 
 | Key | Action |
 |---|---|
 | `j` / `k` | move |
-| `Enter` / `y` | start the update |
-| `f` | fetch the repositories of the preview; `u` in the operations view then shows the new preview |
+| `Enter` / `y` | fetch, then update |
 | `Esc` / `n` | cancel |
 
-`f` shows the fetch in the operations view. When the fetch and the following
-inspection are finished, `u` in the operations view opens the preview again
-with the fetched state. The preview never opens on its own, so a key meant for
-another view cannot confirm an update. Repositories whose fetch failed are
-skipped with the fetch error, even if they looked up to date before. Nothing
-is updated until the new preview is confirmed. A cancelled fetch offers no
-preview.
+The confirmation lists the repositories with their state before the fetch.
+After confirming, the operations view shows the fetch; once it and the
+following inspection are finished, the update starts on its own with the
+fetched state. Repositories whose fetch failed are skipped with the fetch
+error, even if they looked eligible before. Closing the operations view does
+not stop the update; it then runs without opening the view again. `c`
+cancels the fetch and with it the update.
 
-A repository that changed after the preview opened, for example because
+A repository that changed after the update was planned, for example because
 another tool fetched new upstream commits, is skipped with
-`… since the preview; press u for a new preview`.
+`… since the update was planned; press u to try again`.
 
 ## Operations view
 
@@ -97,18 +100,18 @@ another tool fetched new upstream commits, is skipped with
 |---|---|
 | `j` / `k` | select a row; failed rows show their stderr |
 | `Enter` | open the repository of the selected row in lazygit; the view stays open |
-| `c` | cancel the running batch |
+| `c` | cancel the running batch, or the update that waits for its fetch |
 | `x` | retry failed and cancelled operations |
-| `u` | update batch: open a new safe-update preview for every repository that was not updated; fetch started from the update preview: open the preview again |
+| `u` | update batch: confirm a new update of every repository that was not updated |
 | `t` | retry the selected failed fetch in the terminal |
 | `Esc` / `b` | close the view; the batch continues |
 
-An update batch also lists the repositories that the preview skipped, except
+An update batch also lists the repositories that the update skipped, except
 those that were already up to date, so that every blocked repository can be
 opened from the list. After a repository is inspected again, its row shows
 `→ now eligible` or `→ now up to date`; after a lazygit session opened from
 the row, it shows `→ still blocked: <reason>` if the blocker remains. Nothing
-is updated until the new preview is confirmed.
+is updated until the new update is confirmed.
 
 ## Error view
 
