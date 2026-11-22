@@ -15,7 +15,9 @@ import (
 	tu "github.com/mmo-con/git-dashboard/internal/testutil"
 )
 
-// tree builds the mixed layout from the design document.
+// tree builds a mixed layout: repositories at different depths, ordinary
+// directories, excluded and pruned trees, and a repository deeper than
+// max_depth.
 func tree(t *testing.T) string {
 	base := tu.Canonical(t, t.TempDir())
 	for _, p := range []string{
