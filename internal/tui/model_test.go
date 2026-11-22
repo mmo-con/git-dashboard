@@ -885,6 +885,23 @@ func TestNamesStartInOneColumn(t *testing.T) {
 	}
 }
 
+// TestBranchSymbolOnlyInDetails checks that the titled Branch column shows
+// the name alone, while the detail panel keeps the symbol.
+func TestBranchSymbolOnlyInDetails(t *testing.T) {
+	m := newModel(t)
+	m.icons = iconSet("nerd")
+	r := repo("svc", "Work", false)
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	if got := plain(m.rowCells(&r, time.Now())[colBranch-colHealth]); got != "main" {
+		t.Errorf("branch cell = %q, want the name alone", got)
+	}
+	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, m.icons.branch+"main") {
+		t.Errorf("the detail panel must keep the branch symbol:\n%s", v)
+	}
+}
+
 func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 	cfg := config.Default()
 	cfg.UI.View, cfg.UI.Icons = "tree", "ascii"
