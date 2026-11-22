@@ -118,6 +118,31 @@ func TestUpdateJobRechecksBeforeMerge(t *testing.T) {
 	}
 }
 
+func TestUpdateJobSkipsStateChangedSincePreview(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(in *domain.Inspection)
+		want   string
+	}{
+		{"upstream moved", func(in *domain.Inspection) { in.Upstream.Value.Behind = 3 }, "upstream moved"},
+		{"branch switched", func(in *domain.Inspection) { in.Head.Value.Branch = "release" }, "branch changed"},
+		{"HEAD moved", func(in *domain.Inspection) { in.Head.Value.CommitID = "def" }, "HEAD moved"},
+		{"upstream changed", func(in *domain.Inspection) { in.Upstream.Value.Ref = "fork/main" }, "upstream changed"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := behindRepo()
+			f := &fakeGit{inspection: domain.Inspection{Head: r.Head, Operation: r.Operation, Upstream: r.Upstream, Worktree: r.Worktree}}
+			tc.mutate(&f.inspection)
+			ev := runJobs(t, UpdateJobs(f, []domain.Repository{r}, []UpdateCandidate{{Repository: r}}, time.Second))
+			if ev[0].Result.Status != domain.StatusSkipped || f.merged != 0 ||
+				!strings.Contains(ev[0].Result.Error.Error(), tc.want+" since the preview") {
+				t.Fatalf("%+v merged=%d", ev[0].Result, f.merged)
+			}
+		})
+	}
+}
+
 func TestFetchJobsDeduplicateStores(t *testing.T) {
 	all := []domain.Repository{
 		{ID: "main", StoreID: "s1", Availability: domain.Available, Location: domain.Location{WorktreeRoot: "/main"}},
