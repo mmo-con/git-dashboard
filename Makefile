@@ -35,7 +35,7 @@ lint:
 
 release: clean
 	@mkdir -p dist
-	@for p in $(PLATFORMS); do \
+	@set -e; for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; name=$(BINARY)_$(VERSION)_$${os}_$${arch}; \
 		echo "building $$name"; \
 		mkdir -p dist/$$name; \
