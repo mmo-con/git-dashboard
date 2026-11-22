@@ -919,6 +919,39 @@ func TestBranchSymbolOnlyInDetails(t *testing.T) {
 	}
 }
 
+// TestSpacingFollowsHeight checks the blank lines below the header bar and
+// the table header, and that a low terminal keeps them for rows.
+func TestSpacingFollowsHeight(t *testing.T) {
+	m := newModel(t)
+	for _, c := range []struct {
+		height int
+		blank  bool
+	}{{30, true}, {spaciousHeight - 1, false}} {
+		m.Update(tea.WindowSizeMsg{Width: 140, Height: c.height})
+		lines := strings.Split(ansi.Strip(m.View()), "\n")
+		if len(lines) != c.height {
+			t.Fatalf("height %d: %d lines", c.height, len(lines))
+		}
+		first := 1
+		if c.blank {
+			if strings.TrimSpace(lines[1]) != "" {
+				t.Errorf("height %d: a blank line must follow the header bar: %q", c.height, lines[1])
+			}
+			first = 2
+		}
+		row := lines[first+2]
+		if c.blank {
+			if !strings.HasPrefix(strings.TrimSpace(row), "│") || strings.Contains(row, "api") {
+				t.Errorf("height %d: a blank line must follow the table header: %q", c.height, row)
+			}
+			row = lines[first+3]
+		}
+		if !strings.Contains(row, "api") {
+			t.Errorf("height %d: the first row must follow: %q", c.height, row)
+		}
+	}
+}
+
 func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 	cfg := config.Default()
 	cfg.UI.View, cfg.UI.Icons = "tree", "ascii"
