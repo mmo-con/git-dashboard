@@ -167,15 +167,16 @@ func (m *Model) applyEvents(events []jobs.Event) {
 	}
 	app.RefreshStoreFetchTimes(m.repos)
 	m.recompute()
-	m.reopenPreview()
+	m.finishRefetch()
 }
 
-// reopenPreview opens the update preview again once the fetch started from it
-// and the following inspections are finished. Repositories whose fetch
-// failed are skipped. A cancelled fetch does not reopen the preview.
-func (m *Model) reopenPreview() {
+// finishRefetch records that the fetch started from the update preview and
+// the following inspections are finished. The preview is not opened here,
+// because a key pressed for the current view would then confirm the update;
+// u in the operations view opens it. A cancelled fetch offers no preview.
+func (m *Model) finishRefetch() {
 	f := m.refetch
-	if f == nil {
+	if f == nil || f.ready {
 		return
 	}
 	if f.batch != m.batch {
@@ -190,11 +191,11 @@ func (m *Model) reopenPreview() {
 			return
 		}
 	}
-	m.refetch = nil
-	failed := map[domain.StoreID]string{}
+	f.failed = map[domain.StoreID]string{}
 	for _, row := range f.batch.rows {
 		switch row.result.Status {
 		case domain.StatusCancelled:
+			m.refetch = nil
 			m.setMessage("fetch cancelled; press u for a new update preview")
 			return
 		case domain.StatusFailed:
@@ -202,13 +203,23 @@ func (m *Model) reopenPreview() {
 			if row.result.Error != nil {
 				reason += ": " + firstLine(row.result.Error.Error())
 			}
-			failed[row.job.StoreID] = reason
+			f.failed[row.job.StoreID] = reason
 		}
 	}
-	if m.mode != modeOperations && m.mode != modeNormal {
+	f.ready = true
+	if m.mode == modeOperations {
 		m.setMessage("fetch finished; press u for the update preview")
-		return
+	} else {
+		m.setMessage("fetch finished; press b, then u for the update preview")
 	}
+}
+
+// openRefetchPreview opens the update preview for the targets of a finished
+// fetch started from the preview. Fetch failures take precedence over every
+// other reason, because the state of these repositories is not fresh.
+func (m *Model) openRefetchPreview() {
+	f := m.refetch
+	m.refetch = nil
 	var targets []domain.Repository
 	for _, id := range f.targets {
 		if r := m.repo(id); r != nil {
@@ -216,16 +227,18 @@ func (m *Model) reopenPreview() {
 		}
 	}
 	m.openUpdatePreview(targets, f.hidden, modeOperations)
-	var ok []app.UpdateCandidate
-	for _, c := range m.updateOK {
-		if reason, bad := failed[c.Repository.StoreID]; bad {
+	var ok, failed, skip []app.UpdateCandidate
+	for _, c := range append(m.updateOK, m.updateSkip...) {
+		if reason, bad := f.failed[c.Repository.StoreID]; bad {
 			c.SkipReason = reason
-			m.updateSkip = append([]app.UpdateCandidate{c}, m.updateSkip...)
-			continue
+			failed = append(failed, c)
+		} else if c.SkipReason == "" {
+			ok = append(ok, c)
+		} else {
+			skip = append(skip, c)
 		}
-		ok = append(ok, c)
 	}
-	m.updateOK = ok
+	m.updateOK, m.updateSkip = ok, append(failed, skip...)
 }
 
 // openUpdatePreview plans the update of targets and shows the preview; Esc
@@ -569,6 +582,10 @@ func (m *Model) keyOperations(key string) tea.Cmd {
 		}
 		return cmd
 	case "u":
+		if f := m.refetch; f != nil && f.ready && f.batch == m.batch {
+			m.openRefetchPreview()
+			return nil
+		}
 		m.continueUpdate()
 	case "t":
 		if m.batch == nil || m.overlayIdx >= len(m.batch.rows) {

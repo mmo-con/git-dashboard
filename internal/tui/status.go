@@ -250,20 +250,13 @@ func (m *Model) familySummary(levels []healthLevel) []seg {
 // maxBranchLines limits the other branches listed in the detail panel.
 const maxBranchLines = 10
 
-// otherBranchLines lists the other local branches that need attention.
+// otherBranchLines lists the other local branches that need attention, one
+// line per branch; the detail panel limits how many are shown.
 func (m *Model) otherBranchLines(r *domain.Repository) []string {
 	t, ic := m.theme, m.icons
-	bs := r.Branches.Value
-	if len(bs) == 0 {
-		return nil
-	}
 	now := m.now()
-	out := []string{m.theme.header.Render("OTHER BRANCHES")}
-	for i, b := range bs {
-		if i == maxBranchLines {
-			out = append(out, line(seg{fmt.Sprintf("  +%d more", len(bs)-i), t.dim}))
-			break
-		}
+	var out []string
+	for _, b := range r.Branches.Value {
 		var state seg
 		switch {
 		case b.Missing:

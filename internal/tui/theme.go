@@ -62,10 +62,11 @@ func newTheme(t config.Theme) theme {
 }
 
 // onSelected adapts a segment style to the selected row. Secondary and
-// unstyled text takes the selected foreground, so it stays readable on any
-// selected background; semantic colors are kept.
+// unstyled text, and text in the terminal's default foreground, takes the
+// selected foreground, so it stays readable on any selected background;
+// other semantic colors are kept.
 func (t theme) onSelected(s lipgloss.Style) lipgloss.Style {
-	if fg := s.GetForeground(); fg == t.dimColor || fg == (lipgloss.NoColor{}) {
+	if fg := s.GetForeground(); fg == t.dimColor || fg == (lipgloss.NoColor{}) || fg == lipgloss.Color("") {
 		s = s.Foreground(t.selectedFg)
 	}
 	return s

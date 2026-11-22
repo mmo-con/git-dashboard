@@ -70,13 +70,16 @@ whenever any marks are set, including when all marked rows are hidden.
 |---|---|
 | `j` / `k` | move |
 | `Enter` / `y` | start the update |
-| `f` | fetch the repositories of the preview, then show the preview again |
+| `f` | fetch the repositories of the preview; `u` in the operations view then shows the new preview |
 | `Esc` / `n` | cancel |
 
 `f` shows the fetch in the operations view. When the fetch and the following
-inspection are finished, the preview opens again with the fetched state;
-repositories whose fetch failed are skipped. Nothing is updated until the new
-preview is confirmed. A cancelled fetch does not reopen the preview.
+inspection are finished, `u` in the operations view opens the preview again
+with the fetched state. The preview never opens on its own, so a key meant for
+another view cannot confirm an update. Repositories whose fetch failed are
+skipped with the fetch error, even if they looked up to date before. Nothing
+is updated until the new preview is confirmed. A cancelled fetch offers no
+preview.
 
 ## Operations view
 
@@ -86,7 +89,7 @@ preview is confirmed. A cancelled fetch does not reopen the preview.
 | `Enter` | open the repository of the selected row in lazygit; the view stays open |
 | `c` | cancel the running batch |
 | `x` | retry failed and cancelled operations |
-| `u` | update batch only: open a new safe-update preview for every repository that was not updated |
+| `u` | update batch: open a new safe-update preview for every repository that was not updated; fetch started from the update preview: open the preview again |
 | `t` | retry the selected failed fetch in the terminal |
 | `Esc` / `b` | close the view; the batch continues |
 
