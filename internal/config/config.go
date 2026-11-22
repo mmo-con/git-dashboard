@@ -91,6 +91,7 @@ type Theme struct {
 	Dirty              string
 	Ahead              string
 	Behind             string
+	Success            string
 	Error              string
 	Warning            string
 	Dim                string
@@ -172,6 +173,7 @@ type fileTheme struct {
 	Dirty              string `toml:"dirty"`
 	Ahead              string `toml:"ahead"`
 	Behind             string `toml:"behind"`
+	Success            string `toml:"success"`
 	Error              string `toml:"error"`
 	Warning            string `toml:"warning"`
 	Dim                string `toml:"dim"`

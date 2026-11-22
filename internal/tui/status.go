@@ -43,7 +43,7 @@ func (m *Model) statusSegs(r *domain.Repository) []seg {
 		seg  seg
 	}{
 		{ic.conflict, w.Conflicts, seg{style: t.err}},
-		{ic.staged, w.Staged, seg{style: t.ok}},
+		{ic.staged, w.Staged, seg{style: t.ahead}},
 		{ic.modified, w.Modified, seg{style: t.dirty}},
 		{ic.deleted, w.Deleted, seg{style: t.dirty}},
 		{ic.untracked, w.Untracked, seg{style: t.dim}},

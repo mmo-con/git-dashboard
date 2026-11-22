@@ -457,7 +457,7 @@ func (m *Model) worktreeSegs(w domain.WorktreeState) []seg {
 		style       lipgloss.Style
 	}{
 		{ic.conflict, "conflicts", w.Conflicts, t.err},
-		{ic.staged, "staged", w.Staged, t.ok},
+		{ic.staged, "staged", w.Staged, t.ahead},
 		{"", "renamed", w.Renamed, t.dim},
 		{ic.modified, "modified", w.Modified, t.dirty},
 		{ic.deleted, "deleted", w.Deleted, t.dirty},
@@ -613,7 +613,7 @@ func (m *Model) footerLine() string {
 	if m.message == "" {
 		return fitANSI(left, m.width)
 	}
-	style, icon := m.theme.ok, m.icons.clean
+	style, icon := m.theme.success, m.icons.clean
 	if m.messageErr {
 		style, icon = m.theme.err, m.icons.failed
 	}
@@ -808,7 +808,7 @@ func (m *Model) viewError(iw, rows int) (string, []string) {
 			if last.Error != nil {
 				l += ": " + firstLine(last.Error.Error())
 			}
-			style := t.ok
+			style := t.success
 			if last.Status == domain.StatusFailed {
 				style = t.err
 			}
@@ -819,7 +819,7 @@ func (m *Model) viewError(iw, rows int) (string, []string) {
 			found = true
 		}
 		if !found {
-			body = append(body, t.ok.Render(m.icons.clean+" no errors"))
+			body = append(body, t.success.Render(m.icons.clean+" no errors"))
 		}
 	}
 	if len(m.warnings) > 0 {
@@ -923,7 +923,7 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		case domain.StatusRunning:
 			icon, style = m.spinnerFrame(), t.key
 		case domain.StatusSucceeded:
-			icon, style = m.icons.clean, t.ok
+			icon, style = m.icons.clean, t.success
 		case domain.StatusFailed:
 			icon, style = m.icons.failed, t.err
 		case domain.StatusSkipped:
@@ -951,7 +951,7 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 			if fu, resolved := m.followUp(row); fu != "" {
 				fuStyle := t.warn
 				if resolved {
-					fuStyle = t.ok
+					fuStyle = t.success
 				}
 				if selected {
 					list = append(list, m.selectable(text+"  → "+fu, true, iw, style))
@@ -1037,7 +1037,7 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 		r := c.Repository
 		text := fmt.Sprintf("%s update  %-24s %s%d · %s", m.icons.clean, ansi.Truncate(r.Name, 24, "…"),
 			m.icons.behind, r.Upstream.Value.Behind, m.fetchSeg(now, &r).text)
-		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.ok))
+		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.success))
 		idx++
 	}
 	for _, c := range m.updateSkip {
