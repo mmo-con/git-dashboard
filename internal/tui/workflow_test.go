@@ -225,3 +225,58 @@ func TestActionsOnUnavailableRepositories(t *testing.T) {
 		t.Fatal("nothing may be started for unavailable repositories")
 	}
 }
+
+// TestFetchFromUpdatePreviewRefreshesIt fetches the preview's repositories
+// from the preview and checks that the preview opens again with the fetched
+// state, skips a failed fetch, and does not update on its own.
+func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Commit(t, origin, "second.txt", "second\n", "second")
+	for _, name := range []string{"behind", "broken"} {
+		tu.Git(t, base, "clone", "-q", origin, name)
+	}
+	behind, broken := filepath.Join(base, "behind"), filepath.Join(base, "broken")
+	tu.Git(t, broken, "reset", "-q", "--hard", "HEAD~1")
+	tu.Git(t, broken, "remote", "set-url", "origin", filepath.Join(base, "gone"))
+	tu.Commit(t, origin, "third.txt", "third\n", "third")
+	head := tu.Git(t, behind, "rev-parse", "HEAD")
+
+	cfg := config.Default()
+	for _, p := range []string{behind, broken} {
+		cfg.Repositories = append(cfg.Repositories, config.Repository{Path: p, Enabled: true})
+	}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+
+	keys(m, "u")
+	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != broken {
+		t.Fatalf("before the fetch only broken is known to be behind: ok=%+v", m.updateOK)
+	}
+	keys(m, "f")
+	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
+		t.Fatalf("f must fetch the preview's repositories: mode=%v", m.mode)
+	}
+	pump(t, m)
+	if m.mode != modeUpdatePreview || m.refetch != nil {
+		t.Fatalf("the preview must open again after the fetch: mode=%v", m.mode)
+	}
+	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != behind {
+		t.Fatalf("the preview must use the fetched state: ok=%+v", m.updateOK)
+	}
+	if len(m.updateSkip) != 1 || !strings.HasPrefix(m.updateSkip[0].SkipReason, "fetch failed") {
+		t.Fatalf("a failed fetch must be a skip reason: %+v", m.updateSkip)
+	}
+	if m.batch.op != domain.OperationFetch || tu.Git(t, behind, "rev-parse", "HEAD") != head {
+		t.Fatal("fetching from the preview must not update")
+	}
+	keys(m, "esc")
+	if m.mode != modeOperations {
+		t.Fatal("cancelling the refreshed preview must show the fetch results")
+	}
+}
