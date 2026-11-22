@@ -129,7 +129,7 @@ newline are rejected.
 **Inspection**, three processes per entry:
 
 ```text
-git --no-pager -C <root> status --porcelain=v2 --branch -z --untracked-files=<normal|no>
+git --no-pager -C <root> status --porcelain=v2 --branch --show-stash -z --untracked-files=<normal|no>
 git --no-pager -C <root> for-each-ref --format=<branch format> refs/heads [<upstream patterns>]
 git --no-pager -C <root> config -z --get-regexp '^remote\..*\.url$'
 ```
@@ -140,7 +140,9 @@ with the branch format
 %(HEAD)%00%(refname)%00%(upstream:short)%00%(upstream)%00%(upstream:track,nobracket)%00%(worktreepath)%00%(objectname)%00%(objectname:short)%00%(authorname)%00%(committerdate:unix)%00%(subject)
 ```
 
-- `status` supplies branch, HEAD, upstream, ahead/behind, and all entries.
+- `status` supplies branch, HEAD, upstream, ahead/behind, all entries, and,
+  since Git 2.35, the number of stash entries (`# stash N`, omitted for
+  none).
 - `for-each-ref` supplies every local branch with upstream, untranslated
   tracking state (empty, `gone`, `ahead N`, `behind N`, `ahead N, behind M`),
   the worktree that has it checked out, and its latest commit; the `*` line is
@@ -155,6 +157,12 @@ with the branch format
   upstream commit stays unknown and the repository is not updated.
 - Only a detached HEAD, or a branch switched between the two calls, needs a
   fourth process: `git log -1 --no-color --format=%H%x00%h%x00%an%x00%ct%x00%s`.
+- Git 2.34 omits the stash header in porcelain v2, so it needs another
+  process: `git rev-list --walk-reflogs --count --ignore-missing refs/stash`,
+  which prints `0` if there is no stash. The version check at startup selects
+  the method. Stash entries belong to the repository store, so all its
+  worktrees report the same count. The dashboard only reports them; applying
+  or dropping a stash stays with lazygit.
 - `config` exits with 1 when no remote exists.
 - Operations in progress and the last fetch time come from `stat` calls on
   the cached marker paths. The last fetch time of an entry is the newest
@@ -457,8 +465,8 @@ The concrete keys, symbols, and filters are listed in
 - **Performance:** 200 repositories on a local SSD are inspected within
   2 seconds of a cold start, excluding the network.
 - **Process budget:** three Git processes per entry and refresh (four for a
-  detached HEAD); one validation process per candidate at startup and on a
-  rebuild.
+  detached HEAD, one more with Git 2.34); one validation process per
+  candidate at startup and on a rebuild.
 - **Terminal integrity:** no background process can read from or write to
   the terminal.
 - **Robustness:** a failing, hanging, or slow repository never blocks the

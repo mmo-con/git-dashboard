@@ -10,6 +10,10 @@ import (
 // MinimumVersion is the oldest supported Git release.
 var MinimumVersion = Version{Major: 2, Minor: 34}
 
+// stashHeaderVersion is the first release whose "status --porcelain=v2
+// --show-stash" reports the number of stash entries.
+var stashHeaderVersion = Version{Major: 2, Minor: 35}
+
 type Version struct {
 	Major, Minor, Patch int
 	Raw                 string
@@ -72,5 +76,6 @@ func (c *Client) CheckVersion(ctx context.Context) (Version, error) {
 	if !v.AtLeast(MinimumVersion) {
 		return v, fmt.Errorf("git %s is too old; Git Dashboard requires git %d.%d or newer", v.Raw, MinimumVersion.Major, MinimumVersion.Minor)
 	}
+	c.stashHeader = v.AtLeast(stashHeaderVersion)
 	return v, nil
 }

@@ -189,6 +189,9 @@ type Inspection struct {
 	Remotes    Known[[]Remote]
 	LastCommit Known[*CommitSummary]
 	FetchHead  Known[*time.Time]
+	// Stashes is the number of stash entries of the repository store, which
+	// all its worktrees share.
+	Stashes Known[int]
 	// Branches lists all local branches. It stays invalid if the inspection
 	// did not read other branches.
 	Branches Known[[]BranchState]
@@ -227,6 +230,8 @@ type Repository struct {
 	// newest FetchHead among all entries of the same store.
 	FetchHead Known[*time.Time]
 	LastFetch Known[*time.Time]
+	// Stashes is the number of stash entries of the store.
+	Stashes Known[int]
 	// Branches holds the local branches other than HEAD that need attention
 	// according to BranchPolicy.
 	Branches Known[[]BranchState]
@@ -246,6 +251,7 @@ func (r *Repository) ApplyInspection(gen uint64, in Inspection, err error, at ti
 	r.Remotes = in.Remotes
 	r.LastCommit = in.LastCommit
 	r.FetchHead = in.FetchHead
+	r.Stashes = in.Stashes
 	r.Branches = Known[[]BranchState]{}
 	if in.Branches.Valid {
 		r.Branches = KnownValue(r.BranchPolicy.Select(in.Branches.Value, at))
