@@ -1435,23 +1435,34 @@ command = ["nvim", "."]
 The layout follows lazygit's panel style: every panel has a rounded border with its title embedded in the top border and secondary information in the bottom border. The focused panel uses the active border color. Terminals with at least 130 columns show the repository table and the detail panel side by side; narrower terminals stack them.
 
 ```text
- Git Dashboard   1 dirty 1  2 behind 2  3 ahead 2  4 diverged 1  5 errors 1          ⠋ fetch ██████░░░░ 3/6
-╭─ Repositories ─ Work ──────────────────────────────────────────────╮╭─ api ───────────────────────────────╮
-│   Repository   Family    Branch    Status           Upstream   Age ││ ~/devrepos/company/api              │
-│▌  api          Work      main      ✓ clean ≠remote  ↓3         2h  ││ Work                                │
-│   billing      Work      main      ✓ clean          ↑1 ↓1 diverged ││                                     │
-│ ◆ frontend     Work      develop   ✚1 ●2 ?3         ⠋ fetching     ││ main → origin/main  ↓3              │
-│   tools        Work      –         ✗ missing        –              ││ origin git@github.com:ex/api.git    │
-│                                                                    ││ ≠ expected origin: git@…/api.git    │
-│                                                                    ││                                     │
-│                                                                    ││ a3f91c2 Fix request validation      │
-│                                                                    ││ Test · 2 h ago · fetched 10 min ago │
-╰───────────────────────────────────────────────────────── 1 of 4 ─╯╰──────────────────────── explicit ─╯
- Enter lazygit │ f fetch │ F fetch all │ u update │ Space mark │ / filter │ ? help       ✓ fetch finished
+ Git Dashboard   1 dirty 1  2 behind 2  3 ahead 1  4 diverged 1  5 errors 0  6 branches 0
+╭─ Repositories ─────────────────────────────────────────────────────────────╮╭─ api ────────────────────────────────────────────╮
+│   Repository   Family Branch     Status           Upstream         Commit  ││ ~/devrepos/company/api                           │
+│▌  api        ↓ Work   main       ✓ clean  ≠remote ↓3               2h      ││ family    Work                                   │
+│   billing    ✘ Work   main       ✓ clean          ↑1 ↓1 diverged   3h      ││                                                  │
+│ ◆ frontend   ● Work   develop    ✚1  ●2  ?3       ✓                3h      ││ BRANCH                                           │
+│   tools      ✗ Work   –          ✗ missing        –                        ││ main → origin/main  ↓3                           │
+│                                                                            ││                                                  │
+│                                                                            ││ WORKTREE                                         │
+│                                                                            ││ ✓ clean                                          │
+│                                                                            ││                                                  │
+│                                                                            ││ LAST COMMIT                                      │
+│                                                                            ││ a3f91c2  Fix request validation                  │
+│                                                                            ││ Test · 2 h ago                                   │
+│                                                                            ││ fetched 10 min ago                               │
+│                                                                            ││                                                  │
+│                                                                            ││ REMOTES                                          │
+│                                                                            ││ origin  git@github.com:ex/api.git                │
+│                                                                            ││ ≠ expected origin: git@github.com:company/api.git│
+│                                                                            ││                                                  │
+╰─────────────────────────────────────── 1 marked · A: clear marks │ 1 of 4 ─╯╰─────────────────────────────────────── explicit ─╯
+ Enter lazygit │ v tree/list │ f fetch │ F fetch shown │ u update │ Space mark │ / filter │ t families │ ? help │ q quit
 ```
 
 - The header shows counters for the current family. The digits `1`–`6` apply the corresponding state filter; pressing the digit again clears it.
-- Other local branches that need attention appear as a count such as `⎇2` after the upstream state; the detail panel lists them (see 5.2).
+- Other local branches that need attention appear as a count such as `⎇2` after the upstream state, separated by `│`; the detail panel lists them (see 5.2).
+- A one-character health column after the name shows the most important state of the row: errors and unavailable entries, conflicts, operations in progress, or divergence first, then a dirty worktree, behind, ahead, and other attention (`!`, such as a remote mismatch or other branches). Only healthy repositories show `✓`; their names are not emphasized, so rows that need attention stand out.
+- The `Commit` column shows the age of the latest commit.
 - The right side of the header shows a spinner while the inventory loads or repositories are inspected, and a progress bar while a batch runs. Rows of repositories with a running job show a spinner in the upstream column.
 - The footer shows key hints for the current mode. Messages appear at the right end of the footer and disappear after 4 seconds (errors after 10 seconds); details remain available through `e` and `b`.
 - Dialogs (help, errors, sorting, operations, confirmations, update preview, launchers) are centered boxes over a dimmed copy of the main view.
@@ -1504,7 +1515,7 @@ Marks persist when filters change. A batch action on marked repositories always 
 
 ### 13.3 Status representation
 
-Color is never the only information carrier. Every state is expressed by a symbol with a count or by text, and the help view contains a legend. Colors are applied per cell rather than per row, so problems stand out while clean repositories stay unobtrusive.
+Color is never the only information carrier. Every state is expressed by a symbol with a count or by text, and the help view contains a legend. Colors are applied per cell rather than per row, so problems stand out while clean repositories stay unobtrusive. Status symbols are separated by two spaces.
 
 | Unicode | Meaning | Default color |
 |---|---|---|
@@ -1523,6 +1534,7 @@ Color is never the only information carrier. Every state is expressed by a symbo
 | `✗ fetch failed` | last fetch failed | red |
 | `⎇n` | other local branches need attention | yellow if any holds unpublished work, otherwise magenta |
 | `≠remote` | remote mismatch | yellow |
+| `!` | health column: other attention, such as a remote mismatch or other branches | yellow, or magenta if no branch holds unpublished work |
 | `◆` | marked | cyan |
 | `▌` | cursor | cyan, together with the selected background |
 

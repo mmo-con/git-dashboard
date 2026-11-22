@@ -69,9 +69,22 @@ type colSpec struct {
 	min, pref, cap int
 }
 
+// Column indexes of the repository table.
+const (
+	colMark = iota
+	colName
+	colHealth
+	colFamily
+	colBranch
+	colStatus
+	colUpstream
+	colCommit
+)
+
 var colSpecs = []colSpec{
-	{"", 2, 2, 2}, {"Repository", 6, 10, 40}, {"Family", 4, 6, 20}, {"Branch", 6, 10, 40},
-	{"Status", 6, 9, 30}, {"Upstream", 6, 16, 30}, {"Age", 3, 4, 5},
+	colMark: {"", 2, 2, 2}, colName: {"Repository", 6, 10, 40}, colHealth: {"", 1, 1, 1},
+	colFamily: {"Family", 4, 6, 20}, colBranch: {"Branch", 6, 10, 40}, colStatus: {"Status", 6, 9, 30},
+	colUpstream: {"Upstream", 6, 16, 30}, colCommit: {"Commit", 3, 6, 6},
 }
 
 // columns sizes the columns of a table of inner width iw to their content.
@@ -87,14 +100,15 @@ func columns(iw int, natural []int) []column {
 		cols[i] = column{s.title, min(want[i], s.cap)}
 		free -= cols[i].width
 	}
-	for _, i := range []int{3, 1, 4, 5, 2} {
+	for _, i := range []int{colBranch, colName, colStatus, colUpstream, colFamily} {
 		add := max(min(free, want[i]-cols[i].width), 0)
 		cols[i].width += add
 		free -= add
 	}
 	for _, s := range []struct{ col, floor int }{
-		{3, 20}, {1, 20}, {2, 10}, {3, 14}, {1, 14}, {5, 14}, {4, 12},
-		{2, 6}, {3, 8}, {1, 10}, {5, 8}, {4, 8}, {2, 4}, {3, 6}, {1, 6}, {5, 6}, {4, 6}, {6, 3},
+		{colBranch, 20}, {colName, 20}, {colFamily, 10}, {colBranch, 14}, {colName, 14}, {colUpstream, 14},
+		{colStatus, 12}, {colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colUpstream, 8}, {colStatus, 8},
+		{colFamily, 4}, {colBranch, 6}, {colName, 6}, {colUpstream, 6}, {colStatus, 6},
 	} {
 		for free < 0 && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
 			cols[s.col].width--
@@ -104,14 +118,22 @@ func columns(iw int, natural []int) []column {
 	return cols
 }
 
-// rowCells returns the cells of r without the cursor and mark column.
+// rowCells returns the cells of r without the cursor and mark column. The
+// names of healthy repositories are not emphasized, so rows that need
+// attention stand out.
 func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	age := seg{"", m.theme.dim}
 	if r.LastCommit.Valid && r.LastCommit.Value != nil {
 		age.text = shortAgo(now, r.LastCommit.Value.Time)
 	}
+	health, healthy := m.health(r)
+	name := m.theme.bold
+	if healthy {
+		name = m.theme.plain
+	}
 	return [][]seg{
-		{{r.Name, m.theme.bold}},
+		{{r.Name, name}},
+		{health},
 		{{string(r.Family), m.theme.dim}},
 		m.branchSegs(r),
 		m.statusSegs(r),
@@ -135,7 +157,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			cells[i][0] = append([]seg{{"  ", m.theme.dim}}, cells[i][0]...)
 		}
 		for j, c := range cells[i] {
-			natural[j+1] = max(natural[j+1], runewidth.StringWidth(plain(c)))
+			natural[j+colName] = max(natural[j+colName], runewidth.StringWidth(plain(c)))
 		}
 	}
 	cols := columns(iw, natural)
