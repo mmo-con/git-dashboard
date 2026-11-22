@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/mmo-con/headquarters/actions/workflows/ci.yml"><img src="https://github.com/mmo-con/headquarters/actions/workflows/ci.yml/badge.svg?branch=main" alt="Build status" /></a>
   <a href="https://github.com/mmo-con/headquarters/releases/latest"><img src="https://img.shields.io/github/v/release/mmo-con/headquarters?style=flat-square" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT" /></a>
-  <a href="https://github.com/jesseduffield/lazygit"><img src="https://img.shields.io/badge/CLI-lazygit%20ready-2FCCC6?style=flat-square" alt="CLI &amp; lazygit" /></a>
 </p>
 
 ---
