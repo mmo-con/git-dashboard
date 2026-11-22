@@ -517,24 +517,29 @@ func TestProcessBudget(t *testing.T) {
 	if n := processes(); n != 4 {
 		t.Fatalf("inspection without a known Git version started %d processes, want 4", n)
 	}
-	if _, err := c.CheckVersion(context.Background()); err != nil {
+	version, err := c.CheckVersion(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
 	processes()
+	want := 3
+	if !version.AtLeast(git.Version{Major: 2, Minor: 35}) {
+		want++
+	}
 	for _, branches := range []bool{true, false} {
 		if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: branches}); err != nil {
 			t.Fatal(err)
 		}
-		if n := processes(); n != 3 {
-			t.Fatalf("inspection (branches=%v) started %d processes, want 3", branches, n)
+		if n := processes(); n != want {
+			t.Fatalf("inspection with Git %s (branches=%v) started %d processes, want %d", version, branches, n, want)
 		}
 	}
 	tu.Git(t, clone, "checkout", "-q", "--detach")
 	if _, err := c.Inspect(context.Background(), loc, git.InspectOptions{Branches: true}); err != nil {
 		t.Fatal(err)
 	}
-	if n := processes(); n != 4 {
-		t.Fatalf("inspection of a detached HEAD started %d processes, want 4", n)
+	if n := processes(); n != want+1 {
+		t.Fatalf("inspection of a detached HEAD with Git %s started %d processes, want %d", version, n, want+1)
 	}
 }
 
