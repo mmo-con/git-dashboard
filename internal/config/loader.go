@@ -261,6 +261,8 @@ func build(f *file, baseDir string, getenv func(string) string) (*Config, error)
 		{"selected_background", t.SelectedBackground, &cfg.UI.Theme.SelectedBackground},
 		{"selected_foreground", t.SelectedForeground, &cfg.UI.Theme.SelectedForeground},
 		{"selected_accent", t.SelectedAccent, &cfg.UI.Theme.SelectedAccent},
+		{"header_background", t.HeaderBackground, &cfg.UI.Theme.HeaderBackground},
+		{"header_foreground", t.HeaderForeground, &cfg.UI.Theme.HeaderForeground},
 		{"key", t.Key, &cfg.UI.Theme.Key},
 		{"branch", t.Branch, &cfg.UI.Theme.Branch},
 		{"clean", t.Clean, &cfg.UI.Theme.Clean},

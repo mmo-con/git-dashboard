@@ -89,6 +89,8 @@ inactive_border = "gray"
 selected_background = "237"
 selected_foreground = "bright-white"
 selected_accent = "cyan"
+header_background = "24"
+header_foreground = "bright-white"
 
 [lazygit]
 command = "lazygit"
