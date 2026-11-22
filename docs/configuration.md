@@ -153,6 +153,7 @@ lazygit starts in the worktree root of the selected repository.
 |---|---|---|---|
 | `icons` | `"unicode"`, `"nerd"`, or `"ascii"` | `"unicode"` | symbol set; `nerd` requires a Nerd Font, `ascii` suits limited terminals |
 | `view` | `"list"` or `"tree"` | `"list"` | repository view at startup; `v` switches at runtime. After `R`, a changed value takes effect, otherwise the current view is kept |
+| `detail_commits` | integer, 1–20 | `3` | recent commits of the selected repository in the detail panel; with `1`, only the latest commit is shown and no extra Git process runs |
 
 ## `[ui.theme]`
 

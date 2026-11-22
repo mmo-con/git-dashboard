@@ -484,6 +484,9 @@ const (
 	// detailBranch is a line of the other branches list, which is shortened
 	// before other content is dropped.
 	detailBranch
+	// detailOlderCommit is a recent commit other than the latest one; these
+	// lines are dropped first, oldest first.
+	detailOlderCommit
 )
 
 // details collects the lines of the detail panel, grouped into sections.
@@ -516,49 +519,64 @@ func (d *details) section(title string, style lipgloss.Style) {
 }
 
 // fit returns at most n lines if possible. At most maxBranchLines other
-// branches are listed. If the panel is too small, blank lines are dropped
-// first, then the other branches list is shortened, then the section titles
-// are dropped.
+// branches are listed. If the panel is too small, older commits are dropped
+// first, oldest first, then blank lines, then the other branches list is
+// shortened, then the section titles are dropped.
 func (d *details) fit(n int) []string {
-	total := 0
+	total, commits := 0, 0
 	for _, k := range d.kinds {
-		if k == detailBranch {
+		switch k {
+		case detailBranch:
 			total++
+		case detailOlderCommit:
+			commits++
 		}
-	}
-	render := func(branches int, drop ...detailKind) []string {
-		var out []string
-		seen := 0
-		for i, l := range d.lines {
-			k := d.kinds[i]
-			if k == detailBranch {
-				seen++
-				if seen <= branches {
-					out = append(out, l)
-				}
-				if seen == total && total > branches {
-					out = append(out, d.more(total-branches))
-				}
-				continue
-			}
-			if !slices.Contains(drop, k) {
-				out = append(out, l)
-			}
-		}
-		return out
 	}
 	shown := min(total, maxBranchLines)
-	if out := render(shown); len(out) <= n {
-		return out
+	for c := commits; c >= 0; c-- {
+		if out := d.render(c, shown, total); len(out) <= n {
+			return out
+		}
 	}
 	for _, drop := range [][]detailKind{{detailBlank}, {detailBlank, detailSection}} {
 		for b := shown; b >= 0; b-- {
-			if out := render(b, drop...); len(out) <= n {
+			if out := d.render(0, b, total, drop...); len(out) <= n {
 				return out
 			}
 		}
 	}
-	return render(0, detailBlank, detailSection)
+	return d.render(0, 0, total, detailBlank, detailSection)
+}
+
+// render returns the lines with at most commits older commits and branches
+// other branches, of total, without the kinds in drop.
+func (d *details) render(commits, branches, total int, drop ...detailKind) []string {
+	var out []string
+	seen, older := 0, 0
+	for i, l := range d.lines {
+		k := d.kinds[i]
+		if k == detailOlderCommit {
+			older++
+			if older <= commits {
+				out = append(out, l)
+			}
+			continue
+		}
+		if k == detailBranch {
+			seen++
+			if seen <= branches {
+				out = append(out, l)
+			}
+			if seen == total && total > branches {
+				out = append(out, d.more(total-branches))
+			}
+			continue
+		}
+		if !slices.Contains(drop, k) {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // detailLabelWidth aligns the labels of the detail panel.
@@ -625,11 +643,27 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		}
 
 		if r.LastCommit.Valid {
-			d.section("last commit", t.title)
-			if c := r.LastCommit.Value; c != nil {
-				d.text(seg{c.ShortID + "  " + commitTime(now, c.Time, 0) + "  ", t.dim}, seg{c.Subject, t.plain})
-			} else {
+			n := m.historyCount()
+			title := "last commit"
+			if n > 1 {
+				title = "recent commits"
+			}
+			d.section(title, t.title)
+			commitLine := func(c domain.CommitSummary) string {
+				return line(seg{c.ShortID + "  " + commitTime(now, c.Time, 0) + "  ", t.dim}, seg{c.Subject, t.plain})
+			}
+			if c := r.LastCommit.Value; c == nil {
 				d.text(seg{"no commits yet", t.dim})
+			} else if e, ok := m.recentCommits(r); ok && e.err == nil && len(e.commits) > 0 {
+				d.add(commitLine(e.commits[0]), detailText)
+				for _, older := range e.commits[1:] {
+					d.add(commitLine(older), detailOlderCommit)
+				}
+			} else {
+				d.add(commitLine(*c), detailText)
+				if ok && e.err != nil {
+					d.add(line(seg{"older commits unavailable: " + firstLine(e.err.Error()), t.dim}), detailOlderCommit)
+				}
 			}
 			d.text(m.fetchSeg(now, r))
 		}

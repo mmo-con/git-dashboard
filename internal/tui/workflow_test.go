@@ -291,3 +291,59 @@ func TestConfirmedUpdateFetchesFirst(t *testing.T) {
 		t.Fatal("a repository whose fetch failed must not be updated")
 	}
 }
+
+// TestDetailPanelShowsRecentCommits checks that the recent commits of the
+// selected repository are read in the background, cached for its HEAD, and
+// shortened oldest first when the panel is small.
+func TestDetailPanelShowsRecentCommits(t *testing.T) {
+	tu.IsolateGit(t)
+	repo := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "repo"))
+	for _, s := range []string{"first", "second", "third", "fourth"} {
+		tu.Commit(t, repo, s+".txt", s+"\n", "commit "+s)
+	}
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{{Path: repo, Enabled: true}}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+	if m.historyPending == nil && len(m.history) == 0 {
+		t.Fatal("the selected repository's history must be requested")
+	}
+	for m.historyPending != nil {
+		m.Update(eventsMsg{events: m.app.Scheduler.Events.Next()})
+	}
+	r := m.current()
+	v := strings.Join(m.detailLines(r, 80).fit(100), "\n")
+	for _, want := range []string{"RECENT COMMITS", "commit fourth", "commit third", "commit second"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("the detail panel must show %q:\n%s", want, v)
+		}
+	}
+	if strings.Contains(v, "commit first") {
+		t.Fatalf("the detail panel must show only the configured number of commits:\n%s", v)
+	}
+
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	if m.historyPending != nil {
+		t.Fatal("a cached history must not be read again while HEAD is unchanged")
+	}
+
+	full := len(m.detailLines(r, 80).fit(100))
+	small := strings.Join(m.detailLines(r, 80).fit(full-1), "\n")
+	if strings.Contains(small, "commit second") || !strings.Contains(small, "commit third") || !strings.Contains(small, "── BRANCH") {
+		t.Fatalf("the oldest commit must be dropped first:\n%s", small)
+	}
+
+	m.app.Config.UI.DetailCommits = 1
+	m.history = map[domain.RepositoryID]historyEntry{}
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	if m.historyPending != nil {
+		t.Fatal("one commit comes from the inspection and needs no Git process")
+	}
+	if v := strings.Join(m.detailLines(r, 80).fit(100), "\n"); !strings.Contains(v, "LAST COMMIT") || !strings.Contains(v, "commit fourth") {
+		t.Fatalf("one commit is the latest commit:\n%s", v)
+	}
+}

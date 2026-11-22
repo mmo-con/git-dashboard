@@ -25,6 +25,7 @@ const (
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
+	m.requestHistory()
 	return m, tea.Batch(cmd, m.housekeeping())
 }
 
@@ -113,6 +114,11 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 	m.recompute()
 	m.inspecting = map[uint64]int{}
 	m.refetch = nil
+	if p := m.historyPending; p != nil {
+		m.app.Scheduler.Cancel(p.batch)
+		m.historyPending = nil
+	}
+	m.history = map[domain.RepositoryID]historyEntry{}
 	m.refresh(m.allIDs())
 	if len(m.warnings) > 0 {
 		m.setError(fmt.Sprintf("%d configuration warning(s); press e for details", len(m.warnings)))
@@ -124,6 +130,10 @@ func (m *Model) applyEvents(events []jobs.Event) {
 	reinspect := map[domain.RepositoryID]bool{}
 	for _, ev := range events {
 		res := ev.Result
+		if p := m.historyPending; p != nil && ev.BatchID == p.batch {
+			m.applyHistory(ev)
+			continue
+		}
 		if res.Operation == "" {
 			pending, current := m.inspecting[ev.BatchID]
 			if !current || !res.Status.Final() {

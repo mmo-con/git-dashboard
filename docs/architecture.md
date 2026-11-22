@@ -169,6 +169,16 @@ with the branch format
   `FETCH_HEAD` among all entries of its store, so fetches from lazygit or a
   shell count too.
 
+**Recent commits**, only for the repository selected in the detail panel
+and only with `[ui].detail_commits` above 1: `git log --max-count=<n>
+--no-color --no-show-signature --format=%H%x00%h%x00%an%x00%ct%x00%s HEAD --`.
+The result is cached per repository for the HEAD commit it was read at, so
+it is read again only after HEAD moves or after a failure and a refresh. A
+request for a previously selected repository is cancelled when the selection
+moves on, so scrolling through the list runs at most one such process at a
+time. It is not part of inspection, so the process budget of a refresh
+stays unchanged.
+
 **Fetch**, once per store: `git -C <root> fetch --all [--prune]`.
 
 **Update**: `git -C <root> merge --ff-only --no-autostash --no-overwrite-ignore <upstream commit>` (see 4.2).
@@ -471,8 +481,9 @@ The concrete keys, symbols, and filters are listed in
   panel is cut off at the bottom; it shortens the other branches list before
   dropping section titles. Each section starts with its title in a rule
   across the panel (`── BRANCH ───`), so sections stay apart without boxes.
-  The latest commit is one line of short hash, time, and subject; lazygit
-  shows the history.
+  Each recent commit is one line of short hash, time, and subject; when the
+  panel is small, the older commits are dropped first, oldest first. lazygit
+  shows the full history.
 - Commit times have one absolute format in table and detail panel
   (`Nov 13 22:16`, with the year for an earlier year), so rows can be
   compared and sorted by eye; a narrow column drops the time of day and then
@@ -505,7 +516,8 @@ The concrete keys, symbols, and filters are listed in
   2 seconds of a cold start, excluding the network.
 - **Process budget:** three Git processes per entry and refresh (four for a
   detached HEAD, one more with Git 2.34); one validation process per
-  candidate at startup and on a rebuild.
+  candidate at startup and on a rebuild; one process for the recent commits
+  of the selected repository when its HEAD changes.
 - **Terminal integrity:** no background process can read from or write to
   the terminal.
 - **Robustness:** a failing, hanging, or slow repository never blocks the

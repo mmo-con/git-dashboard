@@ -76,6 +76,8 @@ max_age = "30d"
 icons = "unicode"
 # Repository view at startup: "list" (default) or "tree" grouped by family.
 view = "list"
+# Recent commits of the selected repository in the detail panel (1-20).
+detail_commits = 3
 
 # Colors: ANSI names (green, bright-blue, gray, …), numbers 0-255, or #rrggbb.
 # Unset keys keep their defaults. NO_COLOR disables all colors.

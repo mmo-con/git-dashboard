@@ -55,6 +55,24 @@ type refetch struct {
 	inspections []uint64
 }
 
+// historyEntry holds the recent commits of a repository for the detail
+// panel. It stays valid while HEAD points to head and the configured count
+// is n.
+type historyEntry struct {
+	head    string
+	n       int
+	commits []domain.CommitSummary
+	err     error
+}
+
+// historyRequest is the history job for the selected repository.
+type historyRequest struct {
+	batch uint64
+	repo  domain.RepositoryID
+	head  string
+	n     int
+}
+
 // visit remembers which batch row was opened in lazygit.
 type visit struct {
 	batch *batch
@@ -125,6 +143,11 @@ type Model struct {
 	quitReturn mode
 	visit      *visit
 
+	// history caches recent commits for the detail panel; only the selected
+	// repository is ever requested, one at a time.
+	history        map[domain.RepositoryID]historyEntry
+	historyPending *historyRequest
+
 	handovers map[domain.StoreID]bool
 	fatal     error
 	now       func() time.Time
@@ -146,6 +169,7 @@ func New(a *app.Application) *Model {
 		expanded:         map[domain.FamilyID]bool{},
 		lastOps:          map[domain.RepositoryID]domain.OperationResult{},
 		handovers:        map[domain.StoreID]bool{},
+		history:          map[domain.RepositoryID]historyEntry{},
 		inspecting:       map[uint64]int{},
 		loadingInventory: true,
 		width:            100,
@@ -398,6 +422,9 @@ func (m *Model) refresh(ids []domain.RepositoryID) uint64 {
 	var repos []domain.Repository
 	seen := map[domain.RepositoryID]bool{}
 	for _, id := range ids {
+		if e, ok := m.history[id]; ok && e.err != nil {
+			delete(m.history, id)
+		}
 		if r := m.repo(id); r != nil && !seen[id] {
 			seen[id] = true
 			repos = append(repos, *r)
@@ -451,6 +478,58 @@ func (m *Model) targets(visible bool) (list []domain.Repository, hidden int) {
 		list = append(list, *r)
 	}
 	return list, 0
+}
+
+// historyCount returns the configured number of recent commits.
+func (m *Model) historyCount() int { return m.app.Config.UI.DetailCommits }
+
+// requestHistory reads the recent commits of the selected repository in the
+// background unless they are cached for its current HEAD. A request for
+// another repository is cancelled, so moving through the list starts at
+// most one Git process at a time. A count of 1 needs no process, because
+// inspection already reads the latest commit.
+func (m *Model) requestHistory() {
+	n := m.historyCount()
+	r := m.current()
+	if n <= 1 || r == nil || !r.IsAvailable() || !r.Head.Valid || r.Head.Value.Unborn || r.Head.Value.CommitID == "" {
+		return
+	}
+	head := r.Head.Value.CommitID
+	if e, ok := m.history[r.ID]; ok && e.head == head && e.n == n {
+		return
+	}
+	if p := m.historyPending; p != nil {
+		if p.repo == r.ID && p.head == head && p.n == n {
+			return
+		}
+		m.app.Scheduler.Cancel(p.batch)
+	}
+	job := app.HistoryJob(m.app.Git, *r, n, m.app.Config.Git.InspectionTimeout)
+	m.historyPending = &historyRequest{batch: m.app.Scheduler.Submit([]jobs.Job{job}), repo: r.ID, head: head, n: n}
+}
+
+// applyHistory stores the result of the pending history request. Results of
+// cancelled or earlier requests are ignored.
+func (m *Model) applyHistory(ev jobs.Event) {
+	p := m.historyPending
+	if !ev.Result.Status.Final() {
+		return
+	}
+	m.historyPending = nil
+	payload, ok := ev.Payload.(app.HistoryPayload)
+	if !ok || payload.Head != p.head {
+		return
+	}
+	m.history[p.repo] = historyEntry{head: p.head, n: p.n, commits: payload.Commits, err: payload.Err}
+}
+
+// recentCommits returns the cached recent commits of r for its current HEAD.
+func (m *Model) recentCommits(r *domain.Repository) (historyEntry, bool) {
+	e, ok := m.history[r.ID]
+	if !ok || !r.Head.Valid || e.head != r.Head.Value.CommitID || e.n != m.historyCount() {
+		return historyEntry{}, false
+	}
+	return e, true
 }
 
 // storeBusy reports whether a mutating job or a handover is active or queued
