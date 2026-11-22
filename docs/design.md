@@ -1437,11 +1437,11 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 ```text
  Git Dashboard   1 dirty 1  2 behind 2  3 ahead 1  4 diverged 1  5 errors 0  6 branches 0
 ╭─ Repositories ─────────────────────────────────────────────────────────────╮╭─ api ────────────────────────────────────────────╮
-│   Repository     Family   Branch       Status       Upstream         Commit││ ~/devrepos/company/api                           │
-│▌  api        ↓   Work     main         ✓  ≠remote   ↓3               2h    ││ family    Work                                   │
-│   billing    ✘   Work     main         ✓            ↑1 ↓1 diverged   3h    ││                                                  │
-│ ◆ frontend   ●   Work     develop      ✚1  ●2  ?3   ✓                3h    ││ BRANCH                                           │
-│   tools      ✗   Work     –            ✗ missing    –                      ││ main → origin/main  ↓3                           │
+│    Repository   Family   Branch       Status       Upstream          Commit││ ~/devrepos/company/api                           │
+│▌   ↓ api        Work     main         ✓  ≠remote   ↓3                2h    ││ family    Work                                   │
+│    ✘ billing    Work     main         ✓            ↑1 ↓1 diverged    3h    ││                                                  │
+│  ◆ ● frontend   Work     develop      ✚1  ●2  ?3   ✓                 3h    ││ BRANCH                                           │
+│    ✗ tools      Work     –            ✗ missing    –                       ││ main → origin/main  ↓3                           │
 │                                                                            ││                                                  │
 │                                                                            ││ WORKTREE                                         │
 │                                                                            ││ ✓ clean                                          │
@@ -1461,7 +1461,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 
 - The header shows counters for the current family. The digits `1`–`6` apply the corresponding state filter; pressing the digit again clears it.
 - Other local branches that need attention appear as a count such as `⎇2` after the upstream state, separated by `│`; the detail panel lists them (see 5.2).
-- A one-character health column after the name shows the most important state of the row: errors and unavailable entries, conflicts, operations in progress, or divergence first, then a dirty worktree, behind, ahead, and other attention (`!`, such as a remote mismatch or other branches). Only healthy repositories show `✓`; their names are not emphasized, so rows that need attention stand out.
+- A health symbol before the name shows the most important state of the row: errors and unavailable entries, conflicts, operations in progress, or divergence first, then a dirty worktree, behind, ahead, and other attention (`!`, such as a remote mismatch or other branches). Only healthy repositories show `✓`; their names are not emphasized, so rows that need attention stand out. Because the symbol is part of the name cell, it is always one space from the name, and the states of all rows line up at the left edge; in the tree it follows the guide lines.
 - The `Commit` column shows the age of the latest commit.
 - In the tree, repositories are connected to their family row by guide lines (`├─`, `└─`). Each family row, and the detail panel of a family row, summarizes the shown repositories by their health level, such as `✗1 error  ●2 dirty`, or shows `✓ all healthy`; every repository counts once, at its most important level.
 - The right side of the header shows a spinner while the inventory loads or repositories are inspected, and a progress bar while a batch runs. Rows of repositories with a running job show a spinner in the upstream column.
@@ -1473,7 +1473,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 - Linked worktrees of the same store are listed in the detail panel.
 - The bottom border of the detail panel shows how the repository entered the inventory: `configured` for a `[[repositories]]` entry, or `discovered in <root>` with the discovery root.
 - The detail panel groups its content into titled sections: branch, other branches, worktree (nonzero counts only), last commit and fetch time, remotes, linked worktrees, and errors last. Labels and remote names are aligned. If the panel is too small, blank lines are dropped first, then the section titles.
-- Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. Columns are separated by three spaces, more than the two between the elements of a cell, so a cell never seems to continue into the next column; the health symbol stays close to the name. If space is short, branch, name, and family shrink before status and upstream.
+- Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. Columns are separated by three spaces, more than the two between the elements of a cell, so a cell never seems to continue into the next column; the cursor and mark stay one space before the name cell. If space is short, branch, name, and family shrink before status and upstream.
 - Colors, theme presets, and the symbol set are configurable in `[ui]` (see `docs/configuration.md`).
 
 ### 13.2 Key bindings
@@ -1538,7 +1538,7 @@ Color is never the only information carrier. Every state is expressed by a symbo
 | `✗ fetch failed` | last fetch failed | red |
 | `⎇n` | other local branches need attention | yellow if any holds unpublished work, otherwise magenta |
 | `≠remote` | remote mismatch | yellow |
-| `!` | health column: other attention, such as a remote mismatch or other branches | yellow, or magenta if no branch holds unpublished work |
+| `!` | health symbol: other attention, such as a remote mismatch or other branches | yellow, or magenta if no branch holds unpublished work |
 | `◆` | marked | cyan |
 | `▌` | cursor | cyan (`selected_accent`); the selected row uses a subtle background on which names and secondary text take the selected foreground, while semantic colors are kept |
 

@@ -625,9 +625,9 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 func TestColumnsFollowContent(t *testing.T) {
 	// The longest name, "Engine Portal" and a long branch fit without
 	// truncation; the remaining space is not given to the name column.
-	natural := []int{0, 24, 1, 13, 26, 7, 18, 4}
+	natural := []int{0, 24, 13, 26, 7, 18, 4}
 	cols := columns(140, natural)
-	for i, want := range []int{2, 24, 1, 13, 26, 9, 18, 6} {
+	for i, want := range []int{3, 24, 13, 26, 9, 18, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
@@ -656,7 +656,7 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 		t.Fatal("view = \"tree\" must start in the tree with ASCII markers")
 	}
 	keys(m, "enter")
-	if v := m.View(); !strings.Contains(v, "[-] Work (1)") || !strings.Contains(v, "`- api") {
+	if v := m.View(); !strings.Contains(v, "[-] Work (1)") || !strings.Contains(v, "`- x api") {
 		t.Fatal("expanded family must use the ASCII markers")
 	}
 

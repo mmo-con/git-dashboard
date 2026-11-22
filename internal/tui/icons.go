@@ -60,7 +60,7 @@ func (ic icons) legend() []Binding {
 		{ic.mismatch + "remote", "unexpected remote URL"},
 		{ic.unavailable, "unavailable or failed"},
 		{ic.mark, "marked"},
-		{ic.conflict + ic.modified + ic.behind + ic.ahead + ic.attention + ic.clean, "column after the name: most important state"},
+		{ic.conflict + ic.modified + ic.behind + ic.ahead + ic.attention + ic.clean, "symbol before the name: most important state"},
 		{ic.attention, "other attention, e.g. remote mismatch or branches"},
 		{ic.collapsed + " / " + ic.expanded, "collapsed / expanded family"},
 	}

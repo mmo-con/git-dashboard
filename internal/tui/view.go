@@ -75,7 +75,6 @@ type colSpec struct {
 const (
 	colMark = iota
 	colName
-	colHealth
 	colFamily
 	colBranch
 	colStatus
@@ -84,7 +83,7 @@ const (
 )
 
 var colSpecs = []colSpec{
-	colMark: {"", 2, 2, 2}, colName: {"Repository", 6, 10, 40}, colHealth: {"", 1, 1, 1},
+	colMark: {"", 3, 3, 3}, colName: {"Repository", 6, 10, 40},
 	colFamily: {"Family", 4, 6, 20}, colBranch: {"Branch", 6, 10, 40}, colStatus: {"Status", 6, 9, 30},
 	colUpstream: {"Upstream", 6, 16, 30}, colCommit: {"Commit", 3, 6, 6},
 }
@@ -121,6 +120,8 @@ func columns(iw int, natural []int) []column {
 }
 
 // rowCells returns the cells of r without the cursor and mark column. The
+// name starts with the health symbol, so the symbol is always next to the
+// name and the most important state of every row is at its left edge. The
 // names of healthy repositories are not emphasized, so rows that need
 // attention stand out.
 func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
@@ -129,13 +130,15 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 		age.text = shortAgo(now, r.LastCommit.Value.Time)
 	}
 	health, healthy := m.health(r)
+	if health.text == "" {
+		health.text = " "
+	}
 	name := m.theme.bold
 	if healthy {
 		name = m.theme.plain
 	}
 	return [][]seg{
-		{{r.Name, name}},
-		{health},
+		{health, {" ", m.theme.plain}, {r.Name, name}},
 		{{string(r.Family), m.theme.dim}},
 		m.branchSegs(r),
 		m.statusSegs(r),
@@ -196,7 +199,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 				toggle = m.icons.expanded
 			}
 			ss := []seg{
-				{cursor, m.theme.accent}, {"  " + toggle + " ", m.theme.dim}, {string(entry.family), m.theme.bold},
+				{cursor, m.theme.accent}, {"   " + toggle + " ", m.theme.dim}, {string(entry.family), m.theme.bold},
 				{fmt.Sprintf(" (%d)", entry.count), m.theme.dim},
 			}
 			if summary := m.familySummary(health[entry.family]); len(summary) > 0 {
@@ -214,7 +217,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		if m.marks[entry.id] {
 			mark = seg{m.icons.mark, m.theme.key}
 		}
-		row := append([][]seg{{{cursor, m.theme.accent}, mark}}, cells[i]...)
+		row := append([][]seg{{{cursor, m.theme.accent}, {" ", m.theme.plain}, mark}}, cells[i]...)
 		if i == m.cursor {
 			for _, cell := range row {
 				for k := range cell {
@@ -264,12 +267,12 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 
 // colGap is the space before column j. Columns are separated by three
 // spaces, more than the two between the elements of a cell; the name is
-// closer to the mark and to its health symbol, which belong to it.
+// closer to the cursor and mark, which belong to it.
 func colGap(j int) int {
 	switch j {
 	case colMark:
 		return 0
-	case colName, colHealth:
+	case colName:
 		return 1
 	}
 	return 3
