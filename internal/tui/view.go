@@ -291,6 +291,8 @@ func (m *Model) emptyText() string {
 	switch {
 	case m.loadingInventory:
 		return " " + m.spinnerFrame() + " loading inventory…"
+	case len(m.repos) == 0 && m.app.ScanRoot != "":
+		return fmt.Sprintf(" no repositories found below %s", m.app.ScanRoot)
 	case len(m.repos) == 0 && m.app.Config.File == "":
 		return fmt.Sprintf(" no configuration found at %s; see examples/config.toml", m.app.ConfigPath)
 	case len(m.repos) == 0:

@@ -70,10 +70,16 @@ make install          # installs into $(go env GOPATH)/bin
 
 ```sh
 git-dashboard                      # uses ~/.config/git-dashboard/config.toml
+git-dashboard ~/src                # repositories below ~/src, no inventory configuration needed
 git-dashboard --config path.toml   # explicit configuration file
 git-dashboard --check              # validate the configuration and print the inventory
 git-dashboard --version
 ```
+
+With a path, Git Dashboard shows the repositories found below that directory
+(or the directory itself if it is a repository) instead of the configured
+ones. All other settings of the configuration file, such as the theme,
+lazygit, and launchers, still apply. Options must precede the path.
 
 The configuration file is looked up in this order: `--config`, the
 `GIT_DASHBOARD_CONFIG` environment variable, and

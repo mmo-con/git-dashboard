@@ -46,6 +46,13 @@ type Discovery struct {
 	FollowSymlinks bool
 }
 
+// ScanOnly replaces the configured inventory with discovery below root, using
+// the discovery defaults. All other settings are kept.
+func (c *Config) ScanOnly(root string) {
+	c.Repositories = nil
+	c.Discovery = []Discovery{{Root: root, MaxDepth: DefaultMaxDepth, Include: []string{"**"}}}
+}
+
 type Git struct {
 	Executable            string
 	InspectionParallelism int

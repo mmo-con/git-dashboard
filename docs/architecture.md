@@ -43,6 +43,13 @@ dependency and build trees, pick up unrelated repositories, change its result
 whenever something is cloned below a root, and make startup cost
 unpredictable.
 
+A path on the command line (`git-dashboard ~/src`) replaces both with one
+discovery below that path, using the discovery defaults. It lets a user look
+at a directory without writing an inventory first. Only the inventory is
+replaced; the remaining settings of the configuration file still apply, so
+the theme, lazygit, and launchers behave as usual. The path is kept across
+`R`, which never switches back to the configured inventory.
+
 ### 2.2 Discovery rules
 
 - The walk goes up to `max_depth` levels below `root` (the root has depth 0).

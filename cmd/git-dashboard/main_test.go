@@ -103,3 +103,52 @@ func TestCheckWithoutConfigurationFile(t *testing.T) {
 		t.Fatalf("code=%d out=%q", code, out)
 	}
 }
+
+func TestScanPathReplacesConfiguredRepositories(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	configured := tu.InitRepo(t, filepath.Join(base, "configured"))
+	scanned := tu.InitRepo(t, filepath.Join(base, "scan", "team", "api"))
+	path := writeConfig(t, `
+[[repositories]]
+path = "`+configured+`"
+`)
+	code, out, errOut := runCLI(t, nil, "--config", path, "--check", filepath.Join(base, "scan"))
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%q", code, errOut)
+	}
+	for _, want := range []string{"configuration: " + path, "scan of " + filepath.Join(base, "scan"), scanned, "1 repositories"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, configured) {
+		t.Errorf("configured repository must be replaced:\n%s", out)
+	}
+
+	t.Chdir(scanned)
+	if code, out, _ := runCLI(t, map[string]string{"XDG_CONFIG_HOME": base}, "--check", "."); code != 0 || !strings.Contains(out, scanned) {
+		t.Fatalf("relative path to a repository: code=%d out=%q", code, out)
+	}
+}
+
+func TestInvalidScanPathExitsWithTwo(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "file")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{filepath.Join(dir, "missing")}, "no such file"},
+		{[]string{file}, "is not a directory"},
+		{[]string{dir, dir}, "at most one path"},
+		{[]string{dir, "--check"}, "options must precede the path"},
+	} {
+		if code, _, errOut := runCLI(t, nil, tc.args...); code != 2 || !strings.Contains(errOut, tc.want) {
+			t.Errorf("%v: code=%d stderr=%q", tc.args, code, errOut)
+		}
+	}
+}
