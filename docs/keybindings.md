@@ -117,18 +117,38 @@ is updated until the new preview is confirmed.
 | `j` / `k` | scroll |
 | any other key | close |
 
+## Table columns
+
+| Column | Content |
+|---|---|
+| Repository | health symbol and name |
+| Family | family of the repository; hidden in the tree, whose family rows name it |
+| Branch | checked-out branch, or the commit of a detached HEAD |
+| State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, divergence, a remote mismatch, and other branches; empty when there is nothing to report |
+| Staged | staged entries |
+| Modified | entries modified or deleted in the worktree and not staged |
+| Untracked | untracked entries |
+| Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
+| Commit | age of the latest commit |
+
+In the count columns, `–` is a known zero and `?` an unknown value. A cell
+is empty while the repository loads and where the count does not apply,
+such as ahead and behind without an upstream; the State column names the
+reason. `off` means that untracked files are not checked (`untracked = "no"`).
+If the table is too narrow for the full titles, the count columns are
+titled with their symbols, for example `✚` for Staged.
+
 ## Status symbols
 
 | Unicode | ASCII | Meaning |
 |---|---|---|
-| `✓` | `ok` | clean worktree; the detail panel shows `✓ clean` |
+| `✓` | `ok` | clean worktree or up to date; the detail panel shows `✓ clean` |
 | `✚n` | `+n` | staged entries |
 | `●n` | `*n` | modified entries |
 | `−n` | `-n` | deleted entries |
 | `?n` | `?n` | untracked entries |
-| `✘n` | `!n` | conflicting entries |
+| `✘n conflicts` | `!n conflicts` | conflicting entries |
 | `↑n` / `↓n` | `^n` / `vn` | commits ahead of / behind the upstream |
-| `✓` | `ok` | up to date with the upstream |
 | `⎇n` | `brn` | other local branches that need attention |
 | `≠remote` | `!=remote` | remote URL differs from the configured `remote` |
 | `!` | `~` | health symbol: other attention, such as a remote mismatch or other branches |

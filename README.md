@@ -42,9 +42,10 @@ The architecture and the decisions behind it are documented in
   operations view then serves as a worklist: open blocked repositories in
   lazygit, see which blockers are resolved, and continue with a new preview.
 - Configurable launchers for a shell, an editor, or a file manager.
-- lazygit-style panels with titled borders, per-cell colors, compact status
-  symbols, spinners and progress bars, dialogs as overlays, and header
-  counters that double as quick filters. Colors, built-in theme presets
+- lazygit-style panels with titled borders, one column per count (staged,
+  modified, untracked, ahead, behind) plus a State column for everything
+  else, per-cell colors, spinners and progress bars, dialogs as overlays, and
+  header counters that double as quick filters. Colors, built-in theme presets
   (such as high contrast, Catppuccin, Dracula, and Gruvbox), and the symbol
   set (Unicode, Nerd Font, ASCII) are configurable; `NO_COLOR` is honored.
 

@@ -19,6 +19,10 @@ import (
 // wideLayout is the minimum width for table and details side by side.
 const wideLayout = 130
 
+// maxDetailWidth limits the detail panel beside the table, which gets the
+// remaining width for its columns.
+const maxDetailWidth = 70
+
 func (m *Model) View() string {
 	main := m.mainArea(max(m.height-2, 4))
 	if modal := m.modal(len(main)); modal != nil {
@@ -33,7 +37,7 @@ func (m *Model) View() string {
 func (m *Model) mainArea(h int) []string {
 	active := m.mode == modeNormal || m.mode == modeFilter
 	if m.width >= wideLayout {
-		rw := m.width * 60 / 100
+		rw := m.width - min(m.width*40/100, maxDetailWidth)
 		return joinColumns(m.reposBox(rw, h, active), m.detailsBox(m.width-rw, h))
 	}
 	dh := stackedDetailsHeight(h)
@@ -61,14 +65,18 @@ func (m *Model) pageSize() int { return max(m.tableRows()-1, 1) }
 type column struct {
 	title string
 	width int
+	// right aligns a count column; hidden columns take no space.
+	right, hidden bool
 }
 
 // colSpec bounds a column: min is the hard minimum, pref the width reserved
 // even for shorter content (so transient states do not shift the table), and
 // cap the width beyond which content is only shown if space is left over.
+// A count column has a short title, its symbol, for narrow tables.
 type colSpec struct {
 	title          string
 	min, pref, cap int
+	short          func(icons) string
 }
 
 // Column indexes of the repository table.
@@ -77,46 +85,84 @@ const (
 	colName
 	colFamily
 	colBranch
-	colStatus
-	colUpstream
+	colState
+	colStaged
+	colModified
+	colUntracked
+	colAhead
+	colBehind
 	colCommit
 )
 
 var colSpecs = []colSpec{
-	colMark: {"", 3, 3, 3}, colName: {"Repository", 6, 10, 40},
-	colFamily: {"Family", 4, 6, 20}, colBranch: {"Branch", 6, 10, 40}, colStatus: {"Status", 6, 9, 30},
-	colUpstream: {"Upstream", 6, 16, 30}, colCommit: {"Commit", 3, 6, 6},
+	colMark: {title: "", min: 3, pref: 3, cap: 3}, colName: {title: "Repository", min: 6, pref: 10, cap: 40},
+	colFamily: {title: "Family", min: 4, pref: 6, cap: 20}, colBranch: {title: "Branch", min: 6, pref: 10, cap: 40},
+	colState:     {title: "State", min: 6, pref: 16, cap: 40},
+	colStaged:    {title: "Staged", min: 1, cap: 9, short: func(ic icons) string { return ic.staged }},
+	colModified:  {title: "Modified", min: 1, cap: 9, short: func(ic icons) string { return ic.modified }},
+	colUntracked: {title: "Untracked", min: 1, cap: 9, short: func(ic icons) string { return ic.untracked }},
+	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
+	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
+	colCommit:    {title: "Commit", min: 3, pref: 6, cap: 6},
 }
 
 // columns sizes the columns of a table of inner width iw to their content.
-// natural holds the widest cell of each column. Space left over stays empty
-// at the end of a row; if space is short, columns shrink in stages so that
-// status and upstream shrink last.
-func columns(iw int, natural []int) []column {
-	cols := make([]column, len(colSpecs))
-	want := make([]int, len(colSpecs))
-	free := iw - tableWidth(make([]column, len(colSpecs)))
-	for i, s := range colSpecs {
-		want[i] = max(natural[i], runewidth.StringWidth(s.title), s.pref)
-		cols[i] = column{s.title, min(want[i], s.cap)}
-		free -= cols[i].width
+// natural holds the widest cell of each column. The family column is hidden
+// in the tree, whose family rows name it. Count columns use their full
+// titles if the other columns stay readable, otherwise their symbols.
+func columns(iw int, natural []int, ic icons, tree bool) []column {
+	cols, comfortable := layoutColumns(iw, natural, ic, tree, false)
+	if comfortable {
+		return cols
 	}
-	for _, i := range []int{colBranch, colName, colStatus, colUpstream, colFamily} {
+	cols, _ = layoutColumns(iw, natural, ic, tree, true)
+	return cols
+}
+
+// layoutColumns sizes the columns with full or short count titles. Space left
+// over stays empty at the end of a row; if space is short, columns shrink in
+// stages so that the state shrinks last. comfortable reports whether the
+// table fits without shrinking name, branch, state, or family far.
+func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []column, comfortable bool) {
+	cols = make([]column, len(colSpecs))
+	want := make([]int, len(colSpecs))
+	for i, s := range colSpecs {
+		title := s.title
+		if short && s.short != nil {
+			title = s.short(ic)
+		}
+		want[i] = max(natural[i], runewidth.StringWidth(title), s.pref)
+		cols[i] = column{title: title, width: min(want[i], s.cap), right: s.short != nil}
+	}
+	if tree {
+		cols[colFamily] = column{hidden: true}
+	}
+	free := iw - tableWidth(cols)
+	for _, i := range []int{colBranch, colName, colState, colFamily} {
+		if cols[i].hidden {
+			continue
+		}
 		add := max(min(free, want[i]-cols[i].width), 0)
 		cols[i].width += add
 		free -= add
 	}
 	for _, s := range []struct{ col, floor int }{
-		{colBranch, 20}, {colName, 20}, {colFamily, 10}, {colBranch, 14}, {colName, 14}, {colUpstream, 14},
-		{colStatus, 12}, {colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
-		{colName, 6}, {colUpstream, 8}, {colStatus, 8}, {colUpstream, 6}, {colStatus, 6},
+		{colBranch, 20}, {colName, 20}, {colFamily, 10}, {colBranch, 14}, {colName, 14}, {colState, 14},
+		{colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
+		{colName, 6}, {colState, 8}, {colState, 6},
 	} {
-		for free < 0 && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
+		for free < 0 && !cols[s.col].hidden && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
 			cols[s.col].width--
 			free++
 		}
 	}
-	return cols
+	comfortable = free >= 0
+	for _, s := range []struct{ col, floor int }{{colName, 14}, {colBranch, 14}, {colState, 14}, {colFamily, 8}} {
+		if !cols[s.col].hidden && cols[s.col].width < min(want[s.col], s.floor) {
+			comfortable = false
+		}
+	}
+	return cols, comfortable
 }
 
 // rowCells returns the cells of r without the cursor and mark column. The
@@ -137,14 +183,12 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	if healthy {
 		name = m.theme.plain
 	}
-	return [][]seg{
+	return append([][]seg{
 		{health, {" ", m.theme.plain}, {r.Name, name}},
 		{{string(r.Family), m.theme.dim}},
 		m.branchSegs(r),
-		m.statusSegs(r),
-		append(m.upstreamSegs(r), m.branchesMarker(r)...),
-		{age},
-	}
+		m.stateSegs(r),
+	}, append(m.countSegs(r), []seg{age})...)
 }
 
 func (m *Model) reposBox(w, h int, active bool) []string {
@@ -169,7 +213,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			natural[j+colName] = max(natural[j+colName], runewidth.StringWidth(plain(c)))
 		}
 	}
-	cols := columns(iw, natural)
+	cols := columns(iw, natural, m.icons, m.tree)
 	var health map[domain.FamilyID][]healthLevel
 	if m.tree {
 		health = m.familyHealth()
@@ -177,7 +221,10 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 	var lines []string
 	var header strings.Builder
 	for j, c := range cols {
-		header.WriteString(strings.Repeat(" ", colGap(j)) + fitANSI(c.title, c.width))
+		if c.hidden {
+			continue
+		}
+		header.WriteString(strings.Repeat(" ", colGap(j)) + align(c.title, c.width, c.right))
 	}
 	lines = append(lines, m.theme.header.Render(header.String()))
 
@@ -227,10 +274,20 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		}
 		var b strings.Builder
 		for j, c := range cols {
+			if c.hidden {
+				continue
+			}
 			if gap := colGap(j); gap > 0 {
 				b.WriteString(base.Render(strings.Repeat(" ", gap)))
 			}
-			b.WriteString(renderCell(row[j], c.width, base))
+			w := c.width
+			if c.right {
+				if pad := w - runewidth.StringWidth(domain.Printable(plain(row[j]))); pad > 0 {
+					b.WriteString(base.Render(strings.Repeat(" ", pad)))
+					w -= pad
+				}
+			}
+			b.WriteString(renderCell(row[j], w, base))
 		}
 		b.WriteString(base.Render(strings.Repeat(" ", max(iw-tableWidth(cols), 0))))
 		lines = append(lines, b.String())
@@ -267,13 +324,16 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 
 // colGap is the space before column j. Columns are separated by three
 // spaces, more than the two between the elements of a cell; the name is
-// closer to the cursor and mark, which belong to it.
+// closer to the cursor and mark, which belong to it, and the narrow count
+// columns form a block with two spaces between them.
 func colGap(j int) int {
-	switch j {
-	case colMark:
+	switch {
+	case j == colMark:
 		return 0
-	case colName:
+	case j == colName:
 		return 1
+	case colSpecs[j].short != nil:
+		return 2
 	}
 	return 3
 }
@@ -282,9 +342,21 @@ func colGap(j int) int {
 func tableWidth(cols []column) int {
 	w := 0
 	for j, c := range cols {
-		w += colGap(j) + c.width
+		if !c.hidden {
+			w += colGap(j) + c.width
+		}
 	}
 	return w
+}
+
+// align truncates or pads s to w cells, on the left if right is set.
+func align(s string, w int, right bool) string {
+	s = fitANSI(s, w)
+	if right {
+		s = strings.TrimRight(s, " ")
+		s = strings.Repeat(" ", max(w-ansi.StringWidth(s), 0)) + s
+	}
+	return s
 }
 
 func (m *Model) emptyText() string {
