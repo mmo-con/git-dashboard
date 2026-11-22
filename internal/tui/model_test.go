@@ -919,22 +919,30 @@ func TestBranchSymbolOnlyInDetails(t *testing.T) {
 	}
 }
 
+// TestDetailPanelMovesToTheTable checks that on a wide terminal the
+// repository panel is only as wide as its table and the detail panel takes
+// all space left over, however wide the terminal is.
 func TestDetailPanelMovesToTheTable(t *testing.T) {
 	m := newModel(t)
-	m.Update(tea.WindowSizeMsg{Width: 220, Height: 30})
-	need := m.tableNeed(m.measureTable())
-	if dw := 220 - need; dw <= maxDetailWidth || dw > maxWideDetailWidth {
-		t.Fatalf("the test table must leave between %d and %d columns: need %d", maxDetailWidth, maxWideDetailWidth, need)
-	}
-	for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
-		if i := strings.Index(l, "╮╭"); i >= 0 {
-			if got := runewidth.StringWidth(l[:i]) + 1; got != need {
-				t.Fatalf("the repository panel is %d wide, want %d:\n%s", got, need, l)
+	for _, width := range []int{220, 320} {
+		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+		need := m.tableNeed(m.measureTable())
+		if width-need <= maxDetailWidth {
+			t.Fatalf("width %d: the test table must leave more than %d columns: need %d", width, maxDetailWidth, need)
+		}
+		found := false
+		for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+			if i := strings.Index(l, "╮╭"); i >= 0 {
+				found = true
+				if got := runewidth.StringWidth(l[:i]) + 1; got != need || runewidth.StringWidth(l) != width {
+					t.Errorf("width %d: the repository panel is %d wide, want %d:\n%s", width, got, need, l)
+				}
 			}
-			return
+		}
+		if !found {
+			t.Fatalf("width %d: the panels must be side by side", width)
 		}
 	}
-	t.Fatal("the panels must be side by side")
 }
 
 func TestConfiguredViewAndTreeMarkers(t *testing.T) {

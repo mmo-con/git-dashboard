@@ -436,7 +436,7 @@ The concrete keys, symbols, and filters are listed in
   panel takes 40 % of the width and at most 70 columns, so the table gets
   the space it needs first. If the table needs less than the rest, the
   repository panel is only as wide as the table and the detail panel moves
-  left to it, growing up to 100 columns, so no empty band separates the
+  left to it and takes the remaining width, so no empty band separates the
   two. The selected row is highlighted only to the right edge of the table,
   like the table header. Dialogs are centered over a dimmed copy of
   the main view.
