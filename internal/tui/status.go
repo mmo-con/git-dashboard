@@ -29,7 +29,7 @@ func (m *Model) statusSegs(r *domain.Repository) []seg {
 	var out []seg
 	add := func(s seg) {
 		if len(out) > 0 {
-			out = append(out, seg{" ", t.plain})
+			out = append(out, seg{"  ", t.plain})
 		}
 		out = append(out, s)
 	}
@@ -126,7 +126,36 @@ func (m *Model) branchesMarker(r *domain.Repository) []seg {
 	if r.UnpublishedBranches() > 0 {
 		style = m.theme.warn
 	}
-	return []seg{{" ", m.theme.plain}, {fmt.Sprintf("%s%d", m.icons.branches, n), style}}
+	return []seg{{" │ ", m.theme.dim}, {fmt.Sprintf("%s%d", m.icons.branches, n), style}}
+}
+
+// health summarizes the most important state of r in a single symbol, in
+// the order errors, dirty worktree, behind, ahead, and other attention.
+// healthy is true for an available, inspected repository without findings.
+func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
+	t, ic := m.theme, m.icons
+	if !r.IsAvailable() || m.firstError(r) != "" {
+		return seg{ic.failed, t.err}, false
+	}
+	if !loaded(r) || !r.Worktree.Valid || !r.Head.Valid || !r.Upstream.Valid {
+		return seg{"", t.dim}, false
+	}
+	w, h, u := r.Worktree.Value, r.Head.Value, r.Upstream.Value
+	switch {
+	case w.Conflicts > 0 || (r.Operation.Valid && r.Operation.Value != domain.NoOperation) || u.Diverged():
+		return seg{ic.conflict, t.err}, false
+	case !w.Clean():
+		return seg{ic.modified, t.dirty}, false
+	case u.Behind > 0:
+		return seg{ic.behind, t.behind}, false
+	case u.Ahead > 0:
+		return seg{ic.ahead, t.ahead}, false
+	case r.UnpublishedBranches() > 0 || r.RemoteMismatch() || h.Detached || u.Gone:
+		return seg{ic.attention, t.warn}, false
+	case len(r.Branches.Value) > 0:
+		return seg{ic.attention, t.behind}, false
+	}
+	return seg{ic.clean, t.clean}, true
 }
 
 // maxBranchLines limits the other branches listed in the detail panel.

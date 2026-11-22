@@ -316,7 +316,7 @@ func TestStatusTexts(t *testing.T) {
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ahead: 1, Behind: 2})
 	r.ExpectedRemote = &domain.ExpectedRemote{URL: "git@a:b.git"}
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:c.git"}})
-	if got := m.statusText(&r); got != "merging ✘1 ✚2 ●3 ?4 ≠remote" {
+	if got := m.statusText(&r); got != "merging  ✘1  ✚2  ●3  ?4  ≠remote" {
 		t.Errorf("status = %q", got)
 	}
 	if got := m.upstreamText(&r); got != "↑1 ↓2 diverged" {
@@ -339,6 +339,34 @@ func TestStatusTexts(t *testing.T) {
 	if got := m.statusText(&r) + " | " + m.upstreamText(&r); got != "*1 | ^1 v2 diverged" {
 		t.Errorf("ascii = %q", got)
 	}
+}
+
+func TestHealthPrefersTheMostImportantState(t *testing.T) {
+	m := newModel(t)
+	r := repo("x", "", false)
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	check := func(want string, wantHealthy bool) {
+		t.Helper()
+		if s, healthy := m.health(&r); s.text != want || healthy != wantHealthy {
+			t.Errorf("health = %q %v, want %q %v", s.text, healthy, want, wantHealthy)
+		}
+	}
+	check("✓", true)
+	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip"}})
+	check("!", false)
+	r.Upstream.Value.Ahead = 1
+	check("↑", false)
+	r.Upstream.Value.Behind = 2
+	check("✘", false)
+	r.Upstream.Value.Ahead = 0
+	check("↓", false)
+	r.Worktree.Value.Untracked = 1
+	check("●", false)
+	r.Availability = domain.Missing
+	check("✗", false)
 }
 
 func TestQuickFiltersToggle(t *testing.T) {
@@ -466,7 +494,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	var bs []domain.BranchState
 	bs = append(bs, domain.BranchState{Name: "main", Upstream: "origin/main", Behind: 2, CommitTime: time.Now()})
 	if got := plain(m.branchesMarker(&domain.Repository{Availability: domain.Available,
-		Branches: domain.KnownValue(bs)})); got != " ⎇1" {
+		Branches: domain.KnownValue(bs)})); got != " │ ⎇1" {
 		t.Fatalf("marker = %q", got)
 	}
 	for i := 0; i < 11; i++ {
@@ -485,9 +513,9 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 func TestColumnsFollowContent(t *testing.T) {
 	// The longest name, "Engine Portal" and a long branch fit without
 	// truncation; the remaining space is not given to the name column.
-	natural := []int{0, 24, 13, 26, 7, 18, 4}
+	natural := []int{0, 24, 1, 13, 26, 7, 18, 4}
 	cols := columns(140, natural)
-	for i, want := range []int{2, 24, 13, 26, 9, 18, 4} {
+	for i, want := range []int{2, 24, 1, 13, 26, 9, 18, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
@@ -498,7 +526,7 @@ func TestColumnsFollowContent(t *testing.T) {
 		if w := tableWidth(cols) - 1; w > iw {
 			t.Errorf("iw %d: table width %d", iw, w)
 		}
-		if cols[4].width < 6 || cols[5].width < 12 {
+		if cols[colStatus].width < 6 || cols[colUpstream].width < 12 {
 			t.Errorf("iw %d: status and upstream shrink last: %+v", iw, cols)
 		}
 	}
