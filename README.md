@@ -68,7 +68,7 @@ if the previous one succeeded, so nothing is unpacked or installed when a
 download fails or the checksum does not match:
 
 ```sh
-VERSION=v0.2.0
+VERSION=v0.3.0
 NAME=git-dashboard_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
 BASE=https://github.com/mmo-con/git-dashboard/releases/download/$VERSION
 curl -fL -O "$BASE/$NAME.tar.gz" -O "$BASE/checksums.txt" &&
