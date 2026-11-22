@@ -576,13 +576,7 @@ func (m *Model) footerLine() string {
 	case modeFamily:
 		left = " " + m.hints("↑/↓", "move", "Enter", "choose", "Esc", "cancel", "Ctrl+U", "erase search")
 	case modeOperations:
-		pairs := []string{"j/k", "move", "Enter", "lazygit", "c", "cancel", "x", "retry failed"}
-		if m.batch != nil && m.batch.op == domain.OperationUpdate {
-			pairs = append(pairs, "u", "continue")
-		} else {
-			pairs = append(pairs, "t", "retry in terminal")
-		}
-		left = " " + m.hints(append(pairs, "Esc", "close")...)
+		left = " " + m.hints(m.operationHints()...)
 	case modeConfirmFetch, modeUpdatePreview:
 		left = " " + m.hints("Enter/y", "confirm", "Esc/n", "cancel")
 	case modeConfirmQuit:
@@ -594,12 +588,7 @@ func (m *Model) footerLine() string {
 	case modeHelp:
 		left = " " + m.hints("j/k", "scroll", "any other key", "close")
 	default:
-		enter := "lazygit"
-		if m.currentRow().count > 0 {
-			enter = "toggle family"
-		}
-		left = " " + m.hints("Enter", enter, "v", "tree/list", "f", "fetch", "F", "fetch shown", "u", "update",
-			"Space", "mark", "/", "filter", "t", "families", "?", "help", "q", "quit")
+		left = " " + m.hints(m.normalHints()...)
 	}
 	if m.message == "" {
 		return fitANSI(left, m.width)
@@ -616,6 +605,58 @@ func (m *Model) footerLine() string {
 	right := style.Reverse(true).Render(msg)
 	lw := m.width - ansi.StringWidth(right)
 	return fitANSI(left, lw) + right
+}
+
+// normalHints lists the most important actions for the current row and
+// selection; all others are in the help view.
+func (m *Model) normalHints() []string {
+	var pairs []string
+	if row := m.currentRow(); row.count > 0 {
+		action := "expand"
+		if m.expanded[row.family] {
+			action = "collapse"
+		}
+		pairs = append(pairs, "Enter", action)
+	} else if m.current() != nil {
+		pairs = append(pairs, "Enter", "lazygit")
+	}
+	if len(m.marks) > 0 {
+		pairs = append(pairs, "f", "fetch marked", "u", "update marked", "A", "clear marks")
+	} else {
+		pairs = append(pairs, "f", "fetch", "F", "fetch shown", "u", "update")
+	}
+	pairs = append(pairs, "/", "filter")
+	if m.filter.Text != "" {
+		pairs = append(pairs, "Esc", "clear filter")
+	}
+	return append(pairs, "?", "all keys")
+}
+
+// operationHints lists the actions that apply to the batch and the selected
+// row of the operations view.
+func (m *Model) operationHints() []string {
+	pairs := []string{"j/k", "move", "Enter", "lazygit"}
+	if b := m.batch; b != nil {
+		failed := false
+		for _, r := range b.rows {
+			failed = failed || r.result.Status == domain.StatusFailed || r.result.Status == domain.StatusCancelled
+		}
+		switch {
+		case !b.done():
+			pairs = append(pairs, "c", "cancel")
+		case failed:
+			pairs = append(pairs, "x", "retry failed")
+		}
+		if b.done() && b.op == domain.OperationUpdate {
+			pairs = append(pairs, "u", "continue")
+		}
+		if m.overlayIdx < len(b.rows) {
+			if row := b.rows[m.overlayIdx]; row.job.Operation == domain.OperationFetch && row.result.Status == domain.StatusFailed {
+				pairs = append(pairs, "t", "retry in terminal")
+			}
+		}
+	}
+	return append(pairs, "Esc", "close")
 }
 
 // modal returns the dialog for the current mode, or nil.
