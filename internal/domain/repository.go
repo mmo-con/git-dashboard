@@ -201,8 +201,11 @@ type Repository struct {
 	Family  FamilyID
 	// Workspace is the configured absolute directory for {workspace}; empty
 	// means the worktree root.
-	Workspace      string
-	Source         InventorySource
+	Workspace string
+	Source    InventorySource
+	// DiscoveryRoot is the root of the discovery that found a discovered
+	// repository.
+	DiscoveryRoot  string
 	ExpectedRemote *ExpectedRemote
 	Untracked      UntrackedMode
 	BranchPolicy   BranchPolicy

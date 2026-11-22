@@ -459,6 +459,22 @@ func TestOperationsAreGroupedByStatus(t *testing.T) {
 	}
 }
 
+func TestSourceLabel(t *testing.T) {
+	t.Setenv("HOME", "/home/u")
+	for _, c := range []struct {
+		r    domain.Repository
+		want string
+	}{
+		{domain.Repository{Source: domain.InventorySourceExplicit, DiscoveryRoot: "/home/u/src"}, "configured"},
+		{domain.Repository{Source: domain.InventorySourceDiscovered, DiscoveryRoot: "/home/u/src"}, "discovered in ~/src"},
+		{domain.Repository{Source: domain.InventorySourceDiscovered, DiscoveryRoot: "/home/user2"}, "discovered in /home/user2"},
+	} {
+		if got := sourceLabel(&c.r); got != c.want {
+			t.Errorf("sourceLabel = %q, want %q", got, c.want)
+		}
+	}
+}
+
 func TestQuickFiltersToggle(t *testing.T) {
 	m := newModel(t)
 	keys(m, "1")
