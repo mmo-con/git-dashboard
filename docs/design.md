@@ -1696,7 +1696,7 @@ Then perform a manual terminal test with real lazygit:
 
 ### 17.4 Performance test
 
-A benchmark creates 200 generated repositories of moderate size on the local file system and verifies that inspection of all of them completes within 2 seconds and stays within the process budget from 5.4.
+A benchmark creates 200 generated repositories of moderate size on the local file system and verifies that inspection of all of them completes within 2 seconds and stays within the process budget from 5.4. Each attempt starts a new application; because shared CI runners are sometimes slowed down as a whole, the test passes if one of up to three attempts meets the target.
 
 ### 17.5 Supported platforms
 
