@@ -1,7 +1,7 @@
 # Key bindings
 
 The help view (`?`) shows these bindings in short form together with a legend
-of the status symbols.
+of the health column and the status symbols.
 
 ## Navigation
 
@@ -163,15 +163,26 @@ titled with their symbols, for example `✚` for Staged.
 | `⎇n` | `brn` | other local branches that need attention |
 | `≡n` | `$n` | stash entries |
 | `≠remote` | `!=remote` | remote URL differs from the configured `remote` |
-| `!` | `~` | health symbol: other attention, such as a remote mismatch, other branches, or stash entries |
 | `✗` | `x` | unavailable entry or failed fetch |
 | `◆` | `*` | marked for batch operations |
 | `▸` / `▾` | `[+]` / `[-]` | collapsed / expanded family in the tree |
 
-The health symbol in the first column repeats the most important state of
-the row: `✗` error or unavailable, `✘` conflict,
-operation in progress, or divergence, `●` dirty worktree, `↓` behind, `↑`
-ahead, `!` other attention, and `✓` healthy.
+## Health column
+
+The untitled first column shows only the most important state of the row,
+by priority from top to bottom; the other columns and the detail panel show
+the rest.
+
+| Unicode | ASCII | Meaning |
+|---|---|---|
+| `✗` | `x` | error or unavailable entry |
+| `✘` | `!` | conflict, operation in progress, or divergence |
+| `●` | `*` | local changes in the worktree |
+| `↓` | `v` | behind the upstream |
+| `↑` | `^` | ahead of the upstream |
+| `!` | `~` | other attention: other branches, stash entries, a remote mismatch, a detached HEAD, or a gone upstream; the State column names it |
+| `✓` | `ok` | healthy |
+| empty | empty | not inspected yet |
 
 ## Filter syntax
 

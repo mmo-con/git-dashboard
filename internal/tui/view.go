@@ -971,11 +971,14 @@ func (m *Model) viewHelp(iw, rows int) (string, []string) {
 		}
 		return out
 	}
-	legend := BindingGroup{Title: "Symbols", Bindings: m.icons.legend()}
+	legend := []BindingGroup{
+		{Title: "Health column (most important state only)", Bindings: m.icons.healthLegend()},
+		{Title: "Symbols", Bindings: m.icons.legend()},
+	}
 	var left, right []string
 	if iw >= 84 {
-		left = col(Bindings[:3])
-		right = col(append(append([]BindingGroup{}, Bindings[3:]...), legend))
+		left = col(append(append([]BindingGroup{}, Bindings[:3]...), legend[0]))
+		right = col(append(append([]BindingGroup{}, Bindings[3:]...), legend[1]))
 		w := iw / 2
 		var out []string
 		for i := 0; i < max(len(left), len(right)); i++ {
@@ -990,7 +993,7 @@ func (m *Model) viewHelp(iw, rows int) (string, []string) {
 		}
 		return "Help", m.scroll(out, rows)
 	}
-	return "Help", m.scroll(col(append(append([]BindingGroup{}, Bindings...), legend)), rows)
+	return "Help", m.scroll(col(append(append([]BindingGroup{}, Bindings...), legend...)), rows)
 }
 
 // scroll applies the help scroll offset.
