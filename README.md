@@ -9,6 +9,13 @@ to [lazygit](https://github.com/jesseduffield/lazygit).
 > Git Dashboard manages the repository collection. lazygit manages the
 > individual repository.
 
+![Git Dashboard in the tree view: repositories grouped by family with health
+symbols, family summaries, and the detail panel of the selected
+repository](docs/images/dashboard-tree.png)
+
+*Shown with `icons = "nerd"` and `preset = "dracula"`; all repositories are
+fictional.*
+
 The design and the decisions behind it are documented in
 [docs/design.md](docs/design.md).
 
