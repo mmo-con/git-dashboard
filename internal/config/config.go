@@ -83,6 +83,8 @@ type Theme struct {
 	InactiveBorder     string
 	Title              string
 	SelectedBackground string
+	SelectedForeground string
+	SelectedAccent     string
 	Key                string
 	Branch             string
 	Clean              string
@@ -162,6 +164,8 @@ type fileTheme struct {
 	InactiveBorder     string `toml:"inactive_border"`
 	Title              string `toml:"title"`
 	SelectedBackground string `toml:"selected_background"`
+	SelectedForeground string `toml:"selected_foreground"`
+	SelectedAccent     string `toml:"selected_accent"`
 	Key                string `toml:"key"`
 	Branch             string `toml:"branch"`
 	Clean              string `toml:"clean"`

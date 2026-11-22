@@ -82,7 +82,9 @@ view = "list"
 [ui.theme]
 active_border = "green"
 inactive_border = "gray"
-selected_background = "blue"
+selected_background = "237"
+selected_foreground = "bright-white"
+selected_accent = "cyan"
 
 [lazygit]
 command = "lazygit"

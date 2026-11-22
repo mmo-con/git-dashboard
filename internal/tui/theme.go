@@ -13,6 +13,7 @@ type theme struct {
 	title          lipgloss.Style
 	panelTitle     lipgloss.Style
 	selected       lipgloss.Style
+	accent         lipgloss.Style
 	header         lipgloss.Style
 	key            lipgloss.Style
 	branch         lipgloss.Style
@@ -27,6 +28,8 @@ type theme struct {
 	bold           lipgloss.Style
 	plain          lipgloss.Style
 	backdrop       lipgloss.Style
+
+	dimColor, selectedFg lipgloss.Color
 }
 
 func newTheme(t config.Theme) theme {
@@ -37,7 +40,8 @@ func newTheme(t config.Theme) theme {
 		inactiveBorder: fg(t.InactiveBorder),
 		title:          fg(t.Title).Bold(true),
 		panelTitle:     fg(t.ActiveBorder).Bold(true),
-		selected:       lipgloss.NewStyle().Background(c(t.SelectedBackground)).Bold(true),
+		selected:       lipgloss.NewStyle().Background(c(t.SelectedBackground)).Foreground(c(t.SelectedForeground)).Bold(true),
+		accent:         fg(t.SelectedAccent).Bold(true),
 		header:         fg(t.Dim).Bold(true),
 		key:            fg(t.Key).Bold(true),
 		branch:         fg(t.Branch),
@@ -52,5 +56,17 @@ func newTheme(t config.Theme) theme {
 		bold:           lipgloss.NewStyle().Bold(true),
 		plain:          lipgloss.NewStyle(),
 		backdrop:       fg(t.Dim).Faint(true),
+		dimColor:       c(t.Dim),
+		selectedFg:     c(t.SelectedForeground),
 	}
+}
+
+// onSelected adapts a segment style to the selected row. Secondary and
+// unstyled text takes the selected foreground, so it stays readable on any
+// selected background; semantic colors are kept.
+func (t theme) onSelected(s lipgloss.Style) lipgloss.Style {
+	if fg := s.GetForeground(); fg == t.dimColor || fg == (lipgloss.NoColor{}) {
+		s = s.Foreground(t.selectedFg)
+	}
+	return s
 }

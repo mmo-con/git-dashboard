@@ -144,12 +144,12 @@ func TestLoadMissingFile(t *testing.T) {
 }
 
 func TestUISettings(t *testing.T) {
-	cfg, err := Parse([]byte("version = 1\n[ui]\nicons = \"nerd\"\nview = \"tree\"\n[ui.theme]\nactive_border = \"#ff8800\"\nselected_background = \"236\"\nbranch = \"bright-blue\"\n"), "/x", env(nil))
+	cfg, err := Parse([]byte("version = 1\n[ui]\nicons = \"nerd\"\nview = \"tree\"\n[ui.theme]\nactive_border = \"#ff8800\"\nselected_background = \"236\"\nselected_accent = \"#ff8800\"\nbranch = \"bright-blue\"\n"), "/x", env(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	th := cfg.UI.Theme
-	if cfg.UI.Icons != "nerd" || cfg.UI.View != "tree" || th.ActiveBorder != "#ff8800" || th.SelectedBackground != "236" || th.Branch != "bright-blue" {
+	if cfg.UI.Icons != "nerd" || cfg.UI.View != "tree" || th.ActiveBorder != "#ff8800" || th.SelectedBackground != "236" || th.SelectedAccent != "#ff8800" || th.Branch != "bright-blue" {
 		t.Fatalf("%+v", cfg.UI)
 	}
 	if th.Dirty != DefaultTheme().Dirty {

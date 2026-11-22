@@ -369,6 +369,20 @@ func TestHealthPrefersTheMostImportantState(t *testing.T) {
 	check("✗", false)
 }
 
+func TestSelectedRowKeepsSemanticColorsReadable(t *testing.T) {
+	m := newModel(t)
+	th := m.theme
+	if fg := th.onSelected(th.dim).GetForeground(); fg != th.selectedFg {
+		t.Errorf("secondary text must use the selected foreground, got %v", fg)
+	}
+	if fg := th.onSelected(th.bold).GetForeground(); fg != th.selectedFg {
+		t.Errorf("unstyled text must use the selected foreground, got %v", fg)
+	}
+	if fg := th.onSelected(th.err).GetForeground(); fg != th.err.GetForeground() {
+		t.Errorf("semantic colors must be kept, got %v", fg)
+	}
+}
+
 func TestQuickFiltersToggle(t *testing.T) {
 	m := newModel(t)
 	keys(m, "1")
