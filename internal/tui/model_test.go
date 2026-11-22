@@ -547,7 +547,7 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 			Head:      domain.KnownValue(domain.HeadState{Branch: "main"}),
 			Operation: domain.KnownValue(domain.NoOperation),
 			Worktree:  domain.KnownValue(w),
-			Upstream:  domain.KnownValue(domain.UpstreamState{Configured: true, Behind: 2}),
+			Upstream:  domain.KnownValue(domain.UpstreamState{Configured: true, CommitID: "up1", Behind: 2}),
 		}}))
 	}
 	m.repo(api.ID).Availability = domain.Available

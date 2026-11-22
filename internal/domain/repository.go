@@ -157,9 +157,11 @@ func (w WorktreeState) HasTrackedChanges() bool {
 type UpstreamState struct {
 	Configured bool
 	Ref        string
-	Gone       bool
-	Ahead      int
-	Behind     int
+	// CommitID is the commit the upstream points to, or "" if unknown.
+	CommitID string
+	Gone     bool
+	Ahead    int
+	Behind   int
 }
 
 func (u UpstreamState) Diverged() bool { return u.Ahead > 0 && u.Behind > 0 }
