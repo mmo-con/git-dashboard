@@ -150,6 +150,30 @@ lazygit starts in the worktree root of the selected repository.
 
 ## `[ui.theme]`
 
+`preset` selects a built-in color scheme; the color keys below override
+single colors of the preset.
+
+| Preset | Description |
+|---|---|
+| `default` | the defaults listed below |
+| `high-contrast` | bright ANSI colors and the terminal's default foreground for secondary text |
+| `low-color` | only the eight basic ANSI colors, for limited terminals |
+| `monochrome` | no hues; the selected row is inverted |
+| `catppuccin-mocha` / `catppuccin-latte` | Catppuccin, dark / light background |
+| `dracula` | Dracula, dark background |
+| `gruvbox-dark` / `gruvbox-light` | Gruvbox, dark / light background |
+
+The ANSI-based presets follow the terminal's palette and suit light and dark
+backgrounds. The other presets use fixed `#rrggbb` colors and require a
+terminal with true color support; choose the variant that matches the
+terminal background.
+
+```toml
+[ui.theme]
+preset = "gruvbox-dark"
+selected_accent = "#fe8019"
+```
+
 Colors are ANSI names (`black`, `red`, `green`, `yellow`, `blue`, `magenta`,
 `cyan`, `white`, `gray`, `bright-red`, …, `default`), numbers `0`–`255`, or
 `#rrggbb`. Unset keys keep their defaults. If the `NO_COLOR` environment
