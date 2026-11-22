@@ -133,29 +133,6 @@ make release          # cross-compiled archives and checksums in ./dist
 Integration tests create temporary Git repositories and ignore the user's
 global Git configuration.
 
-### Releases
-
-After merging to `main` and confirming CI is green, create and push a
-version tag in the form `vMAJOR.MINOR.PATCH`:
-
-```sh
-git switch main
-git pull --ff-only
-git tag v0.4.0
-git push origin v0.4.0
-```
-
-CI runs the test matrix for the tagged commit, builds the four archives and
-checksums, and creates a GitHub release draft titled with the tag. Review and
-edit the generated release notes before publishing: they primarily describe
-merged pull requests and may not summarize direct commits. The draft is never
-published automatically. Protect release tags with a repository ruleset to
-restrict who can create or change them.
-
-Tags starting with `v` that do not match the format above fail the release
-job; prerelease tags are not supported. If an upload fails after the draft is
-created, remove the incomplete draft before rerunning the failed job.
-
 ### Project layout
 
 | Path | Responsibility |
