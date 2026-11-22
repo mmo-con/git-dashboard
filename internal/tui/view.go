@@ -188,7 +188,7 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 		{health},
 		{{r.Name, name}},
 		{{string(r.Family), m.theme.dim}},
-		m.branchSegs(r),
+		m.branchSegs(r, false),
 		m.stateSegs(r),
 	}, append(m.countSegs(r), []seg{age})...)
 }
@@ -543,7 +543,7 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {
 		d.section("branch", t.title)
-		b := append([]seg{}, m.branchSegs(r)...)
+		b := m.branchSegs(r, true)
 		if r.Upstream.Valid && r.Upstream.Value.Configured {
 			b = append(b, seg{" → " + r.Upstream.Value.Ref, t.dim})
 		}
