@@ -24,10 +24,6 @@ const wideLayout = 130
 // remaining width for its columns.
 const maxDetailWidth = 70
 
-// maxWideDetailWidth limits the detail panel when the table needs less than
-// the remaining width and the panel moves left to the table.
-const maxWideDetailWidth = 100
-
 func (m *Model) View() string {
 	main := m.mainArea(max(m.height-2, 4))
 	if modal := m.modal(len(main)); modal != nil {
@@ -41,14 +37,14 @@ func (m *Model) View() string {
 // mainArea returns the repository and detail panels for h lines. Beside the
 // table, the detail panel takes 40 % of the width and at most
 // maxDetailWidth columns; if the table needs less than the rest, the panel
-// moves left to the table and grows up to maxWideDetailWidth.
+// moves left to the table and takes the remaining width.
 func (m *Model) mainArea(h int) []string {
 	active := m.mode == modeNormal || m.mode == modeFilter
 	t := m.measureTable()
 	if m.width >= wideLayout {
 		dw := min(m.width*40/100, maxDetailWidth)
 		if need := m.tableNeed(t); need < m.width-dw {
-			dw = max(min(m.width-need, maxWideDetailWidth), dw)
+			dw = m.width - need
 		}
 		rw := m.width - dw
 		return joinColumns(m.reposBox(t, rw, h, active), m.detailsBox(dw, h))
