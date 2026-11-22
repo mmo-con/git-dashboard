@@ -441,8 +441,8 @@ The concrete keys, symbols, and filters are listed in
   per cell, so problems stand out and healthy rows stay quiet; success has
   its own color so it is not confused with commits ahead. `NO_COLOR` is
   honored.
-- A health symbol before each name shows the most important state of the
-  row, by priority: errors, critical states (conflicts, operations in
+- A health symbol in its own column at the left edge shows the most
+  important state of the row, so all names start in one column, by priority: errors, critical states (conflicts, operations in
   progress, divergence), dirty, behind, ahead, other attention (other
   branches, stash entries, a remote mismatch, a detached HEAD, or a gone
   upstream). Only healthy names are not emphasized. Family rows summarize

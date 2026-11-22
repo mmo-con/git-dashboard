@@ -273,7 +273,7 @@ func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
 	return seg{"", t.dim}, ""
 }
 
-// health returns the symbol shown before the name; healthy is true for an
+// health returns the symbol of the health column; healthy is true for an
 // available, inspected repository without findings.
 func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
 	l := m.healthOf(r)
