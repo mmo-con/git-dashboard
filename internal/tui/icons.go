@@ -7,7 +7,7 @@ type icons struct {
 	ahead, behind, upToDate, detached, noUpstream         string
 	unavailable, failed, mark, mismatch, branch, queued   string
 	branches, attention                                   string
-	cursor, collapsed, expanded                           string
+	cursor, collapsed, expanded, treeItem, treeLast       string
 	spinner                                               []string
 	barFull, barEmpty                                     string
 }
@@ -17,7 +17,7 @@ var iconSets = map[string]icons{
 		clean: "✓", staged: "✚", modified: "●", deleted: "−", conflict: "✘", untracked: "?",
 		ahead: "↑", behind: "↓", upToDate: "✓", detached: "⌀", noUpstream: "∅",
 		unavailable: "✗", failed: "✗", mark: "◆", mismatch: "≠", branch: "", queued: "…", branches: "⎇", attention: "!",
-		cursor: "▌", collapsed: "▸", expanded: "▾",
+		cursor: "▌", collapsed: "▸", expanded: "▾", treeItem: "├─ ", treeLast: "└─ ",
 		spinner: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		barFull: "█", barEmpty: "░",
 	},
@@ -25,7 +25,7 @@ var iconSets = map[string]icons{
 		clean: "\uf00c", staged: "\uf067", modified: "\uf111", deleted: "\uf068", conflict: "\uf071", untracked: "\uf128",
 		ahead: "\uf062", behind: "\uf063", upToDate: "\uf00c", detached: "\uf417", noUpstream: "\uf127",
 		unavailable: "\uf00d", failed: "\uf00d", mark: "\uf005", mismatch: "\uf0ec", branch: "\ue725 ", queued: "\uf252", branches: "\uf126", attention: "\uf06a",
-		cursor: "▌", collapsed: "\uf105", expanded: "\uf107",
+		cursor: "▌", collapsed: "\uf105", expanded: "\uf107", treeItem: "├─ ", treeLast: "└─ ",
 		spinner: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		barFull: "█", barEmpty: "░",
 	},
@@ -33,7 +33,7 @@ var iconSets = map[string]icons{
 		clean: "ok", staged: "+", modified: "*", deleted: "-", conflict: "!", untracked: "?",
 		ahead: "^", behind: "v", upToDate: "ok", detached: "@", noUpstream: "-",
 		unavailable: "x", failed: "x", mark: "*", mismatch: "!=", branch: "", queued: "...", branches: "br", attention: "~",
-		cursor: ">", collapsed: "[+]", expanded: "[-]",
+		cursor: ">", collapsed: "[+]", expanded: "[-]", treeItem: "|- ", treeLast: "`- ",
 		spinner: []string{"|", "/", "-", "\\"},
 		barFull: "#", barEmpty: ".",
 	},
