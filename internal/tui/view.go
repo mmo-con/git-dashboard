@@ -28,12 +28,12 @@ const maxDetailWidth = 70
 // the remaining width and the panel moves left to the table.
 const maxWideDetailWidth = 100
 
-// spaciousHeight is the minimum height for blank lines below the header bar
-// and below the table header; lower terminals keep the lines for rows.
+// spaciousHeight is the minimum height for a blank line between the top
+// border of the repository panel and the table header; lower terminals keep
+// the line for rows.
 const spaciousHeight = 24
 
-// spacing is the number of blank lines below the header bar and below the
-// table header.
+// spacing is the number of blank lines above the table header.
 func (m *Model) spacing() int {
 	if m.height >= spaciousHeight {
 		return 1
@@ -42,18 +42,15 @@ func (m *Model) spacing() int {
 }
 
 // mainHeight is the height of the panels between header bar and footer.
-func (m *Model) mainHeight() int { return max(m.height-2-m.spacing(), 4) }
+func (m *Model) mainHeight() int { return max(m.height-2, 4) }
 
 func (m *Model) View() string {
 	main := m.mainArea(m.mainHeight())
 	if modal := m.modal(len(main)); modal != nil {
 		main = m.overlay(main, modal)
 	}
-	lines := []string{m.headerLine()}
-	for range m.spacing() {
-		lines = append(lines, "")
-	}
-	lines = append(append(lines, main...), m.footerLine())
+	lines := append([]string{m.headerLine()}, main...)
+	lines = append(lines, m.footerLine())
 	return strings.Join(lines, "\n")
 }
 
@@ -293,6 +290,11 @@ func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
 	cols := columns(iw, t.natural, m.icons, m.tree)
 	tw := min(tableWidth(cols), iw)
 	var lines []string
+	rows := h - 3
+	if m.spacing() > 0 && rows > 1 {
+		lines = append(lines, "")
+		rows--
+	}
 	var header strings.Builder
 	for j, c := range cols {
 		if c.hidden {
@@ -301,11 +303,6 @@ func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
 		header.WriteString(strings.Repeat(" ", colGap(j)) + align(c.title, c.width, c.right))
 	}
 	lines = append(lines, m.theme.tableHeader.Render(header.String()))
-	rows := h - 3
-	if m.spacing() > 0 && rows > 1 {
-		lines = append(lines, "")
-		rows--
-	}
 	if len(m.rows) == 0 {
 		lines = append(lines, m.theme.dim.Render(domain.Printable(m.emptyText())))
 	}
