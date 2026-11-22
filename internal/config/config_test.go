@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +73,7 @@ func TestRejectsInvalidConfiguration(t *testing.T) {
 		"bad view":            "version = 1\n[ui]\nview = \"grid\"\n",
 		"bad color":           "version = 1\n[ui.theme]\nactive_border = \"greenish\"\n",
 		"color out of range":  "version = 1\n[ui.theme]\ndim = \"256\"\n",
+		"unknown preset":      "version = 1\n[ui.theme]\npreset = \"solarized\"\n",
 		"bad branch age":      "version = 1\n[branches]\nmax_age = \"a month\"\n",
 		"negative age":        "version = 1\n[branches]\nmax_age = \"-3d\"\n",
 		"bad branch ignore":   "version = 1\n[branches]\nignore = [\"[\"]\n",
@@ -157,6 +159,24 @@ func TestUISettings(t *testing.T) {
 	}
 	if ResolveColor("bright-blue") != "12" || ResolveColor("#ff8800") != "#ff8800" || ResolveColor("Gray") != "8" {
 		t.Error("color resolution")
+	}
+}
+
+func TestThemePresets(t *testing.T) {
+	cfg, err := Parse([]byte("version = 1\n[ui.theme]\npreset = \"dracula\"\nerror = \"red\"\n"), "/x", env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if th := cfg.UI.Theme; th.ActiveBorder != ThemePresets["dracula"].ActiveBorder || th.Error != "red" {
+		t.Fatalf("a preset must apply and single colors must override it: %+v", th)
+	}
+	for name, p := range ThemePresets {
+		v := reflect.ValueOf(p)
+		for i := range v.NumField() {
+			if err := validateColor(v.Field(i).String()); err != nil {
+				t.Errorf("preset %s, %s: %v", name, v.Type().Field(i).Name, err)
+			}
+		}
 	}
 }
 
