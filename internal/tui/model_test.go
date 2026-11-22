@@ -348,7 +348,7 @@ func TestStatusTexts(t *testing.T) {
 	if got := m.stateText(&r); got != "merging  ✘1 conflicts  diverged  ≠remote  ⎇1" {
 		t.Errorf("state = %q", got)
 	}
-	if got := countText(m, &r); got != "2|4|4|1|2|3" {
+	if got := countText(m, &r); got != "2|4|4|3|1|2" {
 		t.Errorf("counts = %q; modified includes deletions", got)
 	}
 	if got := m.upstreamText(&r); got != "↑1 ↓2 diverged" {
@@ -364,7 +364,7 @@ func TestStatusTexts(t *testing.T) {
 		t.Errorf("a healthy repository has no state, known zeros are dashes, and unchecked untracked files are off: %q", got)
 	}
 	r.Upstream = domain.KnownValue(domain.UpstreamState{})
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "∅ no upstream#–|–|off|||–" {
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "∅ no upstream#–|–|off|–||" {
 		t.Errorf("without an upstream, ahead and behind do not apply: %q", got)
 	}
 	r.Worktree = domain.Known[domain.WorktreeState]{}
@@ -383,7 +383,7 @@ func TestStatusTexts(t *testing.T) {
 	r.Worktree = domain.KnownValue(domain.WorktreeState{Modified: 1, UntrackedChecked: true})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Gone: true})
 	r.Stashes = domain.KnownValue(1)
-	if got := m.stateText(&r) + "#" + countText(m, &r); got != "- upstream gone#–|1|–|||1" {
+	if got := m.stateText(&r) + "#" + countText(m, &r); got != "- upstream gone#–|1|–|1||" {
 		t.Errorf("ascii = %q", got)
 	}
 }
@@ -415,7 +415,7 @@ func TestStashHints(t *testing.T) {
 	if v := detail(); strings.Contains(v, "stash") {
 		t.Fatalf("an unknown count must not be reported as a number of stash entries:\n%s", v)
 	}
-	if got := countText(m, api); !strings.HasSuffix(got, "|?") {
+	if got := countText(m, api); got != "–|1|–|?|–|–" {
 		t.Fatalf("the table must show an unknown count as ?: %q", got)
 	}
 }
@@ -824,9 +824,9 @@ func TestColumnsFollowContent(t *testing.T) {
 	// truncation; the remaining space is not given to the name column. Count
 	// columns are as wide as their full titles.
 	ic := iconSet("unicode")
-	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 2, 1, 1, 4}
+	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 1, 2, 1, 4}
 	cols := columns(160, natural, ic, false)
-	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 5, 6, 7, 6} {
+	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 7, 5, 6, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
