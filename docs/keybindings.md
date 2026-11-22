@@ -137,7 +137,7 @@ is updated until the new preview is confirmed.
 | Untracked | untracked entries |
 | Stashed | number of stash entries of the repository; linked worktrees share them |
 | Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
-| Commit | age of the latest commit |
+| Commit | time of the latest commit, such as `Nov 13 22:16`, with the year for an earlier year; a narrow column drops the time of day first |
 
 In the count columns, `–` is a known zero and `?` an unknown value. A cell
 is empty while the repository loads and where the count does not apply,

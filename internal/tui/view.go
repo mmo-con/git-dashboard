@@ -107,7 +107,7 @@ var colSpecs = []colSpec{
 	colStashed:   {title: "Stashed", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
 	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
-	colCommit:    {title: "Commit", min: 3, pref: 6, cap: 6},
+	colCommit:    {title: "Commit", min: 6, pref: 12, cap: 17},
 }
 
 // columns sizes the columns of a table of inner width iw to their content.
@@ -151,8 +151,8 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 		free -= add
 	}
 	for _, s := range []struct{ col, floor int }{
-		{colBranch, 20}, {colName, 18}, {colFamily, 10}, {colBranch, 14}, {colName, 12}, {colState, 14},
-		{colFamily, 6}, {colBranch, 8}, {colName, 8}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
+		{colCommit, 12}, {colBranch, 20}, {colName, 18}, {colFamily, 10}, {colBranch, 14}, {colName, 12}, {colState, 14},
+		{colFamily, 6}, {colBranch, 8}, {colName, 8}, {colCommit, 6}, {colFamily, 4}, {colBranch, 6},
 		{colName, 4}, {colState, 8}, {colState, 6},
 	} {
 		for free < 0 && !cols[s.col].hidden && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
@@ -177,7 +177,7 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	age := seg{"", m.theme.dim}
 	if r.LastCommit.Valid && r.LastCommit.Value != nil {
-		age.text = shortAgo(now, r.LastCommit.Value.Time)
+		age.text = commitTime(now, r.LastCommit.Value.Time, 0)
 	}
 	health, healthy := m.health(r)
 	name := m.theme.bold
@@ -261,6 +261,10 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			}
 			lines = append(lines, renderCell(ss, iw, base))
 			continue
+		}
+		// A narrow commit column shortens the time instead of truncating it.
+		if r := m.repo(entry.id); r.LastCommit.Valid && r.LastCommit.Value != nil {
+			cells[i][colCommit-colHealth][0].text = commitTime(now, r.LastCommit.Value.Time, cols[colCommit].width)
 		}
 		mark := seg{" ", m.theme.plain}
 		if m.marks[entry.id] {
@@ -585,7 +589,7 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		if r.LastCommit.Valid {
 			d.section("last commit", t.title)
 			if c := r.LastCommit.Value; c != nil {
-				d.text(seg{c.ShortID + "  " + commitDate(now, c.Time) + "  ", t.dim}, seg{c.Subject, t.plain})
+				d.text(seg{c.ShortID + "  " + commitTime(now, c.Time, 0) + "  ", t.dim}, seg{c.Subject, t.plain})
 			} else {
 				d.text(seg{"no commits yet", t.dim})
 			}

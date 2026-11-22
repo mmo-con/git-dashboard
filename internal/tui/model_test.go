@@ -719,7 +719,7 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 		Time: now.Add(-5 * time.Hour), Subject: "Show delivery estimate"})
 	lines := m.detailLines(&r, 40).fit(100)
 	v := strings.Join(lines, "\n")
-	if !strings.Contains(v, "c28633b  5h ago  Show delivery estimate") || strings.Contains(v, "Sam") {
+	if !strings.Contains(v, "c28633b  Nov 22 07:00  Show delivery estimate") || strings.Contains(v, "Sam") {
 		t.Fatalf("the commit must be one line of hash, date, and subject:\n%s", v)
 	}
 	found := false
@@ -735,13 +735,30 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 		t.Fatalf("sections must be titled within a rule:\n%s", v)
 	}
 
-	for d, want := range map[time.Duration]string{
-		30 * time.Second: "just now", 5 * time.Minute: "5m ago", 3 * 24 * time.Hour: "3d ago",
-		30 * 24 * time.Hour: "Oct 23", 400 * 24 * time.Hour: "2025-10-18",
+	for _, c := range []struct {
+		d           time.Duration
+		long, short string
+	}{
+		{5 * time.Minute, "Nov 22 11:55", "Nov 22"},
+		{20 * 24 * time.Hour, "Nov  2 12:00", "Nov  2"},
+		{400 * 24 * time.Hour, "Oct 18 2025 12:00", "2025"},
 	} {
-		if got := commitDate(now, now.Add(-d)); got != want {
-			t.Errorf("commitDate(-%v) = %q, want %q", d, got, want)
+		if got := commitTime(now, now.Add(-c.d), 0); got != c.long {
+			t.Errorf("commitTime(-%v) = %q, want %q", c.d, got, c.long)
 		}
+		if got := commitTime(now, now.Add(-c.d), 6); got != c.short {
+			t.Errorf("commitTime(-%v, 6) = %q, want %q", c.d, got, c.short)
+		}
+	}
+
+	// A commit column too narrow for the full time shows the date only
+	// instead of a truncated time.
+	m.repos[0].LastCommit = domain.KnownValue(&domain.CommitSummary{Time: now.Add(-400 * 24 * time.Hour)})
+	if v := ansi.Strip(strings.Join(m.reposBox(160, 10, true), "\n")); !strings.Contains(v, "Oct 18 2025 12:00") {
+		t.Errorf("a wide table shows the full time:\n%s", v)
+	}
+	if v := ansi.Strip(strings.Join(m.reposBox(70, 10, true), "\n")); !strings.Contains(v, " 2025") || strings.Contains(v, "2025…") {
+		t.Errorf("a narrow table shows the date only:\n%s", v)
 	}
 }
 
@@ -824,9 +841,9 @@ func TestColumnsFollowContent(t *testing.T) {
 	// truncation; the remaining space is not given to the name column. Count
 	// columns are as wide as their full titles.
 	ic := iconSet("unicode")
-	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 1, 2, 1, 4}
-	cols := columns(160, natural, ic, false)
-	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 7, 5, 6, 6} {
+	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 1, 2, 1, 12}
+	cols := columns(166, natural, ic, false)
+	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 7, 5, 6, 12} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
@@ -836,7 +853,7 @@ func TestColumnsFollowContent(t *testing.T) {
 	}
 	// If space is short, count columns switch to their symbols, the table
 	// still fits, and the state shrinks last.
-	for _, iw := range []int{60, 80, 100} {
+	for _, iw := range []int{64, 80, 100} {
 		cols := columns(iw, natural, ic, false)
 		if w := tableWidth(cols); w > iw {
 			t.Errorf("iw %d: table width %d", iw, w)
