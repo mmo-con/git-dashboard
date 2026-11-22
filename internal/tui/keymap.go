@@ -46,17 +46,17 @@ var Bindings = []BindingGroup{
 		{"a / A", "mark all visible / clear marks"},
 		{"f", "fetch marked, else current row"},
 		{"F", "fetch visible repositories"},
-		{"u", "safe update preview"},
+		{"u", "update marked, else current row"},
+		{"U", "update visible repositories"},
 	}},
-	{"Update preview", []Binding{
-		{"Enter / y", "start the update"},
-		{"f", "fetch; then u in the operations view"},
+	{"Update confirmation", []Binding{
+		{"Enter / y", "fetch, then update"},
 	}},
 	{"Operations view", []Binding{
 		{"Enter", "open row in lazygit"},
-		{"c", "cancel the running batch"},
+		{"c", "cancel the batch or pending update"},
 		{"x", "retry failed operations"},
-		{"u", "continue update (new preview)"},
+		{"u", "continue the update"},
 		{"t", "retry failed fetch in terminal"},
 		{"Esc / b", "close (batch continues)"},
 	}},

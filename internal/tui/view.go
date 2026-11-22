@@ -820,10 +820,8 @@ func (m *Model) footerLine() string {
 		left = " " + m.hints("↑/↓", "move", "Enter", "choose", "Esc", "cancel", "Ctrl+U", "erase search")
 	case modeOperations:
 		left = " " + m.hints(m.operationHints()...)
-	case modeConfirmFetch:
-		left = " " + m.hints("Enter/y", "confirm", "Esc/n", "cancel")
 	case modeUpdatePreview:
-		left = " " + m.hints("Enter/y", "update", "f", "fetch first", "j/k", "move", "Esc/n", "cancel")
+		left = " " + m.hints("Enter/y", "fetch and update", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
 	case modeSort, modeLaunchers:
@@ -868,7 +866,7 @@ func (m *Model) normalHints() []string {
 	if len(m.marks) > 0 {
 		pairs = append(pairs, "f", "fetch marked", "u", "update marked", "A", "clear marks")
 	} else {
-		pairs = append(pairs, "f", "fetch", "F", "fetch shown", "u", "update")
+		pairs = append(pairs, "f", "fetch", "F", "fetch shown", "u", "update", "U", "update shown")
 	}
 	pairs = append(pairs, "/", "filter")
 	if m.filter.Text != "" {
@@ -887,16 +885,13 @@ func (m *Model) operationHints() []string {
 			failed = failed || r.result.Status == domain.StatusFailed || r.result.Status == domain.StatusCancelled
 		}
 		switch {
-		case !b.done():
+		case !b.done() || m.refetch != nil:
 			pairs = append(pairs, "c", "cancel")
 		case failed:
 			pairs = append(pairs, "x", "retry failed")
 		}
 		if b.done() && b.op == domain.OperationUpdate {
 			pairs = append(pairs, "u", "continue")
-		}
-		if f := m.refetch; f != nil && f.ready && f.batch == b {
-			pairs = append(pairs, "u", "update preview")
 		}
 		if m.overlayIdx < len(b.rows) {
 			if row := b.rows[m.overlayIdx]; row.job.Operation == domain.OperationFetch && row.result.Status == domain.StatusFailed {
@@ -919,7 +914,6 @@ func (m *Model) modal(h int) []string {
 		modeSort:          {40, m.viewSort},
 		modeFamily:        {50, m.viewFamily},
 		modeOperations:    {100, m.viewOperations},
-		modeConfirmFetch:  {72, m.viewConfirmFetch},
 		modeUpdatePreview: {100, m.viewUpdatePreview},
 		modeLaunchers:     {50, m.viewLaunchers},
 		modeConfirmQuit:   {72, m.viewConfirmQuit},
@@ -1142,12 +1136,10 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		counts[domain.StatusSucceeded], counts[domain.StatusFailed], counts[domain.StatusSkipped])
 	bar := m.progressBar(done, total, max(iw-ansi.StringWidth(summary), 10))
 	head := []string{bar + summary}
+	op := string(m.batch.op)
 	if f := m.refetch; f != nil && f.batch == m.batch {
-		note := "Press u for the update preview once the fetch is finished."
-		if f.ready {
-			note = "Fetch finished. Press u for the update preview."
-		}
-		head = append(head, t.dim.Render(note))
+		op = "update: fetch"
+		head = append(head, t.dim.Render("Fetching first; the update starts when the fetch is finished."))
 	}
 
 	var list []string
@@ -1220,11 +1212,11 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		}
 	}
 	state := "running"
-	if m.batch.done() {
+	if !m.batchRunning() {
 		state = "finished"
 	}
 	body := append(head, operationWindow(list, group, selLine, rows-len(head)-len(detail))...)
-	return fmt.Sprintf("%s ─ %d repositories ─ %s", m.batch.op, total, state), append(body, detail...)
+	return fmt.Sprintf("%s ─ %d repositories ─ %s", op, total, state), append(body, detail...)
 }
 
 // operationWindow returns at most rows lines around the selected line. If the
@@ -1245,33 +1237,6 @@ func operationWindow(list []string, group []int, selected, rows int) []string {
 	return append([]string{list[group[start]]}, list[start:start+rows-1]...)
 }
 
-func (m *Model) viewConfirmFetch(iw, rows int) (string, []string) {
-	t := m.theme
-	stores := app.StoreCount(m.fetchTargets)
-	unavailable := 0
-	for _, r := range m.fetchTargets {
-		if !r.IsAvailable() {
-			unavailable++
-		}
-	}
-	body := []string{
-		t.bold.Render(fmt.Sprintf("Fetch %d repositories (%d repository stores)?", len(m.fetchTargets)-unavailable, stores)),
-		"",
-	}
-	if m.fetchHidden > 0 {
-		body = append(body, t.warn.Render(m.hiddenMarksNotice()))
-	}
-	if unavailable > 0 {
-		body = append(body, t.dim.Render(fmt.Sprintf("%d unavailable entries are skipped.", unavailable)))
-	}
-	cmd := "git fetch --all"
-	if m.app.Config.Git.FetchPrune {
-		cmd += " --prune"
-	}
-	body = append(body, t.dim.Render("Command: ")+cmd, "", m.hints("Enter/y", "start", "Esc/n", "cancel"))
-	return "Confirm fetch", body
-}
-
 func (m *Model) viewConfirmQuit(iw, rows int) (string, []string) {
 	t := m.theme
 	open := 0
@@ -1280,8 +1245,12 @@ func (m *Model) viewConfirmQuit(iw, rows int) (string, []string) {
 			open++
 		}
 	}
+	head := fmt.Sprintf("The %s batch has %d unfinished repositories.", m.batch.op, open)
+	if open == 0 && m.refetch != nil {
+		head = "The update has not started yet; its fetch is being checked."
+	}
 	return "Quit", []string{
-		t.bold.Render(fmt.Sprintf("The %s batch has %d unfinished repositories.", m.batch.op, open)),
+		t.bold.Render(head),
 		"",
 		"Quitting cancels them. Running Git processes are asked to stop,",
 		"so that they can remove their lock files.",
@@ -1290,6 +1259,8 @@ func (m *Model) viewConfirmQuit(iw, rows int) (string, []string) {
 	}
 }
 
+// viewUpdatePreview confirms an update. The list shows the state before the
+// fetch; which repositories are fast-forwarded is decided after it.
 func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 	t := m.theme
 	now := m.now()
@@ -1297,33 +1268,41 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 	idx := 0
 	for _, c := range m.updateOK {
 		r := c.Repository
-		text := fmt.Sprintf("%s update  %-24s %s%d · %s", m.icons.clean, ansi.Truncate(r.Name, 24, "…"),
+		text := fmt.Sprintf("%s behind   %-24s %s%d · %s", m.icons.behind, ansi.Truncate(r.Name, 24, "…"),
 			m.icons.behind, r.Upstream.Value.Behind, m.fetchSeg(now, &r).text)
-		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.success))
+		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.behind))
 		idx++
 	}
 	for _, c := range m.updateSkip {
 		r := c.Repository
-		text := fmt.Sprintf("– skip    %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.SkipReason)
-		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.dim))
+		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.SkipReason)
+		style := t.warn
+		if c.SkipReason == app.ReasonUpToDate {
+			text = fmt.Sprintf("%s current  %-24s %s", m.icons.upToDate, ansi.Truncate(r.Name, 24, "…"), m.fetchSeg(now, &r).text)
+			style = t.dim
+		}
+		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, style))
 		idx++
 	}
+	n := len(m.updateOK) + len(m.updateSkip)
 	head := []string{
-		t.bold.Render(fmt.Sprintf("%d repositories will be fast-forwarded, %d skipped.", len(m.updateOK), len(m.updateSkip))),
-		t.dim.Render("git merge --ff-only --no-autostash @{upstream} · no network access; press f to fetch first"),
+		t.bold.Render(fmt.Sprintf("Fetch and update %d repositories?", n)),
+		t.dim.Render("Fetches first, then fast-forwards branches that can be updated safely."),
+		t.dim.Render("No merge commits, rebases, or stashes; local changes stay untouched."),
+		t.dim.Render("Repositories that cannot be updated are listed with the reason."),
 	}
-	if m.fetchHidden > 0 {
+	if m.updateHidden > 0 {
 		head = append(head, t.warn.Render(m.hiddenMarksNotice()))
 	}
-	head = append(head, "")
-	return "Safe update preview", append(head, window(list, m.overlayIdx, rows-len(head))...)
+	head = append(head, "", t.panelTitle.Render("State before the fetch"))
+	return "Confirm update", append(head, window(list, m.overlayIdx, rows-len(head))...)
 }
 
 func (m *Model) hiddenMarksNotice() string {
 	if m.tree {
-		return fmt.Sprintf("Includes %d marked repos hidden by filters or collapsed groups.", m.fetchHidden)
+		return fmt.Sprintf("Includes %d marked repos hidden by filters or collapsed groups.", m.updateHidden)
 	}
-	return fmt.Sprintf("Includes %d marked repositories hidden by the filter.", m.fetchHidden)
+	return fmt.Sprintf("Includes %d marked repositories hidden by the filter.", m.updateHidden)
 }
 
 func (m *Model) viewLaunchers(iw, rows int) (string, []string) {

@@ -35,14 +35,14 @@ The architecture and the decisions behind it are documented in
   (`is:dirty`, `is:behind`, …), and sorting.
 - `Enter` opens the selected repository in lazygit; the dashboard refreshes
   the repository afterward.
-- Concurrent fetch of the visible or marked repositories with progress,
+- Concurrent fetch of the selected or visible repositories with progress,
   cancellation, retry, and an interactive retry in the terminal for
   repositories that need a passphrase.
-- Safe update: `git merge --ff-only --no-autostash --no-overwrite-ignore
-  <upstream commit>` for eligible repositories only, with a preview that
-  explains every skip and applies exactly the upstream commit it showed. The
-  operations view then serves as a worklist: open blocked repositories in
-  lazygit, see which blockers are resolved, and continue with a new preview.
+- Safe update after one confirmation: the dashboard fetches first, then
+  fast-forwards only branches that can be updated safely, without merge
+  commits, rebases, or stashes, and lists every skipped repository with the
+  reason. The operations view then serves as a worklist: open blocked
+  repositories in lazygit, see which blockers are resolved, and continue.
 - Configurable launchers for a shell, an editor, or a file manager.
 - lazygit-style panels with titled borders, one column per count (staged,
   modified, untracked, stashed, ahead, behind) plus a State column for everything

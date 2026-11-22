@@ -229,9 +229,10 @@ including `safe.directory`.
 
 ## 4. Batch operations
 
-Targets are the marked repositories if any are marked, otherwise the visible
-rows (`F`, `u`) or the cursor row (`f`). Marks survive filter changes; a
-confirmation states how many marked targets are hidden.
+Lowercase keys (`f`, `u`) act on the marked repositories if any are marked,
+otherwise on the cursor row; uppercase keys (`F`, `U`) act on all visible
+rows regardless of marks. Marks survive filter changes; the update
+confirmation and the fetch message state how many marked targets are hidden.
 
 ### 4.1 Fetch
 
@@ -242,6 +243,8 @@ confirmation states how many marked targets are hidden.
   handover as lazygit (see 5), where the user answers the prompt.
 - Bounded by `fetch_parallelism`, with a timeout per fetch. One failure never
   stops the batch; failed and cancelled fetches can be retried.
+- Starts without a confirmation: a fetch changes only remote-tracking refs,
+  never a local branch or the worktree.
 
 ### 4.2 Safe update
 
@@ -257,9 +260,10 @@ A repository is eligible only if every condition holds:
 - no other mutating job and no interactive session is active for its store.
 
 The update runs `merge --ff-only --no-autostash --no-overwrite-ignore
-<upstream commit>` instead of `pull --ff-only`: it does not contact the
-network, and it applies exactly the upstream commit that inspection read for
-the preview, never a later state of `@{upstream}`; it is independent of
+<upstream commit>` instead of `pull --ff-only`: the merge itself does not
+contact the network (the fetch before it is a separate job, see below), and
+it applies exactly the upstream commit that inspection read when the update
+was planned, never a later state of `@{upstream}`; it is independent of
 `pull.*` configuration; and `--no-autostash` guarantees that no stash is
 created even with `merge.autoStash`. Git refuses to overwrite untracked files
 on its own, but by default replaces ignored files, such as a local
@@ -269,37 +273,42 @@ worklist with Git's message and no file or branch is changed.
 
 Every condition is checked again under the store lock immediately before the
 merge; a changed repository is skipped with a reason. The fresh state must
-also match the confirmed preview: the same branch, HEAD commit, upstream, and
-upstream commit. A fetch by another tool after the preview, including a
-rewritten upstream with the same distance, a branch switch, or a new local
-commit therefore skips the repository with a request for a new preview
-instead of applying something that was not shown. The store lock coordinates
+also match the plan: the same branch, HEAD commit, upstream, and upstream
+commit. A fetch by another tool after the plan, including a rewritten
+upstream with the same distance, a branch switch, or a new local commit
+therefore skips the repository with a request to try again instead of
+applying something that was not planned. The store lock coordinates
 only Git Dashboard's own jobs; an external Git process between the recheck
 and the merge is not excluded, but cannot change the commit that the merge
 applies.
 Git Dashboard never creates a merge commit, a rebase, or a stash.
 
-The preview lists the repositories to update and every skip with its reason
-and the age of the last fetch. `f` in the preview fetches exactly its
-repositories. When the fetch and the following inspections are finished, `u`
-in the operations view opens the preview again for the same repositories. A
-failed fetch becomes the skip reason of every target of its store, even if
-the old state looked up to date, so the repository stays on the worklist. A
-cancelled fetch offers no preview.
+`u` and `U` open a confirmation that lists the targets with their state
+before the fetch and describes what the update does in plain words instead
+of Git commands. Confirming fetches every target store first. When the fetch
+and the following inspections are finished, the update is planned with the
+fetched state and starts on its own; the merge applies exactly the
+upstream commit read after the fetch. The user confirms the intent ("fetch,
+then fast-forward what is safe"), not a list of commits, because that list
+is only known after the fetch. A failed fetch becomes the skip reason of
+every target of its store, even if the old state looked eligible, so the
+repository stays on the worklist and is not updated with stale state. A
+cancelled fetch cancels the update.
 
 **Rule: asynchronous completion never opens a confirmable dialog.** A dialog
 that opens on its own lets a key meant for the previous view confirm an
 action. Finished background work reports through a message and waits for an
-explicit key.
+explicit key. The update that follows its fetch was already confirmed and
+opens nothing: it shows in the operations view only if that view is open.
 
 ### 4.3 Worklist
 
 After an update, the operations view is the worklist of the batch: updated,
-failed, and cancelled repositories plus those the preview skipped (except
+failed, and cancelled repositories plus those the plan skipped (except
 those already up to date). Rows can be opened in lazygit; after the next
 inspection they show `→ now eligible`, `→ now up to date`, or
-`→ still blocked: <reason>`. `u` opens a new preview for everything not yet
-updated. Resolving a blocker remains work done in lazygit.
+`→ still blocked: <reason>`. `u` opens a new confirmation for everything not
+yet updated. Resolving a blocker remains work done in lazygit.
 
 ### 4.4 Other local branches
 
@@ -420,8 +429,9 @@ commands. The domain depends on nothing else in the project.
   URLs (`https://user:token@host/…`) is redacted before display.
 - No shell is ever involved; paths and URLs are data. Configured executables
   are resolved at startup and must be regular executable files.
-- Operations that change local branches require a preview and confirmation,
-  and their preconditions are checked again immediately before execution.
+- Operations that change local branches require a confirmation that lists
+  their targets, and their preconditions are checked again immediately
+  before execution.
 - No automatic stash, merge, rebase, reset, force-push, clone, remote
   rewrite, or Git configuration change.
 

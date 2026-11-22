@@ -19,12 +19,12 @@ import (
 	tu "github.com/mmo-con/git-dashboard/internal/testutil"
 )
 
-// pump forwards scheduler events to the model until no inspection or batch
-// is pending, like waitEvents does in the running program.
+// pump forwards scheduler events to the model until no inspection, batch, or
+// confirmed update is pending, like waitEvents does in the running program.
 func pump(t *testing.T, m *Model) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
-	for m.pendingInspect() > 0 || (m.batch != nil && !m.batch.done()) {
+	for m.pendingInspect() > 0 || m.batchRunning() {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out waiting for jobs")
 		}
@@ -79,10 +79,9 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	}
 
 	keys(m, "F")
-	if m.mode != modeConfirmFetch || len(m.fetchTargets) != 3 {
-		t.Fatalf("F must confirm all visible repositories: mode=%v targets=%d", m.mode, len(m.fetchTargets))
+	if m.mode != modeOperations || m.batch == nil || m.batch.op != domain.OperationFetch || len(m.batch.rows) != 3 {
+		t.Fatalf("F must fetch all visible repositories without a confirmation: mode=%v", m.mode)
 	}
-	keys(m, "y")
 	pump(t, m)
 	for _, r := range m.batch.rows {
 		if r.result.Status != domain.StatusSucceeded {
@@ -93,12 +92,24 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 		t.Fatalf("after fetch the repository must be reinspected: behind=%d", b)
 	}
 
-	keys(m, "esc", "u")
+	// The update fetches again, so it applies upstream commits that were not
+	// known when it was confirmed.
+	tu.Commit(t, origin, "newer.txt", "newer\n", "upstream change after the fetch")
+	keys(m, "esc", "U")
 	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 || len(m.updateSkip) != 2 {
-		t.Fatalf("preview: ok=%d skip=%d", len(m.updateOK), len(m.updateSkip))
+		t.Fatalf("confirmation: ok=%d skip=%d", len(m.updateOK), len(m.updateSkip))
+	}
+	if v := m.View(); strings.Contains(v, "git ") || !strings.Contains(v, "Fetch and update 3 repositories?") {
+		t.Fatalf("the confirmation must describe the update instead of Git commands:\n%s", v)
 	}
 	keys(m, "y")
+	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
+		t.Fatalf("a confirmed update must fetch first: mode=%v", m.mode)
+	}
 	pump(t, m)
+	if m.batch.op != domain.OperationUpdate {
+		t.Fatalf("the update must start after the fetch: %s", m.batch.op)
+	}
 	if len(m.batch.rows) != 2 {
 		t.Fatalf("the worklist must hold the update and the blocked repository, not the current one: %d rows", len(m.batch.rows))
 	}
@@ -149,51 +160,6 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	}
 }
 
-func TestUpdateSkipsUpstreamFetchedAfterPreview(t *testing.T) {
-	tu.IsolateGit(t)
-	base := tu.Canonical(t, t.TempDir())
-	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
-	tu.Git(t, base, "clone", "-q", origin, "clone")
-	clone := filepath.Join(base, "clone")
-	tu.Commit(t, origin, "a.txt", "a\n", "shown in the preview")
-	tu.Git(t, clone, "fetch", "-q")
-
-	cfg := config.Default()
-	cfg.Repositories = []config.Repository{{Path: clone, Enabled: true}}
-	a := app.New("", cfg, git.New("git"))
-	t.Cleanup(a.Close)
-	m := New(a)
-	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
-	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
-	pump(t, m)
-
-	keys(m, "u")
-	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 {
-		t.Fatalf("preview: ok=%d skip=%d", len(m.updateOK), len(m.updateSkip))
-	}
-	head := tu.Git(t, clone, "rev-parse", "HEAD")
-	tu.Commit(t, origin, "b.txt", "b\n", "not shown in the preview")
-	tu.Git(t, clone, "fetch", "-q") // another tool fetches while the preview is open
-	keys(m, "y")
-	pump(t, m)
-	if r := m.batch.rows[0]; r.result.Status != domain.StatusSkipped || !strings.Contains(r.result.Error.Error(), "upstream moved") {
-		t.Fatalf("update after an external fetch: %s %v", r.result.Status, r.result.Error)
-	}
-	if tu.Git(t, clone, "rev-parse", "HEAD") != head {
-		t.Fatal("HEAD moved although the update was skipped")
-	}
-
-	keys(m, "u")
-	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 {
-		t.Fatalf("the new preview must offer the update again: ok=%d", len(m.updateOK))
-	}
-	keys(m, "y")
-	pump(t, m)
-	if tu.Git(t, clone, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
-		t.Fatal("the confirmed new preview must fast-forward to the fetched state")
-	}
-}
-
 func TestRetryAndCancelBatch(t *testing.T) {
 	m := newModel(t)
 	r := m.repos[0]
@@ -214,7 +180,7 @@ func TestRetryAndCancelBatch(t *testing.T) {
 		}}
 
 	keys(m, "x")
-	m.submitBatch(domain.OperationFetch, []jobs.Job{job}, nil)
+	m.submitBatch(domain.OperationFetch, []jobs.Job{job}, nil, true)
 	keys(m, "x")
 	if calls.Load() > 1 {
 		t.Fatal("retry must wait until the batch is finished")
@@ -271,10 +237,10 @@ func TestActionsOnUnavailableRepositories(t *testing.T) {
 	}
 }
 
-// TestFetchFromUpdatePreviewRefreshesIt fetches the preview's repositories
-// from the preview and checks that u opens the preview again with the
-// fetched state, skips a failed fetch, and does not update on its own.
-func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
+// TestConfirmedUpdateFetchesFirst checks that a confirmed update fetches its
+// repositories, updates with the fetched state without opening a view, and
+// skips a repository whose fetch failed even though it looked eligible.
+func TestConfirmedUpdateFetchesFirst(t *testing.T) {
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())
 	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
@@ -286,7 +252,7 @@ func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
 	tu.Git(t, broken, "reset", "-q", "--hard", "HEAD~1")
 	tu.Git(t, broken, "remote", "set-url", "origin", filepath.Join(base, "gone"))
 	tu.Commit(t, origin, "third.txt", "third\n", "third")
-	head := tu.Git(t, behind, "rev-parse", "HEAD")
+	brokenHead := tu.Git(t, broken, "rev-parse", "HEAD")
 
 	cfg := config.Default()
 	for _, p := range []string{behind, broken} {
@@ -299,36 +265,29 @@ func TestFetchFromUpdatePreviewRefreshesIt(t *testing.T) {
 	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
 	pump(t, m)
 
-	keys(m, "u")
+	keys(m, "U")
 	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != broken {
 		t.Fatalf("before the fetch only broken is known to be behind: ok=%+v", m.updateOK)
 	}
-	keys(m, "f")
+	keys(m, "y")
 	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
-		t.Fatalf("f must fetch the preview's repositories: mode=%v", m.mode)
+		t.Fatalf("the update must fetch first: mode=%v", m.mode)
 	}
-	// Leaving the operations view must not let the preview open on its own,
-	// where the next Enter would confirm an update.
+	// Leaving the operations view must keep it closed when the update
+	// starts, so that no key meant for another view acts on it.
 	keys(m, "esc")
 	pump(t, m)
-	if m.mode != modeNormal || m.refetch == nil || !m.refetch.ready {
-		t.Fatalf("the preview must wait for u after the fetch: mode=%v", m.mode)
+	if m.mode != modeNormal || m.batch.op != domain.OperationUpdate {
+		t.Fatalf("the update must start on its own without opening a view: mode=%v op=%s", m.mode, m.batch.op)
 	}
-	keys(m, "b", "u")
-	if m.mode != modeUpdatePreview || m.refetch != nil {
-		t.Fatalf("u in the operations view must open the preview: mode=%v", m.mode)
+	if tu.Git(t, behind, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
+		t.Fatal("behind must be fast-forwarded to the fetched state")
 	}
-	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != behind {
-		t.Fatalf("the preview must use the fetched state: ok=%+v", m.updateOK)
+	_, r := row(t, m, m.updateOK[0].Repository.ID)
+	if r.result.Status != domain.StatusSkipped || !strings.HasPrefix(r.result.Error.Error(), "fetch failed") {
+		t.Fatalf("a failed fetch must skip the repository: %s %v", r.result.Status, r.result.Error)
 	}
-	if len(m.updateSkip) != 1 || !strings.HasPrefix(m.updateSkip[0].SkipReason, "fetch failed") {
-		t.Fatalf("a failed fetch must be a skip reason: %+v", m.updateSkip)
-	}
-	if m.batch.op != domain.OperationFetch || tu.Git(t, behind, "rev-parse", "HEAD") != head {
-		t.Fatal("fetching from the preview must not update")
-	}
-	keys(m, "esc")
-	if m.mode != modeOperations {
-		t.Fatal("cancelling the refreshed preview must show the fetch results")
+	if tu.Git(t, broken, "rev-parse", "HEAD") != brokenHead {
+		t.Fatal("a repository whose fetch failed must not be updated")
 	}
 }

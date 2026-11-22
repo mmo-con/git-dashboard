@@ -121,7 +121,7 @@ func TestUpdateJobRechecksBeforeMerge(t *testing.T) {
 	}
 }
 
-func TestUpdateJobSkipsStateChangedSincePreview(t *testing.T) {
+func TestUpdateJobSkipsStateChangedSincePlanning(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(in *domain.Inspection)
@@ -140,7 +140,7 @@ func TestUpdateJobSkipsStateChangedSincePreview(t *testing.T) {
 			tc.mutate(&f.inspection)
 			ev := runJobs(t, UpdateJobs(f, []domain.Repository{r}, []UpdateCandidate{{Repository: r}}, time.Second))
 			if ev[0].Result.Status != domain.StatusSkipped || f.merged != 0 ||
-				!strings.Contains(ev[0].Result.Error.Error(), tc.want+" since the preview") {
+				!strings.Contains(ev[0].Result.Error.Error(), tc.want+" since the update was planned") {
 				t.Fatalf("%+v merged=%d", ev[0].Result, f.merged)
 			}
 		})
@@ -165,9 +165,6 @@ func TestFetchJobsDeduplicateStores(t *testing.T) {
 	runJobs(t, js)
 	if len(f.fetched) != 2 {
 		t.Fatalf("fetched %v", f.fetched)
-	}
-	if StoreCount(all) != 2 {
-		t.Fatal("store count")
 	}
 }
 
