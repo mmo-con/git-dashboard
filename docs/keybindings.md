@@ -127,7 +127,8 @@ is updated until the new preview is confirmed.
 
 | Column | Content |
 |---|---|
-| Repository | health symbol and name |
+| (untitled) | health symbol: the most important state of the row |
+| Repository | name |
 | Family | family of the repository; hidden in the tree, whose family rows name it |
 | Branch | checked-out branch, or the commit of a detached HEAD |
 | State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, divergence, a remote mismatch, and other branches; empty when there is nothing to report |
@@ -164,7 +165,7 @@ titled with their symbols, for example `✚` for Staged.
 | `◆` | `*` | marked for batch operations |
 | `▸` / `▾` | `[+]` / `[-]` | collapsed / expanded family in the tree |
 
-The symbol before the repository name repeats the most important state of
+The health symbol in the first column repeats the most important state of
 the row: `✗` error or unavailable, `✘` conflict,
 operation in progress, or divergence, `●` dirty worktree, `↓` behind, `↑`
 ahead, `!` other attention, and `✓` healthy.

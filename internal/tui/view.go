@@ -82,6 +82,7 @@ type colSpec struct {
 // Column indexes of the repository table.
 const (
 	colMark = iota
+	colHealth
 	colName
 	colFamily
 	colBranch
@@ -96,7 +97,8 @@ const (
 )
 
 var colSpecs = []colSpec{
-	colMark: {title: "", min: 3, pref: 3, cap: 3}, colName: {title: "Repository", min: 6, pref: 10, cap: 40},
+	colMark: {title: "", min: 3, pref: 3, cap: 3}, colHealth: {title: "", min: 1, pref: 1, cap: 6},
+	colName:   {title: "Repository", min: 4, pref: 8, cap: 38},
 	colFamily: {title: "Family", min: 4, pref: 6, cap: 20}, colBranch: {title: "Branch", min: 6, pref: 10, cap: 40},
 	colState:     {title: "State", min: 6, pref: 16, cap: 40},
 	colStaged:    {title: "Staged", min: 1, cap: 9, short: func(ic icons) string { return ic.staged }},
@@ -149,9 +151,9 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 		free -= add
 	}
 	for _, s := range []struct{ col, floor int }{
-		{colBranch, 20}, {colName, 20}, {colFamily, 10}, {colBranch, 14}, {colName, 14}, {colState, 14},
-		{colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
-		{colName, 6}, {colState, 8}, {colState, 6},
+		{colBranch, 20}, {colName, 18}, {colFamily, 10}, {colBranch, 14}, {colName, 12}, {colState, 14},
+		{colFamily, 6}, {colBranch, 8}, {colName, 8}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
+		{colName, 4}, {colState, 8}, {colState, 6},
 	} {
 		for free < 0 && !cols[s.col].hidden && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
 			cols[s.col].width--
@@ -159,7 +161,7 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 		}
 	}
 	comfortable = free >= 0
-	for _, s := range []struct{ col, floor int }{{colName, 14}, {colBranch, 14}, {colState, 14}, {colFamily, 8}} {
+	for _, s := range []struct{ col, floor int }{{colName, 12}, {colBranch, 14}, {colState, 14}, {colFamily, 8}} {
 		if !cols[s.col].hidden && cols[s.col].width < min(want[s.col], s.floor) {
 			comfortable = false
 		}
@@ -168,9 +170,9 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 }
 
 // rowCells returns the cells of r without the cursor and mark column. The
-// name starts with the health symbol, so the symbol is always next to the
-// name and the most important state of every row is at its left edge. The
-// names of healthy repositories are not emphasized, so rows that need
+// health symbol has its own column at the left edge, so the most important
+// state of every row is in one place and all names start in the same column.
+// The names of healthy repositories are not emphasized, so rows that need
 // attention stand out.
 func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	age := seg{"", m.theme.dim}
@@ -178,15 +180,13 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 		age.text = shortAgo(now, r.LastCommit.Value.Time)
 	}
 	health, healthy := m.health(r)
-	if health.text == "" {
-		health.text = " "
-	}
 	name := m.theme.bold
 	if healthy {
 		name = m.theme.plain
 	}
 	return append([][]seg{
-		{health, {" ", m.theme.plain}, {r.Name, name}},
+		{health},
+		{{r.Name, name}},
 		{{string(r.Family), m.theme.dim}},
 		m.branchSegs(r),
 		m.stateSegs(r),
@@ -212,7 +212,7 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 			cells[i][0] = append([]seg{{guide, m.theme.dim}}, cells[i][0]...)
 		}
 		for j, c := range cells[i] {
-			natural[j+colName] = max(natural[j+colName], runewidth.StringWidth(plain(c)))
+			natural[j+colHealth] = max(natural[j+colHealth], runewidth.StringWidth(plain(c)))
 		}
 	}
 	cols := columns(iw, natural, m.icons, m.tree)
@@ -325,14 +325,15 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 }
 
 // colGap is the space before column j. Columns are separated by three
-// spaces, more than the two between the elements of a cell; the name is
-// closer to the cursor and mark, which belong to it, and the narrow count
-// columns form a block with two spaces between them.
+// spaces, more than the two between the elements of a cell; the health
+// symbol and the name are closer to the cursor and mark, which belong to
+// them, and the narrow count columns form a block with two spaces between
+// them.
 func colGap(j int) int {
 	switch {
 	case j == colMark:
 		return 0
-	case j == colName:
+	case j == colHealth, j == colName:
 		return 1
 	case colSpecs[j].short != nil:
 		return 2
