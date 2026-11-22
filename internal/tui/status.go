@@ -129,33 +129,122 @@ func (m *Model) branchesMarker(r *domain.Repository) []seg {
 	return []seg{{" │ ", m.theme.dim}, {fmt.Sprintf("%s%d", m.icons.branches, n), style}}
 }
 
-// health summarizes the most important state of r in a single symbol, in
-// the order errors, dirty worktree, behind, ahead, and other attention.
-// healthy is true for an available, inspected repository without findings.
-func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
-	t, ic := m.theme, m.icons
+// healthLevel is the most important state of a repository, ordered by
+// priority.
+type healthLevel int
+
+const (
+	healthUnknown healthLevel = iota
+	healthError
+	healthCritical
+	healthDirty
+	healthBehind
+	healthAhead
+	healthAttention
+	healthOK
+)
+
+// healthOf classifies r: errors and unavailable entries first, then
+// conflicts, operations in progress, and divergence, a dirty worktree,
+// behind, ahead, and other attention such as a remote mismatch or other
+// branches. Repositories that are not inspected yet are unknown.
+func (m *Model) healthOf(r *domain.Repository) healthLevel {
 	if !r.IsAvailable() || m.firstError(r) != "" {
-		return seg{ic.failed, t.err}, false
+		return healthError
 	}
 	if !loaded(r) || !r.Worktree.Valid || !r.Head.Valid || !r.Upstream.Valid {
-		return seg{"", t.dim}, false
+		return healthUnknown
 	}
 	w, h, u := r.Worktree.Value, r.Head.Value, r.Upstream.Value
 	switch {
 	case w.Conflicts > 0 || (r.Operation.Valid && r.Operation.Value != domain.NoOperation) || u.Diverged():
-		return seg{ic.conflict, t.err}, false
+		return healthCritical
 	case !w.Clean():
-		return seg{ic.modified, t.dirty}, false
+		return healthDirty
 	case u.Behind > 0:
-		return seg{ic.behind, t.behind}, false
+		return healthBehind
 	case u.Ahead > 0:
-		return seg{ic.ahead, t.ahead}, false
-	case r.UnpublishedBranches() > 0 || r.RemoteMismatch() || h.Detached || u.Gone:
-		return seg{ic.attention, t.warn}, false
-	case len(r.Branches.Value) > 0:
-		return seg{ic.attention, t.behind}, false
+		return healthAhead
+	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone:
+		return healthAttention
 	}
-	return seg{ic.clean, t.clean}, true
+	return healthOK
+}
+
+// healthSeg returns the symbol of a health level, and its label for family
+// summaries. Other attention is highlighted as a warning only if it involves
+// unpublished work, a remote mismatch, a detached HEAD, or a gone upstream.
+func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
+	t, ic := m.theme, m.icons
+	switch l {
+	case healthError:
+		return seg{ic.failed, t.err}, "error"
+	case healthCritical:
+		return seg{ic.conflict, t.err}, "critical"
+	case healthDirty:
+		return seg{ic.modified, t.dirty}, "dirty"
+	case healthBehind:
+		return seg{ic.behind, t.behind}, "behind"
+	case healthAhead:
+		return seg{ic.ahead, t.ahead}, "ahead"
+	case healthAttention:
+		if warn {
+			return seg{ic.attention, t.warn}, "attention"
+		}
+		return seg{ic.attention, t.behind}, "attention"
+	case healthOK:
+		return seg{ic.clean, t.clean}, "healthy"
+	}
+	return seg{"", t.dim}, ""
+}
+
+// health returns the symbol of the health column; healthy is true for an
+// available, inspected repository without findings.
+func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
+	l := m.healthOf(r)
+	warn := r.UnpublishedBranches() > 0 || r.RemoteMismatch() ||
+		(r.Head.Valid && r.Head.Value.Detached) || (r.Upstream.Valid && r.Upstream.Value.Gone)
+	s, _ = m.healthSeg(l, warn)
+	return s, l == healthOK
+}
+
+// familyHealth returns the health levels of the repositories that match the
+// filter, by family.
+func (m *Model) familyHealth() map[domain.FamilyID][]healthLevel {
+	out := map[domain.FamilyID][]healthLevel{}
+	for i := range m.repos {
+		r := &m.repos[i]
+		if m.filter.Matches(r, m.marks[r.ID]) {
+			out[r.Family] = append(out[r.Family], m.healthOf(r))
+		}
+	}
+	return out
+}
+
+// familySummary counts the repositories of a family by health level and
+// lists the levels that need attention, most important first.
+func (m *Model) familySummary(levels []healthLevel) []seg {
+	counts := map[healthLevel]int{}
+	for _, l := range levels {
+		counts[l]++
+	}
+	var out []seg
+	for l := healthError; l < healthOK; l++ {
+		if counts[l] == 0 {
+			continue
+		}
+		s, label := m.healthSeg(l, true)
+		if len(out) > 0 {
+			out = append(out, seg{"  ", m.theme.plain})
+		}
+		s.text = fmt.Sprintf("%s%d %s", s.text, counts[l], label)
+		out = append(out, s)
+	}
+	if len(out) == 0 && counts[healthOK] == len(levels) && len(levels) > 0 {
+		s, _ := m.healthSeg(healthOK, false)
+		out = append(out, seg{s.text + " all healthy", s.style})
+	}
+	return out
 }
 
 // maxBranchLines limits the other branches listed in the detail panel.
