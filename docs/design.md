@@ -441,7 +441,7 @@ The update deliberately uses `merge --ff-only` against the already fetched upstr
 - it is independent of `pull.rebase`, `pull.ff`, and other pull configuration;
 - `--no-autostash` guarantees that no stash is created even if `merge.autoStash` is configured.
 
-Users fetch first with `F`. The preview shows the age of the last fetch for every repository.
+Users fetch first, either with `F` or with `f` in the preview. `f` fetches exactly the repositories of the preview and shows the progress in the operations view; once the fetch and the inspections that follow it are finished, the preview is computed again and reopened. Repositories whose fetch failed are skipped with the fetch error as reason. The fetch never updates on its own: the reopened preview must be confirmed like any other, and a cancelled fetch does not reopen it. The preview shows the age of the last fetch for every repository.
 
 Before execution, Git Dashboard shows:
 
@@ -1508,6 +1508,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 | `u` | open safe-update preview for marked or visible repositories | 4 |
 | `Enter` | open the selected row in lazygit (operations view) | 4 |
 | `u` | continue a finished update batch with a new preview (operations view) | 4 |
+| `f` | fetch the repositories of the preview and reopen it (update preview) | 4 |
 | `o` | open launcher menu | 5 |
 
 Input modes prevent conflicts between text entry and global shortcuts.

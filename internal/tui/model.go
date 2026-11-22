@@ -47,6 +47,16 @@ type opRow struct {
 	revisitedAt time.Time
 }
 
+// refetch remembers the targets of an update preview while they are fetched,
+// and the inspections that follow the fetch. The preview is recomputed only
+// after these inspections, so it reflects the fetched upstream state.
+type refetch struct {
+	batch       *batch
+	targets     []domain.RepositoryID
+	hidden      int
+	inspections []uint64
+}
+
 // visit remembers which batch row was opened in lazygit.
 type visit struct {
 	batch *batch
@@ -110,9 +120,13 @@ type Model struct {
 	fetchHidden   int
 	updateOK      []app.UpdateCandidate
 	updateSkip    []app.UpdateCandidate
+	updateTargets []domain.RepositoryID
 	previewReturn mode
-	quitReturn    mode
-	visit         *visit
+	// refetch is the fetch started from the update preview, after which the
+	// preview is opened again.
+	refetch    *refetch
+	quitReturn mode
+	visit      *visit
 
 	handovers map[domain.StoreID]bool
 	fatal     error
@@ -379,8 +393,9 @@ func (m *Model) familyChoices() []int {
 	return choices
 }
 
-// refresh starts inspection of the given entries.
-func (m *Model) refresh(ids []domain.RepositoryID) {
+// refresh starts inspection of the given entries and returns the ID of the
+// inspection batch, or 0 if nothing is inspected.
+func (m *Model) refresh(ids []domain.RepositoryID) uint64 {
 	var repos []domain.Repository
 	seen := map[domain.RepositoryID]bool{}
 	for _, id := range ids {
@@ -392,9 +407,11 @@ func (m *Model) refresh(ids []domain.RepositoryID) {
 	gen := m.app.NextGeneration()
 	js := app.InspectJobs(m.app.Git, repos, gen, m.app.Config.Git.InspectionTimeout)
 	if len(js) == 0 {
-		return
+		return 0
 	}
-	m.inspecting[m.app.Scheduler.Submit(js)] = len(js)
+	id := m.app.Scheduler.Submit(js)
+	m.inspecting[id] = len(js)
+	return id
 }
 
 func (m *Model) allIDs() []domain.RepositoryID {
