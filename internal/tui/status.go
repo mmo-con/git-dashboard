@@ -140,7 +140,7 @@ func (m *Model) otherBranchLines(r *domain.Repository) []string {
 		return nil
 	}
 	now := m.now()
-	out := []string{line(seg{"other branches", t.dim})}
+	out := []string{m.theme.header.Render("OTHER BRANCHES")}
 	for i, b := range bs {
 		if i == maxBranchLines {
 			out = append(out, line(seg{fmt.Sprintf("  +%d more", len(bs)-i), t.dim}))
