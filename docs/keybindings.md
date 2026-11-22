@@ -124,13 +124,13 @@ is updated until the new preview is confirmed.
 | `✓` | `ok` | up to date with the upstream |
 | `⎇n` | `brn` | other local branches that need attention |
 | `≠remote` | `!=remote` | remote URL differs from the configured `remote` |
-| `!` | `~` | health column: other attention, such as a remote mismatch or other branches |
+| `!` | `~` | health symbol: other attention, such as a remote mismatch or other branches |
 | `✗` | `x` | unavailable entry or failed fetch |
 | `◆` | `*` | marked for batch operations |
 | `▸` / `▾` | `[+]` / `[-]` | collapsed / expanded family in the tree |
 
-The column after the repository name repeats the most important state of
-the row with a single symbol: `✗` error or unavailable, `✘` conflict,
+The symbol before the repository name repeats the most important state of
+the row: `✗` error or unavailable, `✘` conflict,
 operation in progress, or divergence, `●` dirty worktree, `↓` behind, `↑`
 ahead, `!` other attention, and `✓` healthy.
 
