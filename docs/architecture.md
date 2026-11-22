@@ -455,7 +455,10 @@ The concrete keys, symbols, and filters are listed in
   bracketed, because reverse video and colors are lost with `NO_COLOR`.
 - The detail panel puts branch, worktree, and errors first, because a small
   panel is cut off at the bottom; it shortens the other branches list before
-  dropping section titles.
+  dropping section titles. Each section starts with its title in a rule
+  across the panel (`── BRANCH ───`), so sections stay apart without boxes.
+  The latest commit is one line of short hash, compact date, and subject;
+  lazygit shows the history.
 - Every count has its own column (staged, modified, untracked, ahead,
   behind, stashes), so the same state can be compared down the table, and a
   cell needs no symbol. A known zero is `–`, an unknown value `?`, and a count
