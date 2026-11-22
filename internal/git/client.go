@@ -3,7 +3,7 @@ package git
 import (
 	"context"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // Client is the typed wrapper around the official Git CLI.

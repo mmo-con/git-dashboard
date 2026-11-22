@@ -11,12 +11,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
-	tu "github.com/mmo-con/git-dashboard/internal/testutil"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/jobs"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 // pump forwards scheduler events to the model until no inspection, batch, or

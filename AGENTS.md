@@ -1,6 +1,6 @@
 # Agent instructions
 
-Git Dashboard is a Go terminal application (Bubble Tea) that shows the state
+headquarters is a Go terminal application (Bubble Tea) that shows the state
 of many local Git repositories, runs safe batch fetches and fast-forward
 updates, and hands detailed work over to lazygit. The reasons behind the rules
 below are in [docs/architecture.md](docs/architecture.md); read the relevant
@@ -9,7 +9,7 @@ section before changing Git integration, jobs, or safety behavior.
 ## Commands
 
 ```sh
-make build              # ./bin/git-dashboard
+make build              # ./bin/headquarters
 make lint               # go vet and gofmt check
 go test -race ./...     # all tests; CI also runs make coverage
 make perf               # local benchmark: 200 repositories within 2 seconds

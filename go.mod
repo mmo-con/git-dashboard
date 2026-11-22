@@ -1,4 +1,4 @@
-module github.com/mmo-con/git-dashboard
+module github.com/mmo-con/headquarters
 
 go 1.25.0
 

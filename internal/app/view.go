@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // Filter selects visible repositories.

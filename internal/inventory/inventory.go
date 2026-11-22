@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
 )
 
 // Validator classifies candidate paths.

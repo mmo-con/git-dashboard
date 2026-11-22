@@ -13,10 +13,10 @@ import (
 )
 
 // EnvConfig names the environment variable that selects the configuration file.
-const EnvConfig = "GIT_DASHBOARD_CONFIG"
+const EnvConfig = "HEADQUARTERS_CONFIG"
 
 // Locate returns the configuration path: the explicit flag value, then
-// GIT_DASHBOARD_CONFIG, then the XDG configuration directory.
+// HEADQUARTERS_CONFIG, then the XDG configuration directory.
 func Locate(flagValue string, getenv func(string) string) (string, error) {
 	if flagValue != "" {
 		return expandPath(flagValue, "", getenv)
@@ -32,7 +32,7 @@ func Locate(flagValue string, getenv func(string) string) (string, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "git-dashboard", "config.toml"), nil
+	return filepath.Join(base, "headquarters", "config.toml"), nil
 }
 
 // Load reads the configuration at path. A missing file yields the default

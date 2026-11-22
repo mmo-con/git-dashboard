@@ -1,4 +1,4 @@
-// Command git-dashboard is a terminal dashboard for a curated collection of
+// Command headquarters is a terminal dashboard for a curated collection of
 // local Git repositories.
 package main
 
@@ -17,11 +17,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	"github.com/mmo-con/git-dashboard/internal/tui"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/tui"
 )
 
 var version = "dev"
@@ -33,13 +33,13 @@ func main() {
 // run executes the command line and returns the exit status: 0 on success,
 // 1 on runtime errors, and 2 on usage or configuration errors.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
-	flags := flag.NewFlagSet("git-dashboard", flag.ContinueOnError)
+	flags := flag.NewFlagSet("headquarters", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	configFlag := flags.String("config", "", "path of the configuration file")
 	showVersion := flags.Bool("version", false, "print the version and exit")
 	checkConfig := flags.Bool("check", false, "validate the configuration, print the inventory, and exit")
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "usage: git-dashboard [options] [path]")
+		fmt.Fprintln(stderr, "usage: headquarters [options] [path]")
 		fmt.Fprintln(stderr, "\nWith a path, the repositories below it replace the configured ones.")
 		fmt.Fprintln(stderr, "\noptions:")
 		flags.PrintDefaults()
@@ -52,24 +52,24 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	}
 
 	if *showVersion {
-		fmt.Fprintln(stdout, "git-dashboard", version)
+		fmt.Fprintln(stdout, "headquarters", version)
 		return 0
 	}
 
 	scanRoot, err := scanRootArg(flags.Args())
 	if err != nil {
-		fmt.Fprintln(stderr, "git-dashboard:", err)
+		fmt.Fprintln(stderr, "headquarters:", err)
 		return 2
 	}
 
 	path, err := config.Locate(*configFlag, getenv)
 	if err != nil {
-		fmt.Fprintln(stderr, "git-dashboard:", err)
+		fmt.Fprintln(stderr, "headquarters:", err)
 		return 2
 	}
 	cfg, err := config.Load(path, getenv)
 	if err != nil {
-		fmt.Fprintln(stderr, "git-dashboard: invalid configuration:", err)
+		fmt.Fprintln(stderr, "headquarters: invalid configuration:", err)
 		return 2
 	}
 
@@ -78,7 +78,7 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	_, err = client.CheckVersion(ctx)
 	cancel()
 	if err != nil {
-		fmt.Fprintln(stderr, "git-dashboard:", err)
+		fmt.Fprintln(stderr, "headquarters:", err)
 		return 1
 	}
 
@@ -97,11 +97,11 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	}
 	model := tui.New(a)
 	if _, err := tea.NewProgram(model, tea.WithAltScreen()).Run(); err != nil {
-		fmt.Fprintln(stderr, "git-dashboard:", err)
+		fmt.Fprintln(stderr, "headquarters:", err)
 		return 1
 	}
 	if err := model.Err(); err != nil {
-		fmt.Fprintln(stderr, "git-dashboard:", err)
+		fmt.Fprintln(stderr, "headquarters:", err)
 		return 1
 	}
 	return 0

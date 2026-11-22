@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/mmo-con/git-dashboard/internal/git"
+	"github.com/mmo-con/headquarters/internal/git"
 )
 
 // Resolve finds an executable by name in PATH or validates an absolute path.

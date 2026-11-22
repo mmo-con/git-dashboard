@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/headquarters/internal/config"
 )
 
 type fileKey struct{ dev, ino uint64 }

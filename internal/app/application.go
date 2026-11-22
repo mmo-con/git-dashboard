@@ -9,14 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	"github.com/mmo-con/git-dashboard/internal/inventory"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
-	"github.com/mmo-con/git-dashboard/internal/launcher"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/inventory"
+	"github.com/mmo-con/headquarters/internal/jobs"
+	"github.com/mmo-con/headquarters/internal/launcher"
 )
 
-// Application bundles the services of one Git Dashboard session.
+// Application bundles the services of one headquarters session.
 type Application struct {
 	ConfigPath string
 	// ScanRoot, if set, replaces the configured inventory with discovery below

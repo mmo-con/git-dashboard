@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/config"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	tu "github.com/mmo-con/git-dashboard/internal/testutil"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/git"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 // TestInspectionPerformance is a local benchmark for the target in
@@ -19,10 +19,10 @@ import (
 // Repository creation is not measured. The measurement is repeated up to three
 // times and passes as soon as one run meets the target. It is not run in CI,
 // where TestProcessBudget and TestJobsUseTheirParallelism guard the cost model
-// deterministically. Enable with GIT_DASHBOARD_PERF=1.
+// deterministically. Enable with HEADQUARTERS_PERF=1.
 func TestInspectionPerformance(t *testing.T) {
-	if os.Getenv("GIT_DASHBOARD_PERF") == "" {
-		t.Skip("set GIT_DASHBOARD_PERF=1 to run the performance test")
+	if os.Getenv("HEADQUARTERS_PERF") == "" {
+		t.Skip("set HEADQUARTERS_PERF=1 to run the performance test")
 	}
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())

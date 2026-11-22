@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/git"
-	tu "github.com/mmo-con/git-dashboard/internal/testutil"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/git"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 func validate(t *testing.T, c *git.Client, path string) domain.Location {

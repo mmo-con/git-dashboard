@@ -10,11 +10,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/mmo-con/git-dashboard/internal/app"
-	"github.com/mmo-con/git-dashboard/internal/domain"
-	"github.com/mmo-con/git-dashboard/internal/inventory"
-	"github.com/mmo-con/git-dashboard/internal/jobs"
-	tu "github.com/mmo-con/git-dashboard/internal/testutil"
+	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/inventory"
+	"github.com/mmo-con/headquarters/internal/jobs"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 func writeConfig(t *testing.T, m *Model, body string) string {

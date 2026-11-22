@@ -1,20 +1,33 @@
-# Git Dashboard
+<p align="center">
+  <img src="docs/images/headquarters.png" alt="headquarters logo" width="160" />
+</p>
 
-Git Dashboard is a terminal application for managing a curated collection of
+<h1 align="center">headquarters</h1>
+
+<p align="center">
+  A CLI dashboard that groups local Git repositories in a table view, runs batch fetches &amp; pulls, and launches <code>lazygit</code> per repo.
+</p>
+
+<p align="center">
+  <a href="https://github.com/mmo-con/headquarters/releases/latest"><img src="https://img.shields.io/github/v/release/mmo-con/headquarters?style=flat-square" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT" /></a>
+  <a href="https://github.com/jesseduffield/lazygit"><img src="https://img.shields.io/badge/CLI-lazygit%20ready-2FCCC6?style=flat-square" alt="CLI &amp; lazygit" /></a>
+</p>
+
+---
+
+headquarters is a terminal application for managing a curated collection of
 local Git repositories. It shows a cross-repository overview, groups
 repositories into families, runs safe batch operations such as fetch and
 fast-forward updates, and hands all detailed work within one repository over
 to [lazygit](https://github.com/jesseduffield/lazygit).
 
-> Git Dashboard manages the repository collection. lazygit manages the
+> headquarters manages the repository collection. lazygit manages the
 > individual repository.
 
-![Git Dashboard in the tree view: repositories grouped by family with health
+![headquarters in the tree view: repositories grouped by family with health
 symbols, family summaries, and the detail panel of the selected
-repository](docs/images/dashboard-tree.png)
-
-*Shown with `icons = "unicode"` and `preset = "gruvbox-dark"`; all repositories
-and data are fictional.*
+repository](docs/images/headquarters-screenshot.png)
 
 The architecture and the decisions behind it are documented in
 [docs/architecture.md](docs/architecture.md).
@@ -52,7 +65,7 @@ The architecture and the decisions behind it are documented in
   (such as high contrast, Catppuccin, Dracula, and Gruvbox), and the symbol
   set (Unicode, Nerd Font, ASCII) are configurable; `NO_COLOR` is honored.
 
-Git Dashboard uses the official Git CLI for everything. Background Git
+headquarters uses the official Git CLI for everything. Background Git
 processes run without a controlling terminal, so they can never prompt in or
 write into the user interface.
 
@@ -66,55 +79,58 @@ write into the user interface.
 ## Installation
 
 Prebuilt archives for Linux and macOS (amd64 and arm64) are attached to every
-[release](https://github.com/mmo-con/git-dashboard/releases), together with
+[release](https://github.com/mmo-con/headquarters/releases), together with
 `checksums.txt`. Set `VERSION` to the current release. Each step runs only
 if the previous one succeeded, so nothing is unpacked or installed when a
 download fails or the checksum does not match:
 
 ```sh
-VERSION=v0.3.0
-NAME=git-dashboard_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
-BASE=https://github.com/mmo-con/git-dashboard/releases/download/$VERSION
+VERSION=vX.Y.Z                            # a release containing headquarters archives
+NAME=headquarters_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
+BASE=https://github.com/mmo-con/headquarters/releases/download/$VERSION
 curl -fL -O "$BASE/$NAME.tar.gz" -O "$BASE/checksums.txt" &&
   grep " $NAME.tar.gz\$" checksums.txt | sha256sum -c - &&   # macOS: shasum -a 256 -c -
   tar xzf "$NAME.tar.gz" &&
-  install -m 755 "$NAME/git-dashboard" ~/.local/bin/        # any directory in PATH
+  install -m 755 "$NAME/headquarters" ~/.local/bin/        # any directory in PATH
 ```
 
 The macOS binaries are not notarized. `curl` downloads run as they are; if
 you download an archive with a browser, macOS blocks the binary until you
 remove the quarantine attribute with
-`xattr -d com.apple.quarantine git-dashboard`.
+`xattr -d com.apple.quarantine headquarters`.
 
 To build from source:
 
 ```sh
-make build            # builds ./bin/git-dashboard
+make build            # builds ./bin/headquarters
 make install          # installs into $(go env GOPATH)/bin
 ```
 
-A first look needs no configuration: `git-dashboard ~/src` shows the
+A first look needs no configuration: `headquarters ~/src` shows the
 repositories below `~/src`.
 
 ## Usage
 
 ```sh
-git-dashboard                      # uses ~/.config/git-dashboard/config.toml
-git-dashboard ~/src                # repositories below ~/src, no inventory configuration needed
-git-dashboard --config path.toml   # explicit configuration file
-git-dashboard --check              # validate the configuration and print the inventory
-git-dashboard --version
+headquarters                      # uses ~/.config/headquarters/config.toml
+headquarters ~/src                # repositories below ~/src, no inventory configuration needed
+headquarters --config path.toml   # explicit configuration file
+headquarters --check              # validate the configuration and print the inventory
+headquarters --version
 ```
 
-With a path, Git Dashboard shows the repositories found below that directory
+With a path, headquarters shows the repositories found below that directory
 (or the directory itself if it is a repository) instead of the configured
 ones. All other settings of the configuration file, such as the theme,
 lazygit, and launchers, still apply. Options must precede the path.
 
 The configuration file is looked up in this order: `--config`, the
-`GIT_DASHBOARD_CONFIG` environment variable, and
-`$XDG_CONFIG_HOME/git-dashboard/config.toml` (falling back to
-`~/.config/git-dashboard/config.toml`).
+`HEADQUARTERS_CONFIG` environment variable, and
+`$XDG_CONFIG_HOME/headquarters/config.toml` (falling back to
+`~/.config/headquarters/config.toml`).
+After upgrading from the previous project name, move your existing
+configuration to the new location and update any environment variable or
+scripts that refer to the old name.
 
 Start with [examples/config.toml](examples/config.toml). All options are
 described in [docs/configuration.md](docs/configuration.md), and all keys in
@@ -138,7 +154,7 @@ global Git configuration.
 
 | Path | Responsibility |
 |---|---|
-| `cmd/git-dashboard` | command-line entry point |
+| `cmd/headquarters` | command-line entry point |
 | `internal/config` | configuration lookup, parsing, path expansion, validation |
 | `internal/domain` | domain models without dependencies on UI or Git output |
 | `internal/inventory` | discovery, identity, and precedence rules |

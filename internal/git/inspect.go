@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mmo-con/git-dashboard/internal/domain"
+	"github.com/mmo-con/headquarters/internal/domain"
 )
 
 // Inspect reads the state of one worktree with three Git processes; a

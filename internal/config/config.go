@@ -1,4 +1,4 @@
-// Package config loads and validates the Git Dashboard configuration file.
+// Package config loads and validates the headquarters configuration file.
 package config
 
 import (

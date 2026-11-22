@@ -3,7 +3,7 @@ package tui
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/mmo-con/git-dashboard/internal/config"
+	"github.com/mmo-con/headquarters/internal/config"
 )
 
 // theme holds the styles derived from the configured colors.

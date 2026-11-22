@@ -1,6 +1,6 @@
-# Example configuration for Git Dashboard.
+# Example configuration for headquarters.
 #
-# Copy this file to ~/.config/git-dashboard/config.toml and adjust the paths.
+# Copy this file to ~/.config/headquarters/config.toml and adjust the paths.
 # See docs/configuration.md for every option.
 
 version = 1
