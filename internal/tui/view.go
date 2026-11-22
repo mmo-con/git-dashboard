@@ -96,7 +96,7 @@ var colSpecs = []colSpec{
 func columns(iw int, natural []int) []column {
 	cols := make([]column, len(colSpecs))
 	want := make([]int, len(colSpecs))
-	free := iw - (len(colSpecs) - 1)
+	free := iw - tableWidth(make([]column, len(colSpecs)))
 	for i, s := range colSpecs {
 		want[i] = max(natural[i], runewidth.StringWidth(s.title), s.pref)
 		cols[i] = column{s.title, min(want[i], s.cap)}
@@ -109,8 +109,8 @@ func columns(iw int, natural []int) []column {
 	}
 	for _, s := range []struct{ col, floor int }{
 		{colBranch, 20}, {colName, 20}, {colFamily, 10}, {colBranch, 14}, {colName, 14}, {colUpstream, 14},
-		{colStatus, 12}, {colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colUpstream, 8}, {colStatus, 8},
-		{colFamily, 4}, {colBranch, 6}, {colName, 6}, {colUpstream, 6}, {colStatus, 6},
+		{colStatus, 12}, {colFamily, 6}, {colBranch, 8}, {colName, 10}, {colCommit, 3}, {colFamily, 4}, {colBranch, 6},
+		{colName, 6}, {colUpstream, 8}, {colStatus, 8}, {colUpstream, 6}, {colStatus, 6},
 	} {
 		for free < 0 && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
 			cols[s.col].width--
@@ -172,11 +172,11 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 		health = m.familyHealth()
 	}
 	var lines []string
-	var header []string
-	for _, c := range cols {
-		header = append(header, fitANSI(c.title, c.width))
+	var header strings.Builder
+	for j, c := range cols {
+		header.WriteString(strings.Repeat(" ", colGap(j)) + fitANSI(c.title, c.width))
 	}
-	lines = append(lines, m.theme.header.Render(strings.Join(header, " ")))
+	lines = append(lines, m.theme.header.Render(header.String()))
 
 	rows := h - 3
 	if len(m.rows) == 0 {
@@ -222,12 +222,15 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 				}
 			}
 		}
-		var parts []string
+		var b strings.Builder
 		for j, c := range cols {
-			parts = append(parts, renderCell(row[j], c.width, base))
+			if gap := colGap(j); gap > 0 {
+				b.WriteString(base.Render(strings.Repeat(" ", gap)))
+			}
+			b.WriteString(renderCell(row[j], c.width, base))
 		}
-		parts = append(parts, base.Render(strings.Repeat(" ", max(iw-tableWidth(cols), 0))))
-		lines = append(lines, strings.Join(parts, base.Render(" ")))
+		b.WriteString(base.Render(strings.Repeat(" ", max(iw-tableWidth(cols), 0))))
+		lines = append(lines, b.String())
 	}
 
 	title := "Repositories"
@@ -259,10 +262,24 @@ func (m *Model) reposBox(w, h int, active bool) []string {
 	return m.box(title, strings.TrimSpace(footer), lines, w, h, active)
 }
 
+// colGap is the space before column j. Columns are separated by three
+// spaces, more than the two between the elements of a cell; the name is
+// closer to the mark and to its health symbol, which belong to it.
+func colGap(j int) int {
+	switch j {
+	case colMark:
+		return 0
+	case colName, colHealth:
+		return 1
+	}
+	return 3
+}
+
+// tableWidth is the width of a table row with its column gaps.
 func tableWidth(cols []column) int {
-	w := len(cols)
-	for _, c := range cols {
-		w += c.width
+	w := 0
+	for j, c := range cols {
+		w += colGap(j) + c.width
 	}
 	return w
 }

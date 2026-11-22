@@ -635,7 +635,7 @@ func TestColumnsFollowContent(t *testing.T) {
 	// If space is short, the table still fits and keeps every column visible.
 	for _, iw := range []int{60, 80, 100} {
 		cols := columns(iw, natural)
-		if w := tableWidth(cols) - 1; w > iw {
+		if w := tableWidth(cols); w > iw {
 			t.Errorf("iw %d: table width %d", iw, w)
 		}
 		if cols[colStatus].width < 6 || cols[colUpstream].width < 12 {

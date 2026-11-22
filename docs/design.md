@@ -1437,11 +1437,11 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 ```text
  Git Dashboard   1 dirty 1  2 behind 2  3 ahead 1  4 diverged 1  5 errors 0  6 branches 0
 ╭─ Repositories ─────────────────────────────────────────────────────────────╮╭─ api ────────────────────────────────────────────╮
-│   Repository   Family Branch     Status     Upstream         Commit        ││ ~/devrepos/company/api                           │
-│▌  api        ↓ Work   main       ✓  ≠remote ↓3               2h            ││ family    Work                                   │
-│   billing    ✘ Work   main       ✓          ↑1 ↓1 diverged   3h            ││                                                  │
-│ ◆ frontend   ● Work   develop    ✚1  ●2  ?3 ✓                3h            ││ BRANCH                                           │
-│   tools      ✗ Work   –          ✗ missing  –                              ││ main → origin/main  ↓3                           │
+│   Repository     Family   Branch       Status       Upstream         Commit││ ~/devrepos/company/api                           │
+│▌  api        ↓   Work     main         ✓  ≠remote   ↓3               2h    ││ family    Work                                   │
+│   billing    ✘   Work     main         ✓            ↑1 ↓1 diverged   3h    ││                                                  │
+│ ◆ frontend   ●   Work     develop      ✚1  ●2  ?3   ✓                3h    ││ BRANCH                                           │
+│   tools      ✗   Work     –            ✗ missing    –                      ││ main → origin/main  ↓3                           │
 │                                                                            ││                                                  │
 │                                                                            ││ WORKTREE                                         │
 │                                                                            ││ ✓ clean                                          │
@@ -1473,7 +1473,7 @@ The layout follows lazygit's panel style: every panel has a rounded border with 
 - Linked worktrees of the same store are listed in the detail panel.
 - The bottom border of the detail panel shows how the repository entered the inventory: `configured` for a `[[repositories]]` entry, or `discovered in <root>` with the discovery root.
 - The detail panel groups its content into titled sections: branch, other branches, worktree (nonzero counts only), last commit and fetch time, remotes, linked worktrees, and errors last. Labels and remote names are aligned. If the panel is too small, blank lines are dropped first, then the section titles.
-- Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. If space is short, branch, name, and family shrink before status and upstream.
+- Column widths follow the content of all visible rows, within per-column limits; space left over stays empty at the end of a row. Columns are separated by three spaces, more than the two between the elements of a cell, so a cell never seems to continue into the next column; the health symbol stays close to the name. If space is short, branch, name, and family shrink before status and upstream.
 - Colors, theme presets, and the symbol set are configurable in `[ui]` (see `docs/configuration.md`).
 
 ### 13.2 Key bindings
