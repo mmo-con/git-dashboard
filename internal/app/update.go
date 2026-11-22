@@ -39,6 +39,8 @@ func Eligibility(r domain.Repository, storeBusy bool) string {
 		return "ahead of upstream"
 	case r.Upstream.Value.Behind == 0:
 		return ReasonUpToDate
+	case r.Upstream.Value.CommitID == "":
+		return "upstream commit is unknown"
 	case storeBusy:
 		return "another operation or lazygit session is active"
 	}
@@ -92,7 +94,7 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 				if change := changedSincePreview(r, fresh); change != "" {
 					return nil, &jobs.SkipError{Reason: "update skipped: " + change + " since the preview; press u for a new preview"}
 				}
-				return nil, client.MergeFastForwardOnly(ctx, r.Location)
+				return nil, client.MergeFastForwardOnly(ctx, r.Location, r.Upstream.Value.CommitID)
 			},
 		})
 	}
@@ -100,8 +102,7 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 }
 
 // changedSincePreview names the part of the state that differs between the
-// confirmed preview and a fresh inspection, or returns "". A new upstream
-// commit changes the number of commits behind.
+// confirmed preview and a fresh inspection, or returns "".
 func changedSincePreview(preview, fresh domain.Repository) string {
 	ph, fh := preview.Head.Value, fresh.Head.Value
 	pu, fu := preview.Upstream.Value, fresh.Upstream.Value
@@ -112,7 +113,7 @@ func changedSincePreview(preview, fresh domain.Repository) string {
 		return "HEAD moved"
 	case pu.Ref != fu.Ref:
 		return "upstream changed"
-	case pu.Behind != fu.Behind:
+	case pu.CommitID != fu.CommitID:
 		return "upstream moved"
 	}
 	return ""

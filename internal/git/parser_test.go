@@ -182,15 +182,17 @@ func envMap(env []string) map[string]string {
 }
 
 func TestParseBranches(t *testing.T) {
-	out := " \x00wip\x00\x00\x00\x00aaa\x00a\x00Ann\x00100\x00s1\n" +
-		"*\x00main\x00origin/main\x00ahead 1, behind 2\x00/wt\x00bbb\x00b\x00Bob\x00200\x00current subject\n" +
-		" \x00old\x00origin/old\x00gone\x00\x00ccc\x00c\x00Cy\x00300\x00s3\n" +
-		" \x00other\x00origin/other\x00behind 4\x00/elsewhere\x00ddd\x00d\x00Di\x00400\x00s4\n"
-	bs, current, err := parseBranches([]byte(out))
+	out := " \x00refs/heads/wip\x00\x00\x00\x00\x00aaa\x00a\x00Ann\x00100\x00s1\n" +
+		"*\x00refs/heads/main\x00origin/main\x00refs/remotes/origin/main\x00ahead 1, behind 2\x00/wt\x00bbb\x00b\x00Bob\x00200\x00current subject\n" +
+		" \x00refs/heads/old\x00origin/old\x00refs/remotes/origin/old\x00gone\x00\x00ccc\x00c\x00Cy\x00300\x00s3\n" +
+		" \x00refs/heads/other\x00origin/other\x00refs/remotes/origin/other\x00behind 4\x00/elsewhere\x00ddd\x00d\x00Di\x00400\x00s4\n" +
+		" \x00refs/remotes/origin/main\x00\x00\x00\x00\x00eee\x00e\x00Ed\x00500\x00upstream subject\n"
+	refs, err := parseBranches([]byte(out))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bs) != 4 || bs[0].Upstream != "" || bs[0].Worktree != "" {
+	bs, current := refs.branches, refs.current
+	if len(bs) != 4 || bs[0].Name != "wip" || bs[0].Upstream != "" || bs[0].Worktree != "" {
 		t.Fatalf("branches = %+v", bs)
 	}
 	if b := bs[1]; !b.Current || b.Worktree != "" || b.Ahead != 1 || b.Behind != 2 {
@@ -202,8 +204,11 @@ func TestParseBranches(t *testing.T) {
 	if current == nil || current.ID != "bbb" || current.Subject != "current subject" || current.Time.Unix() != 200 {
 		t.Errorf("current commit = %+v", current)
 	}
-	for _, bad := range []string{"too\x00few\n", " \x00x\x00o/x\x00sideways 1\x00\x00a\x00a\x00A\x001\x00s\n"} {
-		if _, _, err := parseBranches([]byte(bad)); err == nil {
+	if refs.currentName != "main" || refs.currentUpstream != "origin/main" || refs.upstreamID != "eee" {
+		t.Errorf("current upstream = %q %q %q", refs.currentName, refs.currentUpstream, refs.upstreamID)
+	}
+	for _, bad := range []string{"too\x00few\n", " \x00refs/heads/x\x00o/x\x00refs/remotes/o/x\x00sideways 1\x00\x00a\x00a\x00A\x001\x00s\n"} {
+		if _, err := parseBranches([]byte(bad)); err == nil {
 			t.Errorf("expected error for %q", bad)
 		}
 	}

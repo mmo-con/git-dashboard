@@ -42,16 +42,23 @@ func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectO
 	var firstErr error
 	var commit *domain.CommitSummary
 	if opts.Branches || (!st.Head.Unborn && !st.Head.Detached) {
-		pattern := "refs/heads"
+		args := []string{"for-each-ref", "--format=" + branchFormat, "refs/heads"}
 		if !opts.Branches {
-			pattern += "/" + st.Head.Branch
+			args[2] += "/" + st.Head.Branch
 		}
-		res, err := c.run.run(ctx, root, true, "for-each-ref", "--format="+branchFormat, pattern)
+		args = append(args, upstreamPatterns(st.Upstream, opts.Branches)...)
+		res, err := c.run.run(ctx, root, true, args...)
 		if err == nil {
-			var branches []domain.BranchState
-			branches, commit, err = parseBranches(res.stdout)
-			if err == nil && opts.Branches {
-				in.Branches = domain.KnownValue(branches)
+			var refs branchRefs
+			refs, err = parseBranches(res.stdout)
+			if err == nil {
+				commit = refs.current
+				if opts.Branches {
+					in.Branches = domain.KnownValue(refs.branches)
+				}
+				if refs.currentName == st.Head.Branch && refs.currentUpstream == st.Upstream.Ref {
+					in.Upstream.Value.CommitID = refs.upstreamID
+				}
 			}
 		}
 		if err != nil {
@@ -106,44 +113,84 @@ func parseCommit(out []byte) (*domain.CommitSummary, error) {
 	}, nil
 }
 
-// branchFormat lists one local branch per line with NUL-separated fields.
-// Branch names, author names, and subjects cannot contain a newline.
-const branchFormat = "%(HEAD)%00%(refname:lstrip=2)%00%(upstream:short)%00%(upstream:track,nobracket)%00" +
+// branchFormat lists one ref per line with NUL-separated fields: the full
+// refname, the upstream in short and full form, and the latest commit.
+// Refnames, author names, and subjects cannot contain a newline.
+const branchFormat = "%(HEAD)%00%(refname)%00%(upstream:short)%00%(upstream)%00%(upstream:track,nobracket)%00" +
 	"%(worktreepath)%00%(objectname)%00%(objectname:short)%00%(authorname)%00%(committerdate:unix)%00%(subject)"
 
-// parseBranches parses for-each-ref output in branchFormat. It also returns
-// the latest commit of the branch checked out in this worktree, if any.
-func parseBranches(out []byte) ([]domain.BranchState, *domain.CommitSummary, error) {
-	var branches []domain.BranchState
-	var current *domain.CommitSummary
+// upstreamPatterns returns for-each-ref patterns that select the upstream ref
+// named by status in short form, so that the same process reports its commit.
+// A short name is relative to refs/, refs/heads/, or refs/remotes/; refnames
+// contain no glob characters, so the patterns match literally.
+func upstreamPatterns(u domain.UpstreamState, allBranches bool) []string {
+	if !u.Configured || u.Gone || u.Ref == "" {
+		return nil
+	}
+	patterns := []string{"refs/remotes/" + u.Ref, "refs/" + u.Ref}
+	if !allBranches {
+		patterns = append(patterns, "refs/heads/"+u.Ref)
+	}
+	return patterns
+}
+
+// branchRefs is the parsed output of for-each-ref in branchFormat.
+type branchRefs struct {
+	branches []domain.BranchState
+	// current is the latest commit of the branch checked out in this
+	// worktree, and currentName and currentUpstream name that branch and its
+	// upstream in short form.
+	current         *domain.CommitSummary
+	currentName     string
+	currentUpstream string
+	// upstreamID is the commit of the current branch's upstream if the output
+	// contains that ref.
+	upstreamID string
+}
+
+// parseBranches parses for-each-ref output in branchFormat. Lines of refs
+// outside refs/heads/ only supply the commit of an upstream.
+func parseBranches(out []byte) (branchRefs, error) {
+	var res branchRefs
+	var upstream string
+	commits := map[string]string{}
 	for _, line := range strings.Split(string(out), "\n") {
 		if line == "" {
 			continue
 		}
 		f := strings.Split(line, "\x00")
-		if len(f) != 10 {
-			return nil, nil, fmt.Errorf("unexpected git for-each-ref output %q", line)
+		if len(f) != 11 {
+			return branchRefs{}, fmt.Errorf("unexpected git for-each-ref output %q", line)
 		}
-		ts, err := strconv.ParseInt(f[8], 10, 64)
+		commits[f[1]] = f[6]
+		name, local := strings.CutPrefix(f[1], "refs/heads/")
+		if !local {
+			continue
+		}
+		ts, err := strconv.ParseInt(f[9], 10, 64)
 		if err != nil {
-			return nil, nil, fmt.Errorf("unexpected commit timestamp %q", f[8])
+			return branchRefs{}, fmt.Errorf("unexpected commit timestamp %q", f[9])
 		}
 		b := domain.BranchState{
-			Name: f[1], Upstream: f[2], CommitTime: time.Unix(ts, 0),
-			Current: f[0] == "*", Worktree: f[4],
+			Name: name, Upstream: f[2], CommitTime: time.Unix(ts, 0),
+			Current: f[0] == "*", Worktree: f[5],
 		}
 		if b.Current {
 			b.Worktree = ""
-			current = &domain.CommitSummary{ID: f[5], ShortID: f[6], Author: f[7], Time: b.CommitTime, Subject: f[9]}
+			res.current = &domain.CommitSummary{ID: f[6], ShortID: f[7], Author: f[8], Time: b.CommitTime, Subject: f[10]}
+			res.currentName, res.currentUpstream, upstream = name, f[2], f[3]
 		}
 		if b.Upstream != "" {
-			if err := parseTrack(f[3], &b); err != nil {
-				return nil, nil, err
+			if err := parseTrack(f[4], &b); err != nil {
+				return branchRefs{}, err
 			}
 		}
-		branches = append(branches, b)
+		res.branches = append(res.branches, b)
 	}
-	return branches, current, nil
+	if upstream != "" {
+		res.upstreamID = commits[upstream]
+	}
+	return res, nil
 }
 
 // parseTrack parses %(upstream:track,nobracket): empty, "gone", or

@@ -130,14 +130,14 @@ newline are rejected.
 
 ```text
 git --no-pager -C <root> status --porcelain=v2 --branch -z --untracked-files=<normal|no>
-git --no-pager -C <root> for-each-ref --format=<branch format> refs/heads
+git --no-pager -C <root> for-each-ref --format=<branch format> refs/heads [<upstream patterns>]
 git --no-pager -C <root> config -z --get-regexp '^remote\..*\.url$'
 ```
 
 with the branch format
 
 ```text
-%(HEAD)%00%(refname:lstrip=2)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(worktreepath)%00%(objectname)%00%(objectname:short)%00%(authorname)%00%(committerdate:unix)%00%(subject)
+%(HEAD)%00%(refname)%00%(upstream:short)%00%(upstream)%00%(upstream:track,nobracket)%00%(worktreepath)%00%(objectname)%00%(objectname:short)%00%(authorname)%00%(committerdate:unix)%00%(subject)
 ```
 
 - `status` supplies branch, HEAD, upstream, ahead/behind, and all entries.
@@ -146,6 +146,13 @@ with the branch format
   the worktree that has it checked out, and its latest commit; the `*` line is
   the latest commit of HEAD. With `[branches].enabled = false` it is limited
   to the checked-out branch and skipped for an unborn or detached HEAD.
+- The upstream patterns select the upstream that `status` names in short
+  form (`refs/remotes/<upstream>`, `refs/<upstream>`, and, if only the
+  checked-out branch is listed, `refs/heads/<upstream>`). The line whose full
+  refname equals `%(upstream)` of the `*` line supplies the upstream commit,
+  which the update applies (see 4.2), without a further process. If the
+  branch or upstream changed between the two calls, or no line matches, the
+  upstream commit stays unknown and the repository is not updated.
 - Only a detached HEAD, or a branch switched between the two calls, needs a
   fourth process: `git log -1 --no-color --format=%H%x00%h%x00%an%x00%ct%x00%s`.
 - `config` exits with 1 when no remote exists.
@@ -156,7 +163,7 @@ with the branch format
 
 **Fetch**, once per store: `git -C <root> fetch --all [--prune]`.
 
-**Update**: `git -C <root> merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` (see 4.2).
+**Update**: `git -C <root> merge --ff-only --no-autostash --no-overwrite-ignore <upstream commit>` (see 4.2).
 
 ### 3.3 Parsing rules
 
@@ -236,29 +243,32 @@ A repository is eligible only if every condition holds:
   and ignored files do not block; the update never overwrites them, see
   below);
 - no merge, rebase, cherry-pick, revert, or bisect in progress;
-- HEAD is a local branch with commits, with an upstream that still exists;
+- HEAD is a local branch with commits, with an upstream that still exists
+  and whose commit is known;
 - the branch is behind and not ahead of its upstream;
 - no other mutating job and no interactive session is active for its store.
 
 The update runs `merge --ff-only --no-autostash --no-overwrite-ignore
-@{upstream}` instead of `pull --ff-only`: it does not contact the network, so
-it applies what was fetched before the preview; it is independent of `pull.*`
-configuration; and `--no-autostash` guarantees that no stash is created even
-with `merge.autoStash`. Git refuses to overwrite untracked files on its own,
-but by default replaces ignored files, such as a local configuration that the
-upstream starts to track; `--no-overwrite-ignore` makes such a collision fail
-like any other, so the repository stays on the worklist with Git's message
-and no file or branch is changed.
+<upstream commit>` instead of `pull --ff-only`: it does not contact the
+network, and it applies exactly the upstream commit that inspection read for
+the preview, never a later state of `@{upstream}`; it is independent of
+`pull.*` configuration; and `--no-autostash` guarantees that no stash is
+created even with `merge.autoStash`. Git refuses to overwrite untracked files
+on its own, but by default replaces ignored files, such as a local
+configuration that the upstream starts to track; `--no-overwrite-ignore`
+makes such a collision fail like any other, so the repository stays on the
+worklist with Git's message and no file or branch is changed.
 
 Every condition is checked again under the store lock immediately before the
 merge; a changed repository is skipped with a reason. The fresh state must
 also match the confirmed preview: the same branch, HEAD commit, upstream, and
-number of commits behind. A fetch by another tool after the preview, a branch
-switch, or a new local commit therefore skips the repository with a request
-for a new preview instead of applying more than was shown. The comparison
-does not cover an upstream that was rewritten to a different commit with the
-same distance, and the store lock coordinates only Git Dashboard's own jobs:
-an external Git process between the recheck and the merge is not excluded.
+upstream commit. A fetch by another tool after the preview, including a
+rewritten upstream with the same distance, a branch switch, or a new local
+commit therefore skips the repository with a request for a new preview
+instead of applying something that was not shown. The store lock coordinates
+only Git Dashboard's own jobs; an external Git process between the recheck
+and the merge is not excluded, but cannot change the commit that the merge
+applies.
 Git Dashboard never creates a merge commit, a rebase, or a stash.
 
 The preview lists the repositories to update and every skip with its reason
@@ -498,7 +508,7 @@ The concrete keys, symbols, and filters are listed in
 | Families explicit, never derived from directories | predictable grouping |
 | Linked worktrees as rows, grouped into stores | separate state per worktree, shared locks and fetches per store |
 | Last fetch time from `FETCH_HEAD` | counts fetches from any tool |
-| `merge --ff-only --no-autostash --no-overwrite-ignore @{upstream}` | see 4.2 |
+| `merge --ff-only --no-autostash --no-overwrite-ignore <upstream commit>` | see 4.2 |
 | No dialog opens on asynchronous completion | see 4.2 |
 | Other branches reported only when they need attention | see 4.4 |
 
