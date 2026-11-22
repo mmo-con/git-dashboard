@@ -161,6 +161,7 @@ type fileUI struct {
 }
 
 type fileTheme struct {
+	Preset             string `toml:"preset"`
 	ActiveBorder       string `toml:"active_border"`
 	InactiveBorder     string `toml:"inactive_border"`
 	Title              string `toml:"title"`

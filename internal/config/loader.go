@@ -243,6 +243,13 @@ func build(f *file, baseDir string, getenv func(string) string) (*Config, error)
 		}
 	}
 	t := f.UI.Theme
+	if t.Preset != "" {
+		if p, ok := ThemePresets[t.Preset]; ok {
+			cfg.UI.Theme = p
+		} else {
+			addErr("[ui.theme].preset must be one of %s, not %q", strings.Join(ThemePresetNames(), ", "), t.Preset)
+		}
+	}
 	for _, c := range []struct {
 		key  string
 		val  string

@@ -36,8 +36,9 @@ The design and the decisions behind it are documented in
 - Configurable launchers for a shell, an editor, or a file manager.
 - lazygit-style panels with titled borders, per-cell colors, compact status
   symbols, spinners and progress bars, dialogs as overlays, and header
-  counters that double as quick filters. Colors and the symbol set
-  (Unicode, Nerd Font, ASCII) are configurable; `NO_COLOR` is honored.
+  counters that double as quick filters. Colors, built-in theme presets
+  (such as high contrast, Catppuccin, Dracula, and Gruvbox), and the symbol
+  set (Unicode, Nerd Font, ASCII) are configurable; `NO_COLOR` is honored.
 
 Git Dashboard uses the official Git CLI for everything. Background Git
 processes run without a controlling terminal, so they can never prompt in or
