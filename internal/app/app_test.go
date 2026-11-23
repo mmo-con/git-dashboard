@@ -54,8 +54,12 @@ func TestEligibility(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := behindRepo()
 			tc.mutate(&r)
-			if got := Eligibility(r, tc.busy); got != tc.want {
+			v := Eligibility(r, tc.busy)
+			if got := v.String(); got != tc.want {
 				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+			if v.Eligible() != (tc.want == "") || v.UpToDate() != (tc.name == "up to date") {
+				t.Fatalf("eligible=%v upToDate=%v", v.Eligible(), v.UpToDate())
 			}
 		})
 	}

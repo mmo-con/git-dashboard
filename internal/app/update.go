@@ -10,57 +10,83 @@ import (
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
-// ReasonUpToDate is the skip reason of a repository that needs no update.
-const ReasonUpToDate = "already up to date"
+// Verdict is the outcome of the safety check of the safe update: the
+// repository is eligible, already up to date, or blocked for a reason.
+type Verdict struct {
+	kind   verdictKind
+	reason string
+}
 
-// Eligibility checks every safety condition of the safe update. It returns an
-// empty reason if the repository can be fast-forwarded.
-func Eligibility(r domain.Repository, storeBusy bool) string {
+type verdictKind int
+
+const (
+	verdictEligible verdictKind = iota
+	verdictUpToDate
+	verdictBlocked
+)
+
+// Blocked returns a verdict that keeps a repository from being updated.
+func Blocked(reason string) Verdict { return Verdict{kind: verdictBlocked, reason: reason} }
+
+var upToDate = Verdict{kind: verdictUpToDate, reason: "already up to date"}
+
+// Eligible reports whether the repository can be fast-forwarded.
+func (v Verdict) Eligible() bool { return v.kind == verdictEligible }
+
+// UpToDate reports whether the repository needs no update.
+func (v Verdict) UpToDate() bool { return v.kind == verdictUpToDate }
+
+// String describes why the repository is not updated; it is empty for an
+// eligible repository.
+func (v Verdict) String() string { return v.reason }
+
+// Eligibility checks every safety condition of the safe update.
+func Eligibility(r domain.Repository, storeBusy bool) Verdict {
 	switch {
 	case !r.IsAvailable():
-		return "repository is " + r.Availability.String()
+		return Blocked("repository is " + r.Availability.String())
 	case r.Inspected.Err != nil || !r.Head.Valid || !r.Worktree.Valid || !r.Upstream.Valid || !r.Operation.Valid:
-		return "state is unknown"
+		return Blocked("state is unknown")
 	case r.Operation.Value != domain.NoOperation:
-		return r.Operation.Value.String() + " in progress"
+		return Blocked(r.Operation.Value.String() + " in progress")
 	case r.Worktree.Value.HasTrackedChanges():
-		return "worktree contains local changes"
+		return Blocked("worktree contains local changes")
 	case r.Head.Value.Detached:
-		return "detached HEAD"
+		return Blocked("detached HEAD")
 	case r.Head.Value.Unborn:
-		return "branch has no commits"
+		return Blocked("branch has no commits")
 	case !r.Upstream.Value.Configured:
-		return "no upstream"
+		return Blocked("no upstream")
 	case r.Upstream.Value.Gone:
-		return "upstream gone"
+		return Blocked("upstream gone")
 	case r.Upstream.Value.Diverged():
-		return "diverged from upstream"
+		return Blocked("diverged from upstream")
 	case r.Upstream.Value.Ahead > 0:
-		return "ahead of upstream"
+		return Blocked("ahead of upstream")
 	case r.Upstream.Value.Behind == 0:
-		return ReasonUpToDate
+		return upToDate
 	case r.Upstream.Value.CommitID == "":
-		return "upstream commit is unknown"
+		return Blocked("upstream commit is unknown")
 	case storeBusy:
-		return "another operation or lazygit session is active"
+		return Blocked("another operation or lazygit session is active")
 	}
-	return ""
+	return Verdict{}
 }
 
 // UpdateCandidate is one row of the update preview.
 type UpdateCandidate struct {
 	Repository domain.Repository
-	SkipReason string
+	Verdict    Verdict
 }
 
 // PlanUpdate splits targets into eligible and skipped repositories.
 func PlanUpdate(targets []domain.Repository, storeBusy func(domain.StoreID) bool) (eligible, skipped []UpdateCandidate) {
 	for _, r := range targets {
-		reason := Eligibility(r, r.StoreID != "" && storeBusy(r.StoreID))
-		if reason == "" {
-			eligible = append(eligible, UpdateCandidate{Repository: r})
+		c := UpdateCandidate{Repository: r, Verdict: Eligibility(r, r.StoreID != "" && storeBusy(r.StoreID))}
+		if c.Verdict.Eligible() {
+			eligible = append(eligible, c)
 		} else {
-			skipped = append(skipped, UpdateCandidate{Repository: r, SkipReason: reason})
+			skipped = append(skipped, c)
 		}
 	}
 	return eligible, skipped
@@ -88,8 +114,8 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 				}
 				fresh := r
 				fresh.ApplyInspection(fresh.Inspected.Generation, in, nil, time.Now())
-				if reason := Eligibility(fresh, false); reason != "" {
-					return nil, &jobs.SkipError{Reason: "update skipped: " + reason}
+				if v := Eligibility(fresh, false); !v.Eligible() {
+					return nil, &jobs.SkipError{Reason: "update skipped: " + v.String()}
 				}
 				if change := changedSincePreview(r, fresh); change != "" {
 					return nil, &jobs.SkipError{Reason: "update skipped: " + change + " since the update was planned; press u to try again"}

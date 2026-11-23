@@ -534,7 +534,11 @@ func (m *Model) recentCommits(r *domain.Repository) (historyEntry, bool) {
 
 // storeBusy reports whether a mutating job or a handover is active or queued
 // for the store.
-func (m *Model) storeBusy(id domain.StoreID) string {
+func (m *Model) storeBusy(id domain.StoreID) bool { return m.storeActivity(id) != "" }
+
+// storeActivity names the mutating job or handover that is active or queued
+// for the store, or returns "".
+func (m *Model) storeActivity(id domain.StoreID) string {
 	if m.handovers[id] {
 		return "an interactive session"
 	}
