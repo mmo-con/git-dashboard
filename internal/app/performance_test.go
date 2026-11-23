@@ -15,7 +15,8 @@ import (
 )
 
 // TestInspectionPerformance is a local benchmark for the target in
-// docs/architecture.md: 200 repositories are inspected within 2 seconds.
+// docs/adr/0008-compatibility-performance-and-testing.md: 200 repositories
+// are inspected within 2 seconds.
 // Repository creation is not measured. The measurement is repeated up to three
 // times and passes as soon as one run meets the target. It is not run in CI,
 // where TestProcessBudget and TestJobsUseTheirParallelism guard the cost model

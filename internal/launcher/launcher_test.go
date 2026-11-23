@@ -43,7 +43,8 @@ func TestExpandArgs(t *testing.T) {
 }
 
 // helper writes an executable script that records its working directory and
-// environment, like the controlled helper described in docs/architecture.md.
+// environment, like the controlled helper described in
+// docs/adr/0008-compatibility-performance-and-testing.md.
 func helper(t *testing.T) (path, out string) {
 	dir := t.TempDir()
 	out = filepath.Join(dir, "out")

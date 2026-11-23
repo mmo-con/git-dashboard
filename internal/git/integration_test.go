@@ -529,8 +529,9 @@ func countingGit(t *testing.T) (*git.Client, func() int) {
 	}
 }
 
-// TestProcessBudget guards the cost model in docs/architecture.md: one
-// validation process per candidate, and three processes per inspection, four
+// TestProcessBudget guards the cost model in
+// docs/adr/0008-compatibility-performance-and-testing.md: one validation
+// process per candidate, and three processes per inspection, four
 // for a detached HEAD, and one more for the stash count if the Git version is
 // older than 2.35 or unknown. Startup time grows with the number of
 // processes, so this replaces a wall-clock measurement that depends on the
