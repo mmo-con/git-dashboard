@@ -93,8 +93,8 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	// known when it was confirmed.
 	tu.Commit(t, origin, "newer.txt", "newer\n", "upstream change after the fetch")
 	keys(m, "esc", "U")
-	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 || len(m.updateSkip) != 2 {
-		t.Fatalf("confirmation: ok=%d skip=%d", len(m.updateOK), len(m.updateSkip))
+	if m.mode != modeUpdatePreview || len(m.preview.ok) != 1 || len(m.preview.skip) != 2 {
+		t.Fatalf("confirmation: ok=%d skip=%d", len(m.preview.ok), len(m.preview.skip))
 	}
 	if v := m.View(); strings.Contains(v, "git ") || !strings.Contains(v, "Fetch and update 3 repositories?") {
 		t.Fatalf("the confirmation must describe the update instead of Git commands:\n%s", v)
@@ -122,12 +122,12 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	}
 
 	keys(m, "u")
-	if m.mode != modeUpdatePreview || len(m.updateOK) != 0 {
-		t.Fatalf("an unresolved blocker must stay blocked in the continued preview: ok=%d", len(m.updateOK))
+	if m.mode != modeUpdatePreview || len(m.preview.ok) != 0 {
+		t.Fatalf("an unresolved blocker must stay blocked in the continued preview: ok=%d", len(m.preview.ok))
 	}
 	keys(m, "esc")
 
-	m.overlayIdx = idx
+	m.opSelected = idx
 	cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	store := m.repo(ids["dirty"]).StoreID
 	if cmd == nil || m.visit == nil || m.ops.StoreActivity(store) != "an interactive session" {
@@ -213,11 +213,12 @@ func TestConfirmedUpdateFetchesFirst(t *testing.T) {
 	pump(t, m)
 
 	keys(m, "U")
-	if len(m.updateOK) != 1 || m.updateOK[0].Repository.Path != broken {
-		t.Fatalf("before the fetch only broken is known to be behind: ok=%+v", m.updateOK)
+	if len(m.preview.ok) != 1 || m.preview.ok[0].Repository.Path != broken {
+		t.Fatalf("before the fetch only broken is known to be behind: ok=%+v", m.preview.ok)
 	}
+	brokenID := m.preview.ok[0].Repository.ID
 	keys(m, "y")
-	if m.mode != modeOperations || m.ops.Batch().Op != domain.OperationFetch || !m.ops.UpdatePending() {
+	if m.mode != modeOperations || m.preview != nil || m.ops.Batch().Op != domain.OperationFetch || !m.ops.UpdatePending() {
 		t.Fatalf("the update must fetch first: mode=%v", m.mode)
 	}
 	// Leaving the operations view must keep it closed when the update
@@ -230,7 +231,7 @@ func TestConfirmedUpdateFetchesFirst(t *testing.T) {
 	if tu.Git(t, behind, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
 		t.Fatal("behind must be fast-forwarded to the fetched state")
 	}
-	_, r := row(t, m, m.updateOK[0].Repository.ID)
+	_, r := row(t, m, brokenID)
 	if r.Result.Status != domain.StatusSkipped || !strings.HasPrefix(r.Result.Error.Error(), "fetch failed") {
 		t.Fatalf("a failed fetch must skip the repository: %s %v", r.Result.Status, r.Result.Error)
 	}

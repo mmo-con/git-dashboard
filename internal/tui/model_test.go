@@ -239,14 +239,14 @@ func TestFamilyTreeBatchScope(t *testing.T) {
 		t.Fatal("F and U must act on expanded repos only, regardless of marks")
 	}
 	keys(m, "u")
-	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "api" || m.updateHidden != 1 {
+	if len(m.preview.skip) != 1 || m.preview.skip[0].Repository.Name != "api" || m.preview.hidden != 1 {
 		t.Fatal("u must include explicitly marked collapsed repos")
 	}
 	if !strings.Contains(m.View(), "hidden by filters or collapsed groups") {
 		t.Fatal("the update confirmation must explain hidden marks")
 	}
 	keys(m, "esc", "U")
-	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "dotfiles" || m.updateHidden != 0 {
+	if len(m.preview.skip) != 1 || m.preview.skip[0].Repository.Name != "dotfiles" || m.preview.hidden != 0 {
 		t.Fatal("U must confirm the expanded repos, regardless of marks")
 	}
 	keys(m, "esc", "A", "u")
@@ -254,7 +254,7 @@ func TestFamilyTreeBatchScope(t *testing.T) {
 		t.Fatalf("u without marks on a family row selects nothing: mode=%v message=%q", m.mode, m.message)
 	}
 	keys(m, "j", "u")
-	if len(m.updateSkip) != 1 || m.updateSkip[0].Repository.Name != "dotfiles" {
+	if len(m.preview.skip) != 1 || m.preview.skip[0].Repository.Name != "dotfiles" {
 		t.Fatal("u without marks must confirm the repository under the cursor")
 	}
 	keys(m, "esc", "a")
@@ -318,8 +318,8 @@ func TestMarksTargetsAndHiddenCount(t *testing.T) {
 		t.Fatal("repository panel must show the count and shortcut even when all marks are hidden")
 	}
 	keys(m, "u")
-	if m.mode != modeUpdatePreview || m.updateHidden != 2 {
-		t.Fatalf("u with marks must open the confirmation: mode=%v hidden=%d", m.mode, m.updateHidden)
+	if m.mode != modeUpdatePreview || m.preview.hidden != 2 {
+		t.Fatalf("u with marks must open the confirmation: mode=%v hidden=%d", m.mode, m.preview.hidden)
 	}
 	if !strings.Contains(m.View(), "Includes 2 marked repositories hidden by the filter") {
 		t.Fatal("confirmation must mention hidden marks")
@@ -536,7 +536,7 @@ func TestFooterHintsFollowContext(t *testing.T) {
 		t.Errorf("running batch hints = %q", h)
 	}
 	setRow(m, 0, domain.StatusSucceeded, nil)
-	m.overlayIdx = 1
+	m.opSelected = 1
 	if h := ops(); strings.Contains(h, "cancel") || !strings.Contains(h, "x retry failed") || !strings.Contains(h, "t retry in terminal") {
 		t.Errorf("finished batch hints = %q", h)
 	}
@@ -566,17 +566,17 @@ func TestOperationsAreGroupedByStatus(t *testing.T) {
 		t.Fatalf("order = %s, want running, failed, queued, completed", got)
 	}
 	keys(m, "b")
-	if m.overlayIdx != 3 {
-		t.Fatalf("the first shown row must be selected, got %d", m.overlayIdx)
+	if m.opSelected != 3 {
+		t.Fatalf("the first shown row must be selected, got %d", m.opSelected)
 	}
 	keys(m, "j", "j")
-	if m.overlayIdx != 1 {
-		t.Fatalf("j must follow the display order, got %d", m.overlayIdx)
+	if m.opSelected != 1 {
+		t.Fatalf("j must follow the display order, got %d", m.opSelected)
 	}
 	setRow(m, 1, domain.StatusRunning, nil)
 	keys(m, "j")
-	if m.overlayIdx != 3 {
-		t.Fatalf("the selection must stay on its row when it changes group, got %d", m.overlayIdx)
+	if m.opSelected != 3 {
+		t.Fatalf("the selection must stay on its row when it changes group, got %d", m.opSelected)
 	}
 	v := m.View()
 	if !strings.Contains(v, "RUNNING 2") || !strings.Contains(v, "COMPLETED 1") || strings.Index(v, "FAILED") > strings.Index(v, "COMPLETED") {
@@ -644,7 +644,7 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	api := *m.repo("/r/api")
 
 	offline(m)
-	m.updateTargets = []domain.RepositoryID{"/r/api", "/r/frontend"}
+	m.preview = &updatePreview{targets: []domain.RepositoryID{"/r/api", "/r/frontend"}}
 	m.startUpdate()
 	setRow(m, 0, domain.StatusSucceeded, nil)
 	setRow(m, 1, domain.StatusSucceeded, nil)
@@ -688,8 +688,8 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	}
 
 	keys(m, "u")
-	if m.mode != modeUpdatePreview || len(m.updateOK) != 1 || m.updateOK[0].Repository.ID != api.ID {
-		t.Fatalf("continue must open a new preview for open rows: mode=%v ok=%d", m.mode, len(m.updateOK))
+	if m.mode != modeUpdatePreview || len(m.preview.ok) != 1 || m.preview.ok[0].Repository.ID != api.ID {
+		t.Fatalf("continue must open a new preview for open rows: mode=%v ok=%d", m.mode, len(m.preview.ok))
 	}
 	keys(m, "esc")
 	if m.mode != modeOperations {
@@ -845,7 +845,7 @@ func TestUpdateAfterFailedFetchSkipsStore(t *testing.T) {
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
 	r.Worktree.Value.Modified = 0
 	offline(m)
-	m.updateTargets = []domain.RepositoryID{r.ID}
+	m.preview = &updatePreview{targets: []domain.RepositoryID{r.ID}}
 	m.startUpdate()
 	m.mode = modeNormal // the user closed the operations view during the fetch
 	setRow(m, 0, domain.StatusFailed, errors.New("remote unavailable"))
@@ -866,7 +866,7 @@ func TestCancelDuringFetchCancelsUpdate(t *testing.T) {
 	r := &m.repos[0]
 	r.Availability = domain.Available
 	offline(m)
-	m.updateTargets = []domain.RepositoryID{r.ID}
+	m.preview = &updatePreview{targets: []domain.RepositoryID{r.ID}}
 	m.startUpdate()
 	if m.mode != modeOperations || !m.ops.FetchForUpdate() {
 		t.Fatalf("the confirmed update must fetch first: mode=%v", m.mode)

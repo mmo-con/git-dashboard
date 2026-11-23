@@ -927,8 +927,8 @@ func (m *Model) operationHints() []string {
 		if b.Done() && b.Op == domain.OperationUpdate {
 			pairs = append(pairs, "u", "continue")
 		}
-		if m.overlayIdx < len(b.Rows) {
-			if row := b.Rows[m.overlayIdx]; row.Job.Operation == domain.OperationFetch && row.Result.Status == domain.StatusFailed {
+		if m.opSelected < len(b.Rows) {
+			if row := b.Rows[m.opSelected]; row.Job.Operation == domain.OperationFetch && row.Result.Status == domain.StatusFailed {
 				pairs = append(pairs, "t", "retry in terminal")
 			}
 		}
@@ -1227,7 +1227,7 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 			if row.Result.Status.Final() && row.Result.Error != nil {
 				text += " " + firstLine(row.Result.Error.Error())
 			}
-			selected := i == m.overlayIdx
+			selected := i == m.opSelected
 			if selected {
 				selLine = len(list)
 			}
@@ -1248,8 +1248,8 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	}
 
 	var detail []string
-	if m.overlayIdx < total {
-		res := b.Rows[m.overlayIdx].Result
+	if m.opSelected < total {
+		res := b.Rows[m.opSelected].Result
 		if s := strings.TrimSpace(res.Stderr); s != "" && res.Status == domain.StatusFailed {
 			detail = append(detail, "", t.panelTitle.Render("stderr"))
 			detail = append(detail, renderLines(t.dim, "  ", s)...)
@@ -1309,18 +1309,18 @@ func (m *Model) viewConfirmQuit(iw, rows int) (string, []string) {
 // viewUpdatePreview confirms an update. The list shows the state before the
 // fetch; which repositories are fast-forwarded is decided after it.
 func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
-	t := m.theme
+	t, p := m.theme, m.preview
 	now := m.now()
 	var list []string
 	idx := 0
-	for _, c := range m.updateOK {
+	for _, c := range p.ok {
 		r := c.Repository
 		text := fmt.Sprintf("%s behind   %-24s %s%d · %s", m.icons.behind, ansi.Truncate(r.Name, 24, "…"),
 			m.icons.behind, r.Upstream.Value.Behind, m.fetchSeg(now, &r).text)
 		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, t.behind))
 		idx++
 	}
-	for _, c := range m.updateSkip {
+	for _, c := range p.skip {
 		r := c.Repository
 		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.Verdict)
 		style := t.warn
@@ -1331,25 +1331,25 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 		list = append(list, m.selectable(text, idx == m.overlayIdx, iw, style))
 		idx++
 	}
-	n := len(m.updateOK) + len(m.updateSkip)
+	n := len(p.ok) + len(p.skip)
 	head := []string{
 		t.bold.Render(fmt.Sprintf("Fetch and update %d repositories?", n)),
 		t.dim.Render("Fetches first, then fast-forwards branches that can be updated safely."),
 		t.dim.Render("No merge commits, rebases, or stashes; local changes stay untouched."),
 		t.dim.Render("Repositories that cannot be updated are listed with the reason."),
 	}
-	if m.updateHidden > 0 {
-		head = append(head, t.warn.Render(m.hiddenMarksNotice()))
+	if p.hidden > 0 {
+		head = append(head, t.warn.Render(m.hiddenMarksNotice(p.hidden)))
 	}
 	head = append(head, "", t.panelTitle.Render("State before the fetch"))
 	return "Confirm update", append(head, window(list, m.overlayIdx, rows-len(head))...)
 }
 
-func (m *Model) hiddenMarksNotice() string {
+func (m *Model) hiddenMarksNotice(hidden int) string {
 	if m.tree {
-		return fmt.Sprintf("Includes %d marked repos hidden by filters or collapsed groups.", m.updateHidden)
+		return fmt.Sprintf("Includes %d marked repos hidden by filters or collapsed groups.", hidden)
 	}
-	return fmt.Sprintf("Includes %d marked repositories hidden by the filter.", m.updateHidden)
+	return fmt.Sprintf("Includes %d marked repositories hidden by the filter.", hidden)
 }
 
 func (m *Model) viewLaunchers(iw, rows int) (string, []string) {
