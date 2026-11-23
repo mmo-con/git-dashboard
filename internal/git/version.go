@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MinimumVersion is the oldest supported Git release.
@@ -67,7 +68,26 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	return ParseVersion(string(res.stdout))
 }
 
-// CheckVersion fails if the installed Git is older than MinimumVersion.
+// versionTimeout bounds "git version" when a client is opened.
+const versionTimeout = 10 * time.Second
+
+// Open returns a client for executable whose version has been checked, so
+// that it uses every feature of the installed Git. Clients for production use
+// are created with Open; New alone yields a client that assumes the minimum
+// version.
+func Open(ctx context.Context, executable string) (*Client, Version, error) {
+	c := New(executable)
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
+	defer cancel()
+	v, err := c.CheckVersion(ctx)
+	if err != nil {
+		return nil, v, err
+	}
+	return c, v, nil
+}
+
+// CheckVersion fails if the installed Git is older than MinimumVersion and
+// enables the features of newer releases otherwise.
 func (c *Client) CheckVersion(ctx context.Context) (Version, error) {
 	v, err := c.Version(ctx)
 	if err != nil {

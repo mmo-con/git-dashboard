@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -73,10 +72,7 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		return 2
 	}
 
-	client := git.New(cfg.Git.Executable)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	_, err = client.CheckVersion(ctx)
-	cancel()
+	client, _, err := git.Open(context.Background(), cfg.Git.Executable)
 	if err != nil {
 		fmt.Fprintln(stderr, "headquarters:", err)
 		return 1

@@ -14,7 +14,8 @@ type Client struct {
 	stashHeader bool
 }
 
-// New returns a client that runs the given Git executable.
+// New returns a client that runs the given Git executable without checking
+// its version; use Open outside of tests.
 func New(executable string) *Client {
 	if executable == "" {
 		executable = "git"
