@@ -9,11 +9,11 @@ import (
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
-// InspectionPayload is attached to inspection job events.
+// InspectionPayload is attached to inspection job events, also to those of a
+// failed inspection, whose partial result is applied with the job error.
 type InspectionPayload struct {
 	Generation uint64
 	Inspection domain.Inspection
-	Err        error
 }
 
 // InspectJobs creates read-only inspection jobs for the available entries.
@@ -31,7 +31,7 @@ func InspectJobs(client git.Interface, repos []domain.Repository, gen uint64, ti
 			Timeout:      timeout,
 			Run: func(ctx context.Context) (any, error) {
 				in, err := client.Inspect(ctx, loc, opts)
-				return InspectionPayload{Generation: gen, Inspection: in, Err: err}, nil
+				return InspectionPayload{Generation: gen, Inspection: in}, err
 			},
 		})
 	}

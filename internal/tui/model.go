@@ -121,9 +121,12 @@ type Model struct {
 	height     int
 
 	loadingInventory bool
+	// routes holds the handler of every batch whose events the model still
+	// needs. Events of other batches, such as inspections of an earlier
+	// inventory or a superseded history request, are ignored.
+	routes map[uint64]route
 	// inspecting counts the unfinished jobs of each inspection batch of the
-	// current inventory. Events of other batches belong to an earlier
-	// inventory and are ignored.
+	// current inventory.
 	inspecting map[uint64]int
 	warnings   []string
 	message    string
@@ -171,6 +174,7 @@ func New(a *app.Application) *Model {
 		handovers:        map[domain.StoreID]bool{},
 		history:          map[domain.RepositoryID]historyEntry{},
 		inspecting:       map[uint64]int{},
+		routes:           map[uint64]route{},
 		loadingInventory: true,
 		width:            100,
 		height:           30,
@@ -435,9 +439,43 @@ func (m *Model) refresh(ids []domain.RepositoryID) uint64 {
 	if len(js) == 0 {
 		return 0
 	}
-	id := m.app.Scheduler.Submit(js)
+	id := m.submit(js, m.applyInspection)
 	m.inspecting[id] = len(js)
 	return id
+}
+
+// route handles an event of a batch started by the model. Repositories
+// that a finished operation changed are added to reinspect.
+type route func(ev jobs.Event, reinspect map[domain.RepositoryID]bool)
+
+// submit starts js and routes the events of the batch to r.
+func (m *Model) submit(js []jobs.Job, r route) uint64 {
+	id := m.app.Scheduler.Submit(js)
+	m.routes[id] = r
+	return id
+}
+
+// forget cancels a batch and ignores its further events.
+func (m *Model) forget(id uint64) {
+	m.app.Scheduler.Cancel(id)
+	delete(m.routes, id)
+}
+
+// applyInspection applies a finished inspection. A failed inspection still
+// carries the state it could determine.
+func (m *Model) applyInspection(ev jobs.Event, _ map[domain.RepositoryID]bool) {
+	if !ev.Result.Status.Final() {
+		return
+	}
+	if m.inspecting[ev.BatchID]--; m.inspecting[ev.BatchID] <= 0 {
+		delete(m.inspecting, ev.BatchID)
+		delete(m.routes, ev.BatchID)
+	}
+	if p, ok := ev.Payload.(app.InspectionPayload); ok {
+		if r := m.repo(ev.Result.RepositoryID); r != nil {
+			r.ApplyInspection(p.Generation, p.Inspection, ev.Result.Error, m.now())
+		}
+	}
 }
 
 func (m *Model) allIDs() []domain.RepositoryID {
@@ -502,25 +540,26 @@ func (m *Model) requestHistory() {
 		if p.repo == r.ID && p.head == head && p.n == n {
 			return
 		}
-		m.app.Scheduler.Cancel(p.batch)
+		m.forget(p.batch)
 	}
 	job := app.HistoryJob(m.app.Git, *r, n, m.app.Config.Git.InspectionTimeout)
-	m.historyPending = &historyRequest{batch: m.app.Scheduler.Submit([]jobs.Job{job}), repo: r.ID, head: head, n: n}
+	m.historyPending = &historyRequest{batch: m.submit([]jobs.Job{job}, m.applyHistory), repo: r.ID, head: head, n: n}
 }
 
-// applyHistory stores the result of the pending history request. Results of
-// cancelled or earlier requests are ignored.
-func (m *Model) applyHistory(ev jobs.Event) {
+// applyHistory stores the result of the pending history request. The route
+// of a superseded request is removed when it is cancelled.
+func (m *Model) applyHistory(ev jobs.Event, _ map[domain.RepositoryID]bool) {
 	p := m.historyPending
-	if !ev.Result.Status.Final() {
+	if p == nil || !ev.Result.Status.Final() {
 		return
 	}
 	m.historyPending = nil
+	delete(m.routes, ev.BatchID)
 	payload, ok := ev.Payload.(app.HistoryPayload)
 	if !ok || payload.Head != p.head {
 		return
 	}
-	m.history[p.repo] = historyEntry{head: p.head, n: p.n, commits: payload.Commits, err: payload.Err}
+	m.history[p.repo] = historyEntry{head: p.head, n: p.n, commits: payload.Commits, err: ev.Result.Error}
 }
 
 // recentCommits returns the cached recent commits of r for its current HEAD.
