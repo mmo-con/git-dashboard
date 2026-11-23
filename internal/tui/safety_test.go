@@ -95,6 +95,7 @@ func TestInspectionsOfEarlierInventoryAreIgnored(t *testing.T) {
 	m := newModel(t)
 	id := m.repos[0].ID
 	m.inspecting[42] = 3 // still running for the previous inventory
+	m.routes[42] = m.applyInspection
 	m.Update(inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{repo("api", "Work", false)}}})
 	if m.pendingInspect() != 0 {
 		t.Fatalf("pending inspections of the old inventory must be forgotten: %d", m.pendingInspect())

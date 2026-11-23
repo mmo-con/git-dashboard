@@ -69,9 +69,8 @@ func measureInspection(t *testing.T, root string) (inventory, total time.Duratio
 	for done < len(js) {
 		for _, e := range a.Scheduler.Events.Next() {
 			if e.Result.Status.Final() {
-				p := e.Payload.(app.InspectionPayload)
-				if p.Err != nil {
-					t.Fatal(p.Err)
+				if e.Result.Error != nil {
+					t.Fatal(e.Result.Error)
 				}
 				done++
 			}

@@ -112,10 +112,13 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 	}
 	m.rebuildFamilies()
 	m.recompute()
+	for id := range m.inspecting {
+		delete(m.routes, id)
+	}
 	m.inspecting = map[uint64]int{}
 	m.refetch = nil
 	if p := m.historyPending; p != nil {
-		m.app.Scheduler.Cancel(p.batch)
+		m.forget(p.batch)
 		m.historyPending = nil
 	}
 	m.history = map[domain.RepositoryID]historyEntry{}
@@ -126,40 +129,10 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 }
 
 func (m *Model) applyEvents(events []jobs.Event) {
-	now := m.now()
 	reinspect := map[domain.RepositoryID]bool{}
 	for _, ev := range events {
-		res := ev.Result
-		if p := m.historyPending; p != nil && ev.BatchID == p.batch {
-			m.applyHistory(ev)
-			continue
-		}
-		if res.Operation == "" {
-			pending, current := m.inspecting[ev.BatchID]
-			if !current || !res.Status.Final() {
-				continue
-			}
-			if pending > 1 {
-				m.inspecting[ev.BatchID] = pending - 1
-			} else {
-				delete(m.inspecting, ev.BatchID)
-			}
-			if p, ok := ev.Payload.(app.InspectionPayload); ok {
-				if r := m.repo(res.RepositoryID); r != nil {
-					r.ApplyInspection(p.Generation, p.Inspection, p.Err, now)
-				}
-			}
-			continue
-		}
-		if m.batch == nil || ev.BatchID != m.batch.id || ev.JobID >= len(m.batch.rows) {
-			continue
-		}
-		m.batch.rows[ev.JobID].result = res
-		if res.Status.Final() {
-			for _, id := range ev.Repositories {
-				m.lastOps[id] = res
-				reinspect[id] = true
-			}
+		if r := m.routes[ev.BatchID]; r != nil {
+			r(ev, reinspect)
 		}
 	}
 	if m.batch != nil && len(reinspect) > 0 && m.batch.done() {
@@ -178,6 +151,21 @@ func (m *Model) applyEvents(events []jobs.Event) {
 	app.RefreshStoreFetchTimes(m.repos)
 	m.recompute()
 	m.finishRefetch()
+}
+
+// applyBatchEvent records the progress of the current fetch or update batch.
+func (m *Model) applyBatchEvent(ev jobs.Event, reinspect map[domain.RepositoryID]bool) {
+	if m.batch == nil || ev.BatchID != m.batch.id || ev.JobID >= len(m.batch.rows) {
+		return
+	}
+	res := ev.Result
+	m.batch.rows[ev.JobID].result = res
+	if res.Status.Final() {
+		for _, id := range ev.Repositories {
+			m.lastOps[id] = res
+			reinspect[id] = true
+		}
+	}
 }
 
 // finishRefetch starts the confirmed update once its fetch and the following
@@ -785,6 +773,9 @@ func (m *Model) submitBatch(op domain.OperationType, js []jobs.Job, skipped []ap
 			},
 		})
 	}
+	if m.batch != nil {
+		delete(m.routes, m.batch.id)
+	}
 	m.batch = b
 	if show || m.mode == modeOperations {
 		m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
@@ -793,7 +784,7 @@ func (m *Model) submitBatch(op domain.OperationType, js []jobs.Job, skipped []ap
 		m.setMessage(fmt.Sprintf("nothing to %s; %d blocked repositories listed", op, len(skipped)))
 		return
 	}
-	b.id = m.app.Scheduler.Submit(js)
+	b.id = m.submit(js, m.applyBatchEvent)
 	m.setMessage(fmt.Sprintf("%s started for %d repositories", op, len(js)))
 }
 

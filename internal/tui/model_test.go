@@ -73,6 +73,7 @@ func keys(m *Model, ks ...string) {
 func inspectionEvent(m *Model, id domain.RepositoryID, p app.InspectionPayload) eventsMsg {
 	const batchID = 999
 	m.inspecting[batchID]++
+	m.routes[batchID] = m.applyInspection
 	return eventsMsg{events: []jobs.Event{{BatchID: batchID,
 		Result: domain.OperationResult{RepositoryID: id, Status: domain.StatusSucceeded}, Payload: p}}}
 }
@@ -303,6 +304,7 @@ func TestBatchEventsAreApplied(t *testing.T) {
 		job:    jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: domain.OperationFetch},
 		result: domain.OperationResult{Status: domain.StatusQueued},
 	}}}
+	m.routes[7] = m.applyBatchEvent
 	if m.storeActivity(r.StoreID) != "fetch" {
 		t.Fatal("queued fetch must mark the store busy")
 	}
@@ -1074,5 +1076,22 @@ func TestBindingsDocumented(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestFailedInspectionAppliesPartialStateAndJobError(t *testing.T) {
+	m := newModel(t)
+	id := m.repos[0].ID
+	ev := inspectionEvent(m, id, app.InspectionPayload{Generation: 5, Inspection: domain.Inspection{
+		Stashes: domain.KnownValue(2)}})
+	ev.events[0].Result.Status = domain.StatusFailed
+	ev.events[0].Result.Error = errors.New("timed out after 1s")
+	m.Update(ev)
+	r := m.repo(id)
+	if r.Inspected.Err == nil || r.Inspected.Err.Error() != "timed out after 1s" || r.Stashes.Value != 2 {
+		t.Fatalf("err=%v stashes=%v", r.Inspected.Err, r.Stashes)
+	}
+	if m.pendingInspect() != 0 || len(m.routes) != 0 {
+		t.Fatalf("finished inspection batch must be forgotten: pending=%d routes=%d", m.pendingInspect(), len(m.routes))
 	}
 }

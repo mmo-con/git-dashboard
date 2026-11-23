@@ -425,6 +425,12 @@ commands. The domain depends on nothing else in the project.
   within `fetch_parallelism`.
 - An interactive session locks its store against new dashboard operations.
 - Cancelling a batch prevents new jobs and terminates running process groups.
+- Each batch the user interface starts registers the handler for its
+  events; events of batches that no longer matter, such as inspections of a
+  replaced inventory or a superseded history request, have no handler and
+  are dropped. A job reports failure through its error even if its payload
+  carries a partial result, such as the state a failed inspection could
+  determine.
 - After an operation or a handover, all entries of the affected stores are
   inspected again. A full inventory rebuild (`R`) is separate because it may
   add or remove discovered repositories.

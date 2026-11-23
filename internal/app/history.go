@@ -14,7 +14,6 @@ import (
 type HistoryPayload struct {
 	Head    string
 	Commits []domain.CommitSummary
-	Err     error
 }
 
 // HistoryJob creates a read-only job that reads the n most recent commits of
@@ -28,7 +27,7 @@ func HistoryJob(client git.Interface, r domain.Repository, n int, timeout time.D
 		Timeout:      timeout,
 		Run: func(ctx context.Context) (any, error) {
 			commits, err := client.RecentCommits(ctx, loc, n)
-			return HistoryPayload{Head: head, Commits: commits, Err: err}, nil
+			return HistoryPayload{Head: head, Commits: commits}, err
 		},
 	}
 }
