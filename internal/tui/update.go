@@ -176,7 +176,7 @@ func (m *Model) advanceUpdate() {
 // opens the view, otherwise only an open view is updated.
 func (m *Model) showBatch(open bool) {
 	if open || m.mode == modeOperations {
-		m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
+		m.mode, m.opSelected = modeOperations, m.firstOpRow()
 	}
 }
 
@@ -187,14 +187,19 @@ func (m *Model) openUpdatePreview(targets []domain.Repository, hidden int, ret m
 		m.setMessage("no repository selected")
 		return
 	}
-	m.updateHidden = hidden
-	m.updateTargets = make([]domain.RepositoryID, 0, len(targets))
+	p := &updatePreview{hidden: hidden, ret: ret, targets: make([]domain.RepositoryID, 0, len(targets))}
 	for _, r := range targets {
-		m.updateTargets = append(m.updateTargets, r.ID)
+		p.targets = append(p.targets, r.ID)
 	}
-	m.updateOK, m.updateSkip = m.ops.Plan(targets)
-	m.previewReturn = ret
+	p.ok, p.skip = m.ops.Plan(targets)
+	m.preview = p
 	m.mode, m.overlayIdx = modeUpdatePreview, 0
+}
+
+// closePreview closes the update confirmation.
+func (m *Model) closePreview() {
+	m.mode = m.preview.ret
+	m.preview = nil
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -289,7 +294,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		m.mode, m.overlayIdx = modeError, 0
 	case "b":
 		if m.ops.Batch() != nil {
-			m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
+			m.mode, m.opSelected = modeOperations, m.firstOpRow()
 		} else {
 			m.setMessage("no operations yet")
 		}
@@ -424,7 +429,7 @@ func (m *Model) keyFamily(msg tea.KeyMsg) {
 // repository when the row moves to another status group.
 func (m *Model) moveOpRow(key string) bool {
 	order := m.opOrder()
-	pos := max(slices.Index(order, m.overlayIdx), 0)
+	pos := max(slices.Index(order, m.opSelected), 0)
 	switch key {
 	case "j", "down":
 		pos = min(pos+1, len(order)-1)
@@ -434,7 +439,7 @@ func (m *Model) moveOpRow(key string) bool {
 		return false
 	}
 	if len(order) > 0 {
-		m.overlayIdx = order[pos]
+		m.opSelected = order[pos]
 	}
 	return true
 }
@@ -502,12 +507,12 @@ func (m *Model) keyOperations(key string) tea.Cmd {
 		}
 	case "enter":
 		b := m.ops.Batch()
-		if b == nil || m.overlayIdx >= len(b.Rows) {
+		if b == nil || m.opSelected >= len(b.Rows) {
 			return nil
 		}
-		cmd := m.openLazygit(m.repo(b.Rows[m.overlayIdx].Job.RepositoryID))
+		cmd := m.openLazygit(m.repo(b.Rows[m.opSelected].Job.RepositoryID))
 		if cmd != nil {
-			m.visit = &visit{batch: b, row: m.overlayIdx}
+			m.visit = &visit{batch: b, row: m.opSelected}
 		}
 		return cmd
 	case "u":
@@ -518,10 +523,10 @@ func (m *Model) keyOperations(key string) tea.Cmd {
 		}
 	case "t":
 		b := m.ops.Batch()
-		if b == nil || m.overlayIdx >= len(b.Rows) {
+		if b == nil || m.opSelected >= len(b.Rows) {
 			return nil
 		}
-		row := b.Rows[m.overlayIdx]
+		row := b.Rows[m.opSelected]
 		if row.Job.Operation != domain.OperationFetch || row.Result.Status != domain.StatusFailed {
 			m.setError("select a failed fetch to retry it in the terminal")
 			return nil
@@ -534,14 +539,14 @@ func (m *Model) keyOperations(key string) tea.Cmd {
 }
 
 func (m *Model) keyUpdatePreview(key string) tea.Cmd {
-	if m.moveOverlay(key, len(m.updateOK)+len(m.updateSkip)) {
+	if m.moveOverlay(key, len(m.preview.ok)+len(m.preview.skip)) {
 		return nil
 	}
 	switch key {
 	case "enter", "y":
 		m.startUpdate()
 	case "esc", "n", "q":
-		m.mode = m.previewReturn
+		m.closePreview()
 	}
 	return nil
 }
@@ -554,13 +559,12 @@ func (m *Model) startUpdate() {
 		m.setError("the inventory is still loading")
 		return
 	}
-	n, started := m.ops.ConfirmUpdate(m.repos, m.updateTargets)
+	n, started := m.ops.ConfirmUpdate(m.repos, m.preview.targets)
 	m.notify(n)
 	if n.Error {
 		return
 	}
-	m.updateTargets = nil
-	m.mode = m.previewReturn
+	m.closePreview()
 	if started {
 		m.showBatch(true)
 	}

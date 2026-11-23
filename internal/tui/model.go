@@ -53,6 +53,18 @@ type historyRequest struct {
 	n     int
 }
 
+// updatePreview is the update confirmation. It exists while the confirmation
+// is open, also behind the quit confirmation, and holds the plan with the
+// state the user confirms.
+type updatePreview struct {
+	targets  []domain.RepositoryID
+	ok, skip []app.UpdateCandidate
+	// hidden counts the marked targets hidden from the list.
+	hidden int
+	// ret is the mode that closing the confirmation returns to.
+	ret mode
+}
+
 // visit remembers which batch row was opened in lazygit.
 type visit struct {
 	batch *app.Batch
@@ -80,8 +92,13 @@ type Model struct {
 	familyQuery string
 	sortKey     app.SortKey
 
-	mode       mode
+	mode mode
+	// overlayIdx is the selected line of the open list overlay or the scroll
+	// position of the help.
 	overlayIdx int
+	// opSelected is the batch row selected in the operations view; it stays
+	// on its repository when the row moves to another status group.
+	opSelected int
 	width      int
 	height     int
 
@@ -100,13 +117,9 @@ type Model struct {
 	// ops runs the fetch and update batches.
 	ops *app.Operations
 
-	updateHidden  int
-	updateOK      []app.UpdateCandidate
-	updateSkip    []app.UpdateCandidate
-	updateTargets []domain.RepositoryID
-	previewReturn mode
-	quitReturn    mode
-	visit         *visit
+	preview    *updatePreview
+	quitReturn mode
+	visit      *visit
 
 	// history caches recent commits for the detail panel; only the selected
 	// repository is ever requested, one at a time.
