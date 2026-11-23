@@ -6,7 +6,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 # helpers themselves.
 COVERPKG = $(shell go list ./... | grep -v /internal/testutil | paste -sd, -)
 
-.PHONY: build install test test-installer test-race coverage perf lint release installer clean
+.PHONY: build install test test-installer test-race coverage perf lint tag release installer clean
 
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) ./cmd/headquarters
@@ -35,6 +35,14 @@ perf:
 lint:
 	go vet ./...
 	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+tag: export RELEASE_TAG := $(value TAG)
+tag:
+	@if ! printf '%s\n' "$$RELEASE_TAG" | LC_ALL=C awk 'NR == 1 && /^v[0-9]+\.[0-9]+\.[0-9]+$$/ { valid = 1 } END { exit !(NR == 1 && valid) }'; then \
+		printf '%s\n' 'Usage: make tag TAG=vMAJOR.MINOR.PATCH' >&2; \
+		exit 1; \
+	fi
+	git tag -a -m "$(BINARY) $$RELEASE_TAG" -- "$$RELEASE_TAG"
 
 release: clean
 	@mkdir -p dist
