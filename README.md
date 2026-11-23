@@ -105,28 +105,14 @@ You can inspect `install.sh` before running it. It installs to `~/.local/bin`
 without `sudo` and tells you how to add that directory to `PATH` if needed.
 It verifies the archive against the SHA-256 checksum from the same release;
 the checksum is not an independent signature. If the selected release does
-not include `install.sh`, use manual installation.
+not include `install.sh`, use [manual installation](#manual-installation).
 
 ### Manual installation
 
-Starting with v1.0.0, prebuilt archives for Linux and macOS (amd64 and arm64)
-are attached to each [release](https://github.com/mmo-con/headquarters/releases),
-together with `checksums.txt`. Set `VERSION` to the desired release. Each step
-runs only if the previous one succeeded, so nothing is unpacked or installed
-when a download fails or the checksum does not match:
-
-```sh
-VERSION=v1.0.0
-NAME=headquarters_${VERSION}_linux_amd64   # or _linux_arm64, _darwin_amd64, _darwin_arm64
-BASE=https://github.com/mmo-con/headquarters/releases/download/$VERSION
-curl -fL -O "$BASE/$NAME.tar.gz" &&
-  curl -fL -O "$BASE/checksums.txt" &&
-  grep " $NAME.tar.gz\$" checksums.txt |
-    (if command -v sha256sum >/dev/null; then sha256sum -c -; else shasum -a 256 -c -; fi) &&
-  tar xzf "$NAME.tar.gz" &&
-  mkdir -p ~/.local/bin &&
-  install -m 755 "$NAME/headquarters" ~/.local/bin/   # any directory in PATH
-```
+Download the archive for your platform and `checksums.txt` from the same
+[release](https://github.com/mmo-con/headquarters/releases), verify the
+archive's SHA-256 checksum, then extract it and copy the `headquarters`
+binary to a directory on your `PATH`.
 
 The macOS binaries are not notarized. `curl` downloads run as they are; if
 you download an archive with a browser, macOS blocks the binary until you
