@@ -6,7 +6,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 # helpers themselves.
 COVERPKG = $(shell go list ./... | grep -v /internal/testutil | paste -sd, -)
 
-.PHONY: build install test test-race coverage perf lint release clean
+.PHONY: build install test test-installer test-race coverage perf lint release installer clean
 
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) ./cmd/headquarters
@@ -16,6 +16,9 @@ install:
 
 test:
 	go test ./...
+
+test-installer:
+	+sh scripts/test-installer.sh
 
 test-race:
 	go test -race ./...
@@ -46,6 +49,10 @@ release: clean
 	done
 	@cd dist && (command -v sha256sum >/dev/null && sha256sum *.tar.gz || shasum -a 256 *.tar.gz) > checksums.txt
 	@cat dist/checksums.txt
+	@$(MAKE) --no-print-directory installer > dist/install.sh
+
+installer:
+	@sed 's/@VERSION@/$(VERSION)/' scripts/install.sh
 
 clean:
 	rm -rf bin dist

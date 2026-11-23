@@ -92,6 +92,23 @@ write into the user interface.
 
 ## Installation
 
+### Quick install
+
+On Linux or macOS (amd64 or arm64), download the installer and run it:
+
+```sh
+curl -fsSL https://github.com/mmo-con/headquarters/releases/latest/download/install.sh -o install.sh &&
+  sh install.sh
+```
+
+You can inspect `install.sh` before running it. It installs to `~/.local/bin`
+without `sudo` and tells you how to add that directory to `PATH` if needed.
+It verifies the archive against the SHA-256 checksum from the same release;
+the checksum is not an independent signature. If the selected release does
+not include `install.sh`, use manual installation.
+
+### Manual installation
+
 Starting with v1.0.0, prebuilt archives for Linux and macOS (amd64 and arm64)
 are attached to each [release](https://github.com/mmo-con/headquarters/releases),
 together with `checksums.txt`. Set `VERSION` to the desired release. Each step
@@ -116,7 +133,7 @@ you download an archive with a browser, macOS blocks the binary until you
 remove the quarantine attribute with
 `xattr -d com.apple.quarantine headquarters`.
 
-To build from source:
+### Build from source
 
 ```sh
 make build            # builds ./bin/headquarters
@@ -154,11 +171,12 @@ described in [docs/configuration.md](docs/configuration.md), and all keys in
 
 ```sh
 make test             # unit and integration tests (requires git)
+make test-installer   # offline tests for the release installer
 make test-race        # tests with the race detector
 make coverage         # race-detector tests with a Markdown coverage report
 make perf             # local benchmark: 200 repositories within 2 seconds
 make lint             # go vet and gofmt check
-make release          # cross-compiled archives and checksums in ./dist
+make release          # cross-compiled archives, checksums, and installer in ./dist
 ```
 
 Integration tests create temporary Git repositories and ignore the user's

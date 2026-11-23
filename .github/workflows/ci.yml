@@ -46,6 +46,7 @@ jobs:
           go-version-file: go.mod
       - run: git --version
       - run: make lint
+      - run: make test-installer
       - name: Test with race detector and coverage
         run: make coverage
       - name: Write coverage to the job summary
@@ -87,5 +88,5 @@ jobs:
             "dist/headquarters_${RELEASE_TAG}_linux_arm64.tar.gz" \
             "dist/headquarters_${RELEASE_TAG}_darwin_amd64.tar.gz" \
             "dist/headquarters_${RELEASE_TAG}_darwin_arm64.tar.gz" \
-            dist/checksums.txt \
+            dist/checksums.txt dist/install.sh \
             --verify-tag --draft --title "$RELEASE_TAG" --generate-notes
