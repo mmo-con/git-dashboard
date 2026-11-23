@@ -35,26 +35,6 @@ type repoRow struct {
 	count  int // nonzero for a family header
 }
 
-// opRow is one repository of a batch. Repositories that the update preview
-// skipped are kept as rows that never run, so that the batch lists every
-// repository that still needs attention.
-type opRow struct {
-	job    jobs.Job
-	result domain.OperationResult
-	// revisitedAt is the time the user returned from lazygit after opening
-	// the repository from the operations view.
-	revisitedAt time.Time
-}
-
-// refetch remembers the targets of a confirmed update while they are
-// fetched, and the inspections that follow the fetch. The update is planned
-// only after these inspections, so it applies the fetched upstream state.
-type refetch struct {
-	batch       *batch
-	targets     []domain.RepositoryID
-	inspections []uint64
-}
-
 // historyEntry holds the recent commits of a repository for the detail
 // panel. It stays valid while HEAD points to head and the configured count
 // is n.
@@ -75,23 +55,8 @@ type historyRequest struct {
 
 // visit remembers which batch row was opened in lazygit.
 type visit struct {
-	batch *batch
+	batch *app.Batch
 	row   int
-}
-
-type batch struct {
-	id   uint64
-	op   domain.OperationType
-	rows []opRow
-}
-
-func (b *batch) done() bool {
-	for _, r := range b.rows {
-		if !r.result.Status.Final() {
-			return false
-		}
-	}
-	return true
 }
 
 // Model is the Bubble Tea model of headquarters.
@@ -132,28 +97,24 @@ type Model struct {
 	message    string
 	messageErr bool
 
-	batch   *batch
-	lastOps map[domain.RepositoryID]domain.OperationResult
+	// ops runs the fetch and update batches.
+	ops *app.Operations
 
 	updateHidden  int
 	updateOK      []app.UpdateCandidate
 	updateSkip    []app.UpdateCandidate
 	updateTargets []domain.RepositoryID
 	previewReturn mode
-	// refetch is the fetch of a confirmed update; the update starts on its
-	// own once the fetch and the following inspections are finished.
-	refetch    *refetch
-	quitReturn mode
-	visit      *visit
+	quitReturn    mode
+	visit         *visit
 
 	// history caches recent commits for the detail panel; only the selected
 	// repository is ever requested, one at a time.
 	history        map[domain.RepositoryID]historyEntry
 	historyPending *historyRequest
 
-	handovers map[domain.StoreID]bool
-	fatal     error
-	now       func() time.Time
+	fatal error
+	now   func() time.Time
 
 	theme    theme
 	icons    icons
@@ -165,13 +126,11 @@ type Model struct {
 
 // New creates the model.
 func New(a *app.Application) *Model {
-	return &Model{
+	m := &Model{
 		app:              a,
 		index:            map[domain.RepositoryID]int{},
 		marks:            map[domain.RepositoryID]bool{},
 		expanded:         map[domain.FamilyID]bool{},
-		lastOps:          map[domain.RepositoryID]domain.OperationResult{},
-		handovers:        map[domain.StoreID]bool{},
 		history:          map[domain.RepositoryID]historyEntry{},
 		inspecting:       map[uint64]int{},
 		routes:           map[uint64]route{},
@@ -183,6 +142,9 @@ func New(a *app.Application) *Model {
 		icons:            iconSet(a.Config.UI.Icons),
 		tree:             a.Config.UI.View == "tree",
 	}
+	m.ops = app.NewOperations(a, func(js []jobs.Job) uint64 { return m.submit(js, m.applyBatchEvent) },
+		func() time.Time { return m.now() })
+	return m
 }
 
 // Err returns a fatal error that ended the program, if any.
@@ -251,7 +213,7 @@ func (m *Model) current() *domain.Repository {
 }
 
 func (m *Model) lastOp(id domain.RepositoryID) *domain.OperationResult {
-	if r, ok := m.lastOps[id]; ok {
+	if r, ok := m.ops.LastResult(id); ok {
 		return &r
 	}
 	return nil
@@ -269,9 +231,20 @@ func (m *Model) setError(msg string) {
 	m.msgSeq++
 }
 
+// notify shows a notice of the application services, if it has a text.
+func (m *Model) notify(n app.Notice) {
+	switch {
+	case n.Text == "":
+	case n.Error:
+		m.setError(n.Text)
+	default:
+		m.setMessage(n.Text)
+	}
+}
+
 // busy reports whether a spinner should be animated.
 func (m *Model) busy() bool {
-	return m.loadingInventory || m.pendingInspect() > 0 || m.batchRunning()
+	return m.loadingInventory || m.pendingInspect() > 0 || m.ops.Running()
 }
 
 // pendingInspect returns the number of unfinished inspections.
@@ -281,12 +254,6 @@ func (m *Model) pendingInspect() int {
 		n += c
 	}
 	return n
-}
-
-// batchRunning reports whether the current fetch or update batch has
-// unfinished jobs, or a confirmed update still waits for its fetch.
-func (m *Model) batchRunning() bool {
-	return (m.batch != nil && !m.batch.done()) || m.refetch != nil
 }
 
 // recompute applies filter and sorting while keeping the cursor on the same
@@ -569,24 +536,4 @@ func (m *Model) recentCommits(r *domain.Repository) (historyEntry, bool) {
 		return historyEntry{}, false
 	}
 	return e, true
-}
-
-// storeBusy reports whether a mutating job or a handover is active or queued
-// for the store.
-func (m *Model) storeBusy(id domain.StoreID) bool { return m.storeActivity(id) != "" }
-
-// storeActivity names the mutating job or handover that is active or queued
-// for the store, or returns "".
-func (m *Model) storeActivity(id domain.StoreID) string {
-	if m.handovers[id] {
-		return "an interactive session"
-	}
-	if m.batch != nil {
-		for _, row := range m.batch.rows {
-			if row.job.StoreID == id && !row.result.Status.Final() {
-				return string(row.job.Operation)
-			}
-		}
-	}
-	return ""
 }

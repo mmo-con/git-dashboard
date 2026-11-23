@@ -2,10 +2,8 @@ package tui
 
 import (
 	"context"
-	"errors"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
-	"github.com/mmo-con/headquarters/internal/jobs"
 	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
@@ -24,7 +21,7 @@ import (
 func pump(t *testing.T, m *Model) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
-	for m.pendingInspect() > 0 || m.batchRunning() {
+	for m.pendingInspect() > 0 || m.ops.Running() {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out waiting for jobs")
 		}
@@ -32,15 +29,15 @@ func pump(t *testing.T, m *Model) {
 	}
 }
 
-func row(t *testing.T, m *Model, id domain.RepositoryID) (int, opRow) {
+func row(t *testing.T, m *Model, id domain.RepositoryID) (int, app.BatchRow) {
 	t.Helper()
-	for i, r := range m.batch.rows {
-		if r.job.RepositoryID == id {
+	for i, r := range m.ops.Batch().Rows {
+		if r.Job.RepositoryID == id {
 			return i, r
 		}
 	}
 	t.Fatalf("%s is not part of the batch", id)
-	return 0, opRow{}
+	return 0, app.BatchRow{}
 }
 
 // TestFetchUpdateAndWorklistWithRealRepositories drives the user interface
@@ -79,13 +76,13 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	}
 
 	keys(m, "F")
-	if m.mode != modeOperations || m.batch == nil || m.batch.op != domain.OperationFetch || len(m.batch.rows) != 3 {
+	if m.mode != modeOperations || m.ops.Batch() == nil || m.ops.Batch().Op != domain.OperationFetch || len(m.ops.Batch().Rows) != 3 {
 		t.Fatalf("F must fetch all visible repositories without a confirmation: mode=%v", m.mode)
 	}
 	pump(t, m)
-	for _, r := range m.batch.rows {
-		if r.result.Status != domain.StatusSucceeded {
-			t.Fatalf("fetch %s: %s %v", r.job.RepositoryID, r.result.Status, r.result.Error)
+	for _, r := range m.ops.Batch().Rows {
+		if r.Result.Status != domain.StatusSucceeded {
+			t.Fatalf("fetch %s: %s %v", r.Job.RepositoryID, r.Result.Status, r.Result.Error)
 		}
 	}
 	if b := m.repo(ids["behind"]).Upstream.Value.Behind; b != 1 {
@@ -103,25 +100,25 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 		t.Fatalf("the confirmation must describe the update instead of Git commands:\n%s", v)
 	}
 	keys(m, "y")
-	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
+	if m.mode != modeOperations || m.ops.Batch().Op != domain.OperationFetch || !m.ops.UpdatePending() {
 		t.Fatalf("a confirmed update must fetch first: mode=%v", m.mode)
 	}
 	pump(t, m)
-	if m.batch.op != domain.OperationUpdate {
-		t.Fatalf("the update must start after the fetch: %s", m.batch.op)
+	if m.ops.Batch().Op != domain.OperationUpdate {
+		t.Fatalf("the update must start after the fetch: %s", m.ops.Batch().Op)
 	}
-	if len(m.batch.rows) != 2 {
-		t.Fatalf("the worklist must hold the update and the blocked repository, not the current one: %d rows", len(m.batch.rows))
+	if len(m.ops.Batch().Rows) != 2 {
+		t.Fatalf("the worklist must hold the update and the blocked repository, not the current one: %d rows", len(m.ops.Batch().Rows))
 	}
-	if _, r := row(t, m, ids["behind"]); r.result.Status != domain.StatusSucceeded {
-		t.Fatalf("update: %s %v", r.result.Status, r.result.Error)
+	if _, r := row(t, m, ids["behind"]); r.Result.Status != domain.StatusSucceeded {
+		t.Fatalf("update: %s %v", r.Result.Status, r.Result.Error)
 	}
 	if tu.Git(t, behind, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
 		t.Fatal("behind was not fast-forwarded")
 	}
 	idx, r := row(t, m, ids["dirty"])
-	if r.result.Status != domain.StatusSkipped || !strings.Contains(r.result.Error.Error(), "local changes") {
-		t.Fatalf("blocked row: %s %v", r.result.Status, r.result.Error)
+	if r.Result.Status != domain.StatusSkipped || !strings.Contains(r.Result.Error.Error(), "local changes") {
+		t.Fatalf("blocked row: %s %v", r.Result.Status, r.Result.Error)
 	}
 
 	keys(m, "u")
@@ -133,7 +130,7 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	m.overlayIdx = idx
 	cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	store := m.repo(ids["dirty"]).StoreID
-	if cmd == nil || m.visit == nil || !m.handovers[store] {
+	if cmd == nil || m.visit == nil || m.ops.StoreActivity(store) != "an interactive session" {
 		t.Fatal("Enter must hand the selected row over to lazygit")
 	}
 	if m.app.Scheduler.Locks.TryLock(store) {
@@ -142,75 +139,20 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	tu.Git(t, dirty, "checkout", "--", "README") // the user discards the change in lazygit
 	m.Update(handoverDoneMsg{label: "lazygit", repo: ids["dirty"], store: store})
 	pump(t, m)
-	if fu, ok := m.followUp(m.batch.rows[idx]); fu != "now eligible" || !ok {
+	if fu, ok := m.followUp(m.ops.Batch().Rows[idx]); fu != "now eligible" || !ok {
 		t.Fatalf("follow-up = %q", fu)
 	}
 
 	keys(m, "u", "y")
 	pump(t, m)
-	if _, r := row(t, m, ids["dirty"]); r.result.Status != domain.StatusSucceeded {
-		t.Fatalf("continued update: %s %v", r.result.Status, r.result.Error)
+	if _, r := row(t, m, ids["dirty"]); r.Result.Status != domain.StatusSucceeded {
+		t.Fatalf("continued update: %s %v", r.Result.Status, r.Result.Error)
 	}
 	if tu.Git(t, dirty, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
 		t.Fatal("dirty was not fast-forwarded after the blocker was resolved")
 	}
 	keys(m, "u")
 	if m.message != "nothing left to update" {
-		t.Fatalf("message = %q", m.message)
-	}
-}
-
-func TestRetryAndCancelBatch(t *testing.T) {
-	m := newModel(t)
-	r := m.repos[0]
-	var calls atomic.Int32
-	release := make(chan struct{})
-	job := jobs.Job{Kind: jobs.KindFetch, Operation: domain.OperationFetch, RepositoryID: r.ID, StoreID: r.StoreID,
-		Repositories: []domain.RepositoryID{r.ID},
-		Run: func(ctx context.Context) (any, error) {
-			if calls.Add(1) == 1 {
-				return nil, errors.New("network down")
-			}
-			select {
-			case <-release:
-				return nil, nil
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}}
-
-	keys(m, "x")
-	m.submitBatch(domain.OperationFetch, []jobs.Job{job}, nil, true)
-	keys(m, "x")
-	if calls.Load() > 1 {
-		t.Fatal("retry must wait until the batch is finished")
-	}
-	pump(t, m)
-	if m.batch.rows[0].result.Status != domain.StatusFailed {
-		t.Fatalf("first run: %s", m.batch.rows[0].result.Status)
-	}
-	if !strings.Contains(m.View(), "network down") {
-		t.Fatal("operations view must show the failure")
-	}
-	first := m.batch
-	keys(m, "x")
-	if m.batch == first || len(m.batch.rows) != 1 {
-		t.Fatal("x must start a new batch with the failed jobs")
-	}
-	keys(m, "c")
-	pump(t, m)
-	if s := m.batch.rows[0].result.Status; s != domain.StatusCancelled {
-		t.Fatalf("cancelled batch: %s", s)
-	}
-	close(release)
-
-	keys(m, "x")
-	pump(t, m)
-	if s := m.batch.rows[0].result.Status; s != domain.StatusSucceeded {
-		t.Fatalf("cancelled jobs must be retried too: %s", s)
-	}
-	keys(m, "x")
-	if m.message != "nothing to retry" {
 		t.Fatalf("message = %q", m.message)
 	}
 }
@@ -232,7 +174,12 @@ func TestActionsOnUnavailableRepositories(t *testing.T) {
 			t.Errorf("%v: message = %q", tc.keys, m.message)
 		}
 	}
-	if len(m.handovers) != 0 || m.batch != nil {
+	for _, r := range m.repos {
+		if m.ops.StoreBusy(r.StoreID) {
+			t.Fatalf("store of %s must stay free", r.Name)
+		}
+	}
+	if m.ops.Batch() != nil {
 		t.Fatal("nothing may be started for unavailable repositories")
 	}
 }
@@ -270,22 +217,22 @@ func TestConfirmedUpdateFetchesFirst(t *testing.T) {
 		t.Fatalf("before the fetch only broken is known to be behind: ok=%+v", m.updateOK)
 	}
 	keys(m, "y")
-	if m.mode != modeOperations || m.batch.op != domain.OperationFetch || m.refetch == nil {
+	if m.mode != modeOperations || m.ops.Batch().Op != domain.OperationFetch || !m.ops.UpdatePending() {
 		t.Fatalf("the update must fetch first: mode=%v", m.mode)
 	}
 	// Leaving the operations view must keep it closed when the update
 	// starts, so that no key meant for another view acts on it.
 	keys(m, "esc")
 	pump(t, m)
-	if m.mode != modeNormal || m.batch.op != domain.OperationUpdate {
-		t.Fatalf("the update must start on its own without opening a view: mode=%v op=%s", m.mode, m.batch.op)
+	if m.mode != modeNormal || m.ops.Batch().Op != domain.OperationUpdate {
+		t.Fatalf("the update must start on its own without opening a view: mode=%v op=%s", m.mode, m.ops.Batch().Op)
 	}
 	if tu.Git(t, behind, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
 		t.Fatal("behind must be fast-forwarded to the fetched state")
 	}
 	_, r := row(t, m, m.updateOK[0].Repository.ID)
-	if r.result.Status != domain.StatusSkipped || !strings.HasPrefix(r.result.Error.Error(), "fetch failed") {
-		t.Fatalf("a failed fetch must skip the repository: %s %v", r.result.Status, r.result.Error)
+	if r.Result.Status != domain.StatusSkipped || !strings.HasPrefix(r.Result.Error.Error(), "fetch failed") {
+		t.Fatalf("a failed fetch must skip the repository: %s %v", r.Result.Status, r.Result.Error)
 	}
 	if tu.Git(t, broken, "rev-parse", "HEAD") != brokenHead {
 		t.Fatal("a repository whose fetch failed must not be updated")

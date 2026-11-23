@@ -396,7 +396,7 @@ startup and reported on `Enter`; the dashboard stays usable.
 | `internal/inventory` | discovery, patterns, identity, precedence, validation states |
 | `internal/git` | isolated command runner, parsers, inspection, fetch, update |
 | `internal/jobs` | scheduler with pools, timeouts, store locks, event queue |
-| `internal/app` | application services: inspection, fetch and update jobs, eligibility, filters, sorting |
+| `internal/app` | application services: inspection, fetch and update jobs, eligibility, the batches of a session with the safe-update workflow and handover locks, filters, sorting |
 | `internal/launcher` | lazygit, custom launchers, browser |
 | `internal/domain` | repository and operation models, without dependencies on UI, processes, or Git formats |
 | `internal/tui` | Bubble Tea model, views, layout, theme, icons, key map |

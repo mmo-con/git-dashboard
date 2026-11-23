@@ -78,6 +78,42 @@ func inspectionEvent(m *Model, id domain.RepositoryID, p app.InspectionPayload) 
 		Result: domain.OperationResult{RepositoryID: id, Status: domain.StatusSucceeded}, Payload: p}}}
 }
 
+// offline replaces the operations of m with ones whose batches never run:
+// their jobs are only listed, and setRow or events deliver their results.
+func offline(m *Model) {
+	next := uint64(1000)
+	m.ops = app.NewOperations(m.app, func([]jobs.Job) uint64 {
+		next++
+		m.routes[next] = m.applyBatchEvent
+		return next
+	}, func() time.Time { return m.now() })
+}
+
+// fetchBatch starts an offline fetch with one row per repository ID; each
+// repository has its own store.
+func fetchBatch(t *testing.T, m *Model, ids ...domain.RepositoryID) *app.Batch {
+	t.Helper()
+	offline(m)
+	var targets []domain.Repository
+	for _, id := range ids {
+		targets = append(targets, domain.Repository{ID: id, StoreID: domain.StoreID(id + "/.git"), Availability: domain.Available})
+	}
+	if n, ok := m.ops.Fetch(m.repos, targets); !ok {
+		t.Fatal(n.Text)
+	}
+	return m.ops.Batch()
+}
+
+// setRow records a result for row i of the current batch without inspecting
+// the repository again.
+func setRow(m *Model, i int, s domain.OperationStatus, err error) {
+	b := m.ops.Batch()
+	row := b.Rows[i]
+	m.ops.Handle(jobs.Event{BatchID: b.ID, JobID: i, Repositories: []domain.RepositoryID{row.Job.RepositoryID},
+		Result: domain.OperationResult{RepositoryID: row.Job.RepositoryID, StoreID: row.Job.StoreID,
+			Operation: b.Op, Status: s, Error: err}})
+}
+
 func names(m *Model) string {
 	var out []string
 	for _, id := range m.visible {
@@ -300,17 +336,13 @@ func TestMarksTargetsAndHiddenCount(t *testing.T) {
 func TestBatchEventsAreApplied(t *testing.T) {
 	m := newModel(t)
 	r := m.repos[0]
-	m.batch = &batch{id: 7, op: domain.OperationFetch, rows: []opRow{{
-		job:    jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: domain.OperationFetch},
-		result: domain.OperationResult{Status: domain.StatusQueued},
-	}}}
-	m.routes[7] = m.applyBatchEvent
-	if m.storeActivity(r.StoreID) != "fetch" {
+	b := fetchBatch(t, m, r.ID)
+	if m.ops.StoreActivity(r.StoreID) != "fetch" {
 		t.Fatal("queued fetch must mark the store busy")
 	}
-	m.Update(eventsMsg{events: []jobs.Event{{BatchID: 7, JobID: 0, Repositories: []domain.RepositoryID{r.ID},
+	m.Update(eventsMsg{events: []jobs.Event{{BatchID: b.ID, JobID: 0, Repositories: []domain.RepositoryID{r.ID},
 		Result: domain.OperationResult{RepositoryID: r.ID, Operation: domain.OperationFetch, Status: domain.StatusFailed}}}})
-	if !m.batch.done() || m.storeBusy(r.StoreID) {
+	if !b.Done() || m.ops.StoreBusy(r.StoreID) || m.routes[b.ID] != nil {
 		t.Fatal("batch must be finished")
 	}
 	if got := m.upstreamText(m.repo(r.ID)); got != "✗ fetch failed" {
@@ -496,15 +528,14 @@ func TestFooterHintsFollowContext(t *testing.T) {
 		t.Errorf("hints on a family row = %q", h)
 	}
 
-	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{
-		{job: jobs.Job{Operation: domain.OperationFetch}, result: domain.OperationResult{Status: domain.StatusRunning}},
-		{job: jobs.Job{Operation: domain.OperationFetch}, result: domain.OperationResult{Status: domain.StatusFailed}},
-	}}
+	fetchBatch(t, m, "a", "b")
+	setRow(m, 0, domain.StatusRunning, nil)
+	setRow(m, 1, domain.StatusFailed, nil)
 	ops := func() string { return strings.Join(m.operationHints(), " ") }
 	if h := ops(); !strings.Contains(h, "c cancel") || strings.Contains(h, "retry") {
 		t.Errorf("running batch hints = %q", h)
 	}
-	m.batch.rows[0].result.Status = domain.StatusSucceeded
+	setRow(m, 0, domain.StatusSucceeded, nil)
 	m.overlayIdx = 1
 	if h := ops(); strings.Contains(h, "cancel") || !strings.Contains(h, "x retry failed") || !strings.Contains(h, "t retry in terminal") {
 		t.Errorf("finished batch hints = %q", h)
@@ -527,13 +558,10 @@ func TestFamilySummaryCountsHealthLevels(t *testing.T) {
 
 func TestOperationsAreGroupedByStatus(t *testing.T) {
 	m := newModel(t)
-	row := func(id string, s domain.OperationStatus) opRow {
-		return opRow{job: jobs.Job{RepositoryID: domain.RepositoryID(id)}, result: domain.OperationResult{Status: s}}
-	}
-	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{
-		row("/r/api", domain.StatusSucceeded), row("/r/frontend", domain.StatusQueued),
-		row("/r/dotfiles", domain.StatusFailed), row("x", domain.StatusRunning),
-	}}
+	fetchBatch(t, m, "/r/api", "/r/frontend", "/r/dotfiles", "x")
+	setRow(m, 0, domain.StatusSucceeded, nil)
+	setRow(m, 2, domain.StatusFailed, nil)
+	setRow(m, 3, domain.StatusRunning, nil)
 	if got := fmt.Sprint(m.opOrder()); got != "[3 2 1 0]" {
 		t.Fatalf("order = %s, want running, failed, queued, completed", got)
 	}
@@ -545,7 +573,7 @@ func TestOperationsAreGroupedByStatus(t *testing.T) {
 	if m.overlayIdx != 1 {
 		t.Fatalf("j must follow the display order, got %d", m.overlayIdx)
 	}
-	m.batch.rows[1].result.Status = domain.StatusRunning
+	setRow(m, 1, domain.StatusRunning, nil)
 	keys(m, "j")
 	if m.overlayIdx != 3 {
 		t.Fatalf("the selection must stay on its row when it changes group, got %d", m.overlayIdx)
@@ -615,21 +643,25 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	}
 	api := *m.repo("/r/api")
 
-	m.refetch = &refetch{targets: []domain.RepositoryID{"/r/api", "/r/frontend"}}
-	m.runUpdate(nil, true)
-	if m.mode != modeOperations || m.batch == nil || len(m.batch.rows) != 1 || m.batch.rows[0].job.RepositoryID != api.ID {
-		t.Fatalf("blocked repositories must form the worklist, up-to-date ones not: mode=%v batch=%+v", m.mode, m.batch)
+	offline(m)
+	m.updateTargets = []domain.RepositoryID{"/r/api", "/r/frontend"}
+	m.startUpdate()
+	setRow(m, 0, domain.StatusSucceeded, nil)
+	setRow(m, 1, domain.StatusSucceeded, nil)
+	m.advanceUpdate()
+	b := m.ops.Batch()
+	if m.mode != modeOperations || b.Op != domain.OperationUpdate || len(b.Rows) != 1 || b.Rows[0].Job.RepositoryID != api.ID {
+		t.Fatalf("blocked repositories must form the worklist, up-to-date ones not: mode=%v batch=%+v", m.mode, b)
 	}
-	if fu, _ := m.followUp(m.batch.rows[0]); fu != "" {
+	if fu, _ := m.followUp(b.Rows[0]); fu != "" {
 		t.Fatalf("no follow-up before a new inspection: %q", fu)
 	}
 
 	// Return from lazygit opened on the row, then a new inspection arrives.
-	m.app.Scheduler.Locks.TryLock(api.StoreID)
-	m.handovers[api.StoreID] = true
-	m.visit = &visit{batch: m.batch, row: 0}
+	m.ops.BeginHandover(api.StoreID)
+	m.visit = &visit{batch: b, row: 0}
 	m.Update(handoverDoneMsg{label: "lazygit", repo: api.ID, store: api.StoreID})
-	if m.mode != modeOperations || m.batch.rows[0].revisitedAt.IsZero() {
+	if m.mode != modeOperations || b.Rows[0].RevisitedAt.IsZero() {
 		t.Fatal("the operations view must stay open and remember the visit")
 	}
 	inspect := func(w domain.WorktreeState) {
@@ -644,11 +676,11 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	}
 	m.repo(api.ID).Availability = domain.Available
 	inspect(domain.WorktreeState{Modified: 1})
-	if fu, ok := m.followUp(m.batch.rows[0]); fu != "still blocked: worktree contains local changes" || ok {
+	if fu, ok := m.followUp(b.Rows[0]); fu != "still blocked: worktree contains local changes" || ok {
 		t.Fatalf("follow-up = %q", fu)
 	}
 	inspect(domain.WorktreeState{})
-	if fu, ok := m.followUp(m.batch.rows[0]); fu != "now eligible" || !ok {
+	if fu, ok := m.followUp(b.Rows[0]); fu != "now eligible" || !ok {
 		t.Fatalf("follow-up = %q", fu)
 	}
 	if !strings.Contains(m.View(), "→ now eligible") {
@@ -788,7 +820,8 @@ func TestSmallDetailPanelShortensOtherBranchesFirst(t *testing.T) {
 		bs = append(bs, domain.BranchState{Name: fmt.Sprintf("wip-%d", i), CommitTime: time.Now()})
 	}
 	r.Branches = domain.KnownValue(bs)
-	m.lastOps[r.ID] = domain.OperationResult{Operation: domain.OperationFetch, Status: domain.StatusFailed, Error: errors.New("offline")}
+	fetchBatch(t, m, r.ID)
+	setRow(m, 0, domain.StatusFailed, errors.New("offline"))
 	v := strings.Join(m.detailsBox(120, 12), "\n")
 	for _, want := range []string{"merging in progress", "offline", "wip-0", "more"} {
 		if !strings.Contains(v, want) {
@@ -811,16 +844,18 @@ func TestUpdateAfterFailedFetchSkipsStore(t *testing.T) {
 	r.Operation = domain.KnownValue(domain.NoOperation)
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
 	r.Worktree.Value.Modified = 0
-	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{{job: jobs.Job{StoreID: r.StoreID},
-		result: domain.OperationResult{Status: domain.StatusFailed, Error: errors.New("remote unavailable")}}}}
-	m.refetch = &refetch{batch: m.batch, targets: []domain.RepositoryID{r.ID}}
-	m.finishRefetch()
-	if m.mode != modeNormal || m.refetch != nil {
+	offline(m)
+	m.updateTargets = []domain.RepositoryID{r.ID}
+	m.startUpdate()
+	m.mode = modeNormal // the user closed the operations view during the fetch
+	setRow(m, 0, domain.StatusFailed, errors.New("remote unavailable"))
+	m.advanceUpdate()
+	if m.mode != modeNormal || m.ops.UpdatePending() {
 		t.Fatalf("the update must not open a view on its own: mode=%v", m.mode)
 	}
-	if m.batch.op != domain.OperationUpdate || len(m.batch.rows) != 1 ||
-		m.batch.rows[0].result.Error.Error() != "fetch failed: remote unavailable" {
-		t.Fatalf("rows = %+v", m.batch.rows)
+	if b := m.ops.Batch(); b.Op != domain.OperationUpdate || len(b.Rows) != 1 ||
+		b.Rows[0].Result.Error.Error() != "fetch failed: remote unavailable" {
+		t.Fatalf("rows = %+v", b.Rows)
 	}
 }
 
@@ -828,20 +863,23 @@ func TestUpdateAfterFailedFetchSkipsStore(t *testing.T) {
 // even if the remaining fetches still succeed.
 func TestCancelDuringFetchCancelsUpdate(t *testing.T) {
 	m := newModel(t)
-	r := m.repos[0]
-	m.batch = &batch{op: domain.OperationFetch, rows: []opRow{{job: jobs.Job{StoreID: r.StoreID},
-		result: domain.OperationResult{Status: domain.StatusRunning}}}}
-	m.refetch = &refetch{batch: m.batch, targets: []domain.RepositoryID{r.ID}}
-	m.mode = modeOperations
+	r := &m.repos[0]
+	r.Availability = domain.Available
+	offline(m)
+	m.updateTargets = []domain.RepositoryID{r.ID}
+	m.startUpdate()
+	if m.mode != modeOperations || !m.ops.FetchForUpdate() {
+		t.Fatalf("the confirmed update must fetch first: mode=%v", m.mode)
+	}
 	keys(m, "R")
 	if m.loadingInventory {
 		t.Fatal("R must not drop an update that waits for its fetch")
 	}
 	keys(m, "c")
-	m.batch.rows[0].result.Status = domain.StatusSucceeded
-	m.finishRefetch()
-	if m.refetch != nil || m.batch.op != domain.OperationFetch || m.message != "update cancelled" {
-		t.Fatalf("the update must not start after c: op=%s message=%q", m.batch.op, m.message)
+	setRow(m, 0, domain.StatusSucceeded, nil)
+	m.advanceUpdate()
+	if m.ops.UpdatePending() || m.ops.Batch().Op != domain.OperationFetch || m.message != "update cancelled" {
+		t.Fatalf("the update must not start after c: op=%s message=%q", m.ops.Batch().Op, m.message)
 	}
 }
 
@@ -856,12 +894,14 @@ func TestMonochromeSelectionKeepsDefaultColorsReadable(t *testing.T) {
 
 func TestOperationsKeepGroupTitleWhenScrolled(t *testing.T) {
 	m := newModel(t)
-	var rows []opRow
+	var ids []domain.RepositoryID
 	for i := 0; i < 40; i++ {
-		rows = append(rows, opRow{job: jobs.Job{RepositoryID: domain.RepositoryID(fmt.Sprint(i))},
-			result: domain.OperationResult{Status: domain.StatusCancelled}})
+		ids = append(ids, domain.RepositoryID(fmt.Sprint(i)))
 	}
-	m.batch = &batch{op: domain.OperationFetch, rows: rows}
+	fetchBatch(t, m, ids...)
+	for i := range ids {
+		setRow(m, i, domain.StatusCancelled, nil)
+	}
 	keys(m, "b")
 	for i := 0; i < 30; i++ {
 		keys(m, "j")
