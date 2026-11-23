@@ -1312,9 +1312,9 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 	}
 	for _, c := range m.updateSkip {
 		r := c.Repository
-		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.SkipReason)
+		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.Verdict)
 		style := t.warn
-		if c.SkipReason == app.ReasonUpToDate {
+		if c.Verdict.UpToDate() {
 			text = fmt.Sprintf("%s current  %-24s %s", m.icons.upToDate, ansi.Truncate(r.Name, 24, "…"), m.fetchSeg(now, &r).text)
 			style = t.dim
 		}

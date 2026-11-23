@@ -435,13 +435,13 @@ func (m *Model) followUp(row opRow) (text string, resolved bool) {
 	if r == nil || !r.Inspected.FinishedAt.After(row.result.FinishedAt) {
 		return "", false
 	}
-	switch reason := app.Eligibility(*r, m.storeBusy(r.StoreID) != ""); {
-	case reason == "":
+	switch v := app.Eligibility(*r, m.storeBusy(r.StoreID)); {
+	case v.Eligible():
 		return "now eligible", true
-	case reason == app.ReasonUpToDate:
+	case v.UpToDate():
 		return "now up to date", true
 	case !row.revisitedAt.IsZero() && r.Inspected.FinishedAt.After(row.revisitedAt):
-		return "still blocked: " + reason, false
+		return "still blocked: " + v.String(), false
 	}
 	return "", false
 }

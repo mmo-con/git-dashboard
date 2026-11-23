@@ -233,15 +233,15 @@ func (m *Model) runUpdate(failed map[domain.StoreID]string, show bool) {
 			targets = append(targets, *r)
 		}
 	}
-	ok, skip := app.PlanUpdate(targets, func(s domain.StoreID) bool { return m.storeBusy(s) != "" })
+	ok, skip := app.PlanUpdate(targets, m.storeBusy)
 	var eligible, blocked []app.UpdateCandidate
 	for _, c := range append(ok, skip...) {
 		if reason, bad := failed[c.Repository.StoreID]; bad {
-			c.SkipReason = reason
+			c.Verdict = app.Blocked(reason)
 			blocked = append(blocked, c)
-		} else if c.SkipReason == "" {
+		} else if c.Verdict.Eligible() {
 			eligible = append(eligible, c)
-		} else if c.SkipReason != app.ReasonUpToDate {
+		} else if !c.Verdict.UpToDate() {
 			blocked = append(blocked, c)
 		}
 	}
@@ -265,7 +265,7 @@ func (m *Model) openUpdatePreview(targets []domain.Repository, hidden int, ret m
 	for _, r := range targets {
 		m.updateTargets = append(m.updateTargets, r.ID)
 	}
-	m.updateOK, m.updateSkip = app.PlanUpdate(targets, func(s domain.StoreID) bool { return m.storeBusy(s) != "" })
+	m.updateOK, m.updateSkip = app.PlanUpdate(targets, m.storeBusy)
 	m.previewReturn = ret
 	m.mode, m.overlayIdx = modeUpdatePreview, 0
 }
@@ -781,7 +781,7 @@ func (m *Model) submitBatch(op domain.OperationType, js []jobs.Job, skipped []ap
 			job: jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: op},
 			result: domain.OperationResult{
 				RepositoryID: r.ID, StoreID: r.StoreID, Operation: op, Status: domain.StatusSkipped,
-				FinishedAt: now, Error: errors.New(c.SkipReason),
+				FinishedAt: now, Error: errors.New(c.Verdict.String()),
 			},
 		})
 	}
@@ -841,7 +841,7 @@ func (m *Model) interactiveFetch(r domain.Repository) tea.Cmd {
 // handover gives the terminal to cmd. The store is locked so that no job runs
 // for it while the child process owns the terminal.
 func (m *Model) handover(r domain.Repository, label string, cmd *exec.Cmd) tea.Cmd {
-	if busy := m.storeBusy(r.StoreID); busy != "" || !m.app.Scheduler.Locks.TryLock(r.StoreID) {
+	if busy := m.storeActivity(r.StoreID); busy != "" || !m.app.Scheduler.Locks.TryLock(r.StoreID) {
 		if busy == "" {
 			busy = "another operation"
 		}

@@ -302,12 +302,12 @@ func TestBatchEventsAreApplied(t *testing.T) {
 		job:    jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: domain.OperationFetch},
 		result: domain.OperationResult{Status: domain.StatusQueued},
 	}}}
-	if m.storeBusy(r.StoreID) != "fetch" {
+	if m.storeActivity(r.StoreID) != "fetch" {
 		t.Fatal("queued fetch must mark the store busy")
 	}
 	m.Update(eventsMsg{events: []jobs.Event{{BatchID: 7, JobID: 0, Repositories: []domain.RepositoryID{r.ID},
 		Result: domain.OperationResult{RepositoryID: r.ID, Operation: domain.OperationFetch, Status: domain.StatusFailed}}}})
-	if !m.batch.done() || m.storeBusy(r.StoreID) != "" {
+	if !m.batch.done() || m.storeBusy(r.StoreID) {
 		t.Fatal("batch must be finished")
 	}
 	if got := m.upstreamText(m.repo(r.ID)); got != "✗ fetch failed" {
