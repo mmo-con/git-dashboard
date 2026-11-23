@@ -43,7 +43,8 @@ fetch, and `u` for a safe update after confirmation. Press `?` for help or `q`
 to quit. See [key bindings](docs/keybindings.md) for all shortcuts.
 
 The architecture and the decisions behind it are documented in
-[docs/architecture.md](docs/architecture.md).
+[docs/architecture.md](docs/architecture.md), with individual
+[architecture decision records](docs/adr/README.md).
 
 ## Features
 
