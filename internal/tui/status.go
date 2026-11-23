@@ -134,12 +134,13 @@ func (m *Model) countSegs(r *domain.Repository) [][]seg {
 
 // runningOp returns the operation that is queued or running for r's store.
 func (m *Model) runningOp(r *domain.Repository) (domain.OperationType, domain.OperationStatus) {
-	if m.batch == nil || r.StoreID == "" {
+	b := m.ops.Batch()
+	if b == nil || r.StoreID == "" {
 		return "", ""
 	}
-	for _, row := range m.batch.rows {
-		if row.job.StoreID == r.StoreID && !row.result.Status.Final() {
-			return row.job.Operation, row.result.Status
+	for _, row := range b.Rows {
+		if row.Job.StoreID == r.StoreID && !row.Result.Status.Final() {
+			return row.Job.Operation, row.Result.Status
 		}
 	}
 	return "", ""
@@ -426,21 +427,21 @@ const staleFetch = 7 * 24 * time.Hour
 // that was not updated. A row that became eligible or up to date is always
 // reported; a row that is still blocked only after the repository was
 // inspected again following a lazygit session opened from the row.
-func (m *Model) followUp(row opRow) (text string, resolved bool) {
-	if m.batch == nil || m.batch.op != domain.OperationUpdate || !m.batch.done() ||
-		row.result.Status == domain.StatusSucceeded {
+func (m *Model) followUp(row app.BatchRow) (text string, resolved bool) {
+	if b := m.ops.Batch(); b == nil || b.Op != domain.OperationUpdate || !b.Done() ||
+		row.Result.Status == domain.StatusSucceeded {
 		return "", false
 	}
-	r := m.repo(row.job.RepositoryID)
-	if r == nil || !r.Inspected.FinishedAt.After(row.result.FinishedAt) {
+	r := m.repo(row.Job.RepositoryID)
+	if r == nil || !r.Inspected.FinishedAt.After(row.Result.FinishedAt) {
 		return "", false
 	}
-	switch v := app.Eligibility(*r, m.storeBusy(r.StoreID)); {
+	switch v := app.Eligibility(*r, m.ops.StoreBusy(r.StoreID)); {
 	case v.Eligible():
 		return "now eligible", true
 	case v.UpToDate():
 		return "now up to date", true
-	case !row.revisitedAt.IsZero() && r.Inspected.FinishedAt.After(row.revisitedAt):
+	case !row.RevisitedAt.IsZero() && r.Inspected.FinishedAt.After(row.RevisitedAt):
 		return "still blocked: " + v.String(), false
 	}
 	return "", false

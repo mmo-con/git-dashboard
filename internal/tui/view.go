@@ -816,15 +816,15 @@ func (m *Model) headerLine() string {
 	switch {
 	case m.loadingInventory:
 		right = t.key.Render(m.spinnerFrame()) + " loading inventory"
-	case m.batch != nil && !m.batch.done():
-		done := 0
-		for _, r := range m.batch.rows {
-			if r.result.Status.Final() {
+	case m.ops.Batch() != nil && !m.ops.Batch().Done():
+		b, done := m.ops.Batch(), 0
+		for _, r := range b.Rows {
+			if r.Result.Status.Final() {
 				done++
 			}
 		}
-		right = t.key.Render(m.spinnerFrame()) + " " + string(m.batch.op) + " " +
-			m.progressBar(done, len(m.batch.rows), 12) + fmt.Sprintf(" %d/%d", done, len(m.batch.rows))
+		right = t.key.Render(m.spinnerFrame()) + " " + string(b.Op) + " " +
+			m.progressBar(done, len(b.Rows), 12) + fmt.Sprintf(" %d/%d", done, len(b.Rows))
 	case m.pendingInspect() > 0:
 		right = t.key.Render(m.spinnerFrame()) + fmt.Sprintf(" inspecting %d", m.pendingInspect())
 	}
@@ -913,22 +913,22 @@ func (m *Model) normalHints() []string {
 // row of the operations view.
 func (m *Model) operationHints() []string {
 	pairs := []string{"j/k", "move", "Enter", "lazygit"}
-	if b := m.batch; b != nil {
+	if b := m.ops.Batch(); b != nil {
 		failed := false
-		for _, r := range b.rows {
-			failed = failed || r.result.Status == domain.StatusFailed || r.result.Status == domain.StatusCancelled
+		for _, r := range b.Rows {
+			failed = failed || r.Result.Status == domain.StatusFailed || r.Result.Status == domain.StatusCancelled
 		}
 		switch {
-		case !b.done() || m.refetch != nil:
+		case !b.Done() || m.ops.UpdatePending():
 			pairs = append(pairs, "c", "cancel")
 		case failed:
 			pairs = append(pairs, "x", "retry failed")
 		}
-		if b.done() && b.op == domain.OperationUpdate {
+		if b.Done() && b.Op == domain.OperationUpdate {
 			pairs = append(pairs, "u", "continue")
 		}
-		if m.overlayIdx < len(b.rows) {
-			if row := b.rows[m.overlayIdx]; row.job.Operation == domain.OperationFetch && row.result.Status == domain.StatusFailed {
+		if m.overlayIdx < len(b.Rows) {
+			if row := b.Rows[m.overlayIdx]; row.Job.Operation == domain.OperationFetch && row.Result.Status == domain.StatusFailed {
 				pairs = append(pairs, "t", "retry in terminal")
 			}
 		}
@@ -1145,13 +1145,14 @@ var opGroups = []struct {
 
 // opOrder returns the indexes of the batch rows in display order.
 func (m *Model) opOrder() []int {
-	if m.batch == nil {
+	b := m.ops.Batch()
+	if b == nil {
 		return nil
 	}
 	var order []int
 	for _, g := range opGroups {
-		for i, row := range m.batch.rows {
-			if row.result.Status == g.status {
+		for i, row := range b.Rows {
+			if row.Result.Status == g.status {
 				order = append(order, i)
 			}
 		}
@@ -1167,22 +1168,23 @@ func (m *Model) firstOpRow() int {
 }
 
 func (m *Model) viewOperations(iw, rows int) (string, []string) {
-	if m.batch == nil {
+	b := m.ops.Batch()
+	if b == nil {
 		return "Operations", []string{"no operations"}
 	}
 	t := m.theme
 	counts := map[domain.OperationStatus]int{}
-	for _, r := range m.batch.rows {
-		counts[r.result.Status]++
+	for _, r := range b.Rows {
+		counts[r.Result.Status]++
 	}
-	total := len(m.batch.rows)
+	total := len(b.Rows)
 	done := counts[domain.StatusSucceeded] + counts[domain.StatusFailed] + counts[domain.StatusSkipped] + counts[domain.StatusCancelled]
 	summary := fmt.Sprintf(" %3d%% · %d/%d · %d ok · %d failed · %d skipped", done*100/max(total, 1), done, total,
 		counts[domain.StatusSucceeded], counts[domain.StatusFailed], counts[domain.StatusSkipped])
 	bar := m.progressBar(done, total, max(iw-ansi.StringWidth(summary), 10))
 	head := []string{bar + summary}
-	op := string(m.batch.op)
-	if f := m.refetch; f != nil && f.batch == m.batch {
+	op := string(b.Op)
+	if m.ops.FetchForUpdate() {
 		op = "update: fetch"
 		head = append(head, t.dim.Render("Fetching first; the update starts when the fetch is finished."))
 	}
@@ -1212,18 +1214,18 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		title := len(list) + 1
 		list = append(list, "", t.header.Render(fmt.Sprintf("%s %d", strings.ToUpper(g.title), counts[g.status])))
 		group = append(group, title, title)
-		for i, row := range m.batch.rows {
-			if row.result.Status != g.status {
+		for i, row := range b.Rows {
+			if row.Result.Status != g.status {
 				continue
 			}
 			group = append(group, title)
-			name := string(row.job.RepositoryID)
-			if r := m.repo(row.job.RepositoryID); r != nil {
+			name := string(row.Job.RepositoryID)
+			if r := m.repo(row.Job.RepositoryID); r != nil {
 				name = r.Name
 			}
 			text := fmt.Sprintf(" %s %s", icon, runewidth.FillRight(runewidth.Truncate(domain.Printable(name), 24, "…"), 24))
-			if row.result.Status.Final() && row.result.Error != nil {
-				text += " " + firstLine(row.result.Error.Error())
+			if row.Result.Status.Final() && row.Result.Error != nil {
+				text += " " + firstLine(row.Result.Error.Error())
 			}
 			selected := i == m.overlayIdx
 			if selected {
@@ -1247,7 +1249,7 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 
 	var detail []string
 	if m.overlayIdx < total {
-		res := m.batch.rows[m.overlayIdx].result
+		res := b.Rows[m.overlayIdx].Result
 		if s := strings.TrimSpace(res.Stderr); s != "" && res.Status == domain.StatusFailed {
 			detail = append(detail, "", t.panelTitle.Render("stderr"))
 			detail = append(detail, renderLines(t.dim, "  ", s)...)
@@ -1257,7 +1259,7 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 		}
 	}
 	state := "running"
-	if !m.batchRunning() {
+	if !m.ops.Running() {
 		state = "finished"
 	}
 	body := append(head, operationWindow(list, group, selLine, rows-len(head)-len(detail))...)
@@ -1284,14 +1286,14 @@ func operationWindow(list []string, group []int, selected, rows int) []string {
 
 func (m *Model) viewConfirmQuit(iw, rows int) (string, []string) {
 	t := m.theme
-	open := 0
-	for _, r := range m.batch.rows {
-		if !r.result.Status.Final() {
+	b, open := m.ops.Batch(), 0
+	for _, r := range b.Rows {
+		if !r.Result.Status.Final() {
 			open++
 		}
 	}
-	head := fmt.Sprintf("The %s batch has %d unfinished repositories.", m.batch.op, open)
-	if open == 0 && m.refetch != nil {
+	head := fmt.Sprintf("The %s batch has %d unfinished repositories.", b.Op, open)
+	if open == 0 && m.ops.UpdatePending() {
 		head = "The update has not started yet; its fetch is being checked."
 	}
 	return "Quit", []string{

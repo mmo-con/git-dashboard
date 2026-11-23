@@ -116,7 +116,7 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 		delete(m.routes, id)
 	}
 	m.inspecting = map[uint64]int{}
-	m.refetch = nil
+	m.ops.DropUpdate()
 	if p := m.historyPending; p != nil {
 		m.forget(p.batch)
 		m.historyPending = nil
@@ -135,110 +135,49 @@ func (m *Model) applyEvents(events []jobs.Event) {
 			r(ev, reinspect)
 		}
 	}
-	if m.batch != nil && len(reinspect) > 0 && m.batch.done() {
-		m.summarizeBatch()
-	}
 	if len(reinspect) > 0 {
 		ids := make([]domain.RepositoryID, 0, len(reinspect))
 		for id := range reinspect {
 			ids = append(ids, id)
 		}
-		id := m.refresh(ids)
-		if m.refetch != nil && m.refetch.batch == m.batch && id != 0 {
-			m.refetch.inspections = append(m.refetch.inspections, id)
-		}
+		m.ops.AwaitInspection(m.refresh(ids))
 	}
 	app.RefreshStoreFetchTimes(m.repos)
 	m.recompute()
-	m.finishRefetch()
+	m.advanceUpdate()
 }
 
-// applyBatchEvent records the progress of the current fetch or update batch.
+// applyBatchEvent passes an event of a fetch or update batch to the
+// operations. The route ends with the batch.
 func (m *Model) applyBatchEvent(ev jobs.Event, reinspect map[domain.RepositoryID]bool) {
-	if m.batch == nil || ev.BatchID != m.batch.id || ev.JobID >= len(m.batch.rows) {
-		return
+	ids, summary := m.ops.Handle(ev)
+	for _, id := range ids {
+		reinspect[id] = true
 	}
-	res := ev.Result
-	m.batch.rows[ev.JobID].result = res
-	if res.Status.Final() {
-		for _, id := range ev.Repositories {
-			m.lastOps[id] = res
-			reinspect[id] = true
-		}
+	m.notify(summary)
+	if b := m.ops.Batch(); b == nil || b.ID != ev.BatchID || b.Done() {
+		delete(m.routes, ev.BatchID)
 	}
 }
 
-// finishRefetch starts the confirmed update once its fetch and the following
-// inspections are finished. It plans the update with the fetched state, so
-// the update applies exactly the upstream commits read after the fetch. No
-// dialog opens here, because a key pressed for the current view would then
-// confirm it. A cancelled fetch cancels the update.
-func (m *Model) finishRefetch() {
-	f := m.refetch
-	if f == nil || f.batch == nil {
-		return
+// advanceUpdate starts a confirmed update once its fetch and the following
+// inspections are finished. No dialog opens here, because a key pressed for
+// the current view would then confirm it; an open operations view shows the
+// new batch.
+func (m *Model) advanceUpdate() {
+	n, started := m.ops.Advance(m.repos, func(id uint64) bool { _, ok := m.inspecting[id]; return ok })
+	m.notify(n)
+	if started {
+		m.showBatch(false)
 	}
-	if f.batch != m.batch {
-		m.refetch = nil
-		return
-	}
-	if !f.batch.done() {
-		return
-	}
-	for _, id := range f.inspections {
-		if _, pending := m.inspecting[id]; pending {
-			return
-		}
-	}
-	failed := map[domain.StoreID]string{}
-	for _, row := range f.batch.rows {
-		switch row.result.Status {
-		case domain.StatusCancelled:
-			m.refetch = nil
-			m.setMessage("update cancelled during the fetch; press u to try again")
-			return
-		case domain.StatusFailed:
-			reason := "fetch failed"
-			if row.result.Error != nil {
-				reason += ": " + firstLine(row.result.Error.Error())
-			}
-			failed[row.job.StoreID] = reason
-		}
-	}
-	m.runUpdate(failed, m.mode == modeOperations)
 }
 
-// runUpdate plans the update of the refetch targets with their current state
-// and submits it; show opens the operations view. Fetch failures take
-// precedence over every other reason, because the state of these
-// repositories is not fresh.
-func (m *Model) runUpdate(failed map[domain.StoreID]string, show bool) {
-	f := m.refetch
-	m.refetch = nil
-	var targets []domain.Repository
-	for _, id := range f.targets {
-		if r := m.repo(id); r != nil {
-			targets = append(targets, *r)
-		}
+// showBatch selects the first row of a new batch in the operations view; open
+// opens the view, otherwise only an open view is updated.
+func (m *Model) showBatch(open bool) {
+	if open || m.mode == modeOperations {
+		m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
 	}
-	ok, skip := app.PlanUpdate(targets, m.storeBusy)
-	var eligible, blocked []app.UpdateCandidate
-	for _, c := range append(ok, skip...) {
-		if reason, bad := failed[c.Repository.StoreID]; bad {
-			c.Verdict = app.Blocked(reason)
-			blocked = append(blocked, c)
-		} else if c.Verdict.Eligible() {
-			eligible = append(eligible, c)
-		} else if !c.Verdict.UpToDate() {
-			blocked = append(blocked, c)
-		}
-	}
-	if len(eligible) == 0 && len(blocked) == 0 {
-		m.setMessage(fmt.Sprintf("all %d repositories are up to date", len(targets)))
-		return
-	}
-	js := app.UpdateJobs(m.app.Git, m.repos, eligible, m.app.Config.Git.FetchTimeout)
-	m.submitBatch(domain.OperationUpdate, js, blocked, show)
 }
 
 // openUpdatePreview shows the confirmation of an update of targets with their
@@ -253,27 +192,9 @@ func (m *Model) openUpdatePreview(targets []domain.Repository, hidden int, ret m
 	for _, r := range targets {
 		m.updateTargets = append(m.updateTargets, r.ID)
 	}
-	m.updateOK, m.updateSkip = app.PlanUpdate(targets, m.storeBusy)
+	m.updateOK, m.updateSkip = m.ops.Plan(targets)
 	m.previewReturn = ret
 	m.mode, m.overlayIdx = modeUpdatePreview, 0
-}
-
-func (m *Model) summarizeBatch() {
-	counts := map[domain.OperationStatus]int{}
-	for _, r := range m.batch.rows {
-		counts[r.result.Status]++
-	}
-	msg := fmt.Sprintf("%s finished: %d succeeded", m.batch.op, counts[domain.StatusSucceeded])
-	for _, s := range []domain.OperationStatus{domain.StatusFailed, domain.StatusSkipped, domain.StatusCancelled} {
-		if counts[s] > 0 {
-			msg += fmt.Sprintf(", %d %s", counts[s], s)
-		}
-	}
-	if counts[domain.StatusFailed] > 0 {
-		m.setError(msg + " (press b for details)")
-	} else {
-		m.setMessage(msg)
-	}
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
@@ -357,7 +278,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 			m.setMessage("the inventory is still loading")
 			return nil
 		}
-		if m.refetch != nil {
+		if m.ops.UpdatePending() {
 			m.setMessage("an update is waiting for its fetch; reload afterward")
 			return nil
 		}
@@ -367,7 +288,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 	case "e":
 		m.mode, m.overlayIdx = modeError, 0
 	case "b":
-		if m.batch != nil {
+		if m.ops.Batch() != nil {
 			m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
 		} else {
 			m.setMessage("no operations yet")
@@ -426,7 +347,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 // quit ends the program. While a fetch or update batch runs, it asks first,
 // because quitting cancels the batch.
 func (m *Model) quit() tea.Cmd {
-	if m.mode == modeConfirmQuit || !m.batchRunning() {
+	if m.mode == modeConfirmQuit || !m.ops.Running() {
 		return tea.Quit
 	}
 	m.quitReturn = m.mode
@@ -566,39 +487,46 @@ func (m *Model) keyOperations(key string) tea.Cmd {
 	case "esc", "q", "b":
 		m.mode = modeNormal
 	case "c":
-		if m.refetch != nil {
-			m.refetch = nil
+		update, batch := m.ops.Cancel()
+		if update {
 			m.setMessage("update cancelled")
 		}
-		if m.batch != nil && !m.batch.done() {
-			m.app.Scheduler.Cancel(m.batch.id)
-			if m.message != "update cancelled" {
-				m.setMessage("cancelling batch")
-			}
+		if batch && m.message != "update cancelled" {
+			m.setMessage("cancelling batch")
 		}
 	case "x":
-		return m.retryFailed()
+		n, started := m.ops.Retry()
+		m.notify(n)
+		if started {
+			m.showBatch(true)
+		}
 	case "enter":
-		if m.batch == nil || m.overlayIdx >= len(m.batch.rows) {
+		b := m.ops.Batch()
+		if b == nil || m.overlayIdx >= len(b.Rows) {
 			return nil
 		}
-		cmd := m.openLazygit(m.repo(m.batch.rows[m.overlayIdx].job.RepositoryID))
+		cmd := m.openLazygit(m.repo(b.Rows[m.overlayIdx].Job.RepositoryID))
 		if cmd != nil {
-			m.visit = &visit{batch: m.batch, row: m.overlayIdx}
+			m.visit = &visit{batch: b, row: m.overlayIdx}
 		}
 		return cmd
 	case "u":
-		m.continueUpdate()
+		targets, n := m.ops.NotUpdated(m.repos)
+		m.notify(n)
+		if len(targets) > 0 {
+			m.openUpdatePreview(targets, 0, modeOperations)
+		}
 	case "t":
-		if m.batch == nil || m.overlayIdx >= len(m.batch.rows) {
+		b := m.ops.Batch()
+		if b == nil || m.overlayIdx >= len(b.Rows) {
 			return nil
 		}
-		row := m.batch.rows[m.overlayIdx]
-		if row.job.Operation != domain.OperationFetch || row.result.Status != domain.StatusFailed {
+		row := b.Rows[m.overlayIdx]
+		if row.Job.Operation != domain.OperationFetch || row.Result.Status != domain.StatusFailed {
 			m.setError("select a failed fetch to retry it in the terminal")
 			return nil
 		}
-		if r := m.repo(row.job.RepositoryID); r != nil {
+		if r := m.repo(row.Job.RepositoryID); r != nil {
 			return m.interactiveFetch(*r)
 		}
 	}
@@ -618,61 +546,24 @@ func (m *Model) keyUpdatePreview(key string) tea.Cmd {
 	return nil
 }
 
-// startUpdate fetches the targets of the confirmed update. finishRefetch
-// starts the update itself once the fetch and the following inspections are
+// startUpdate fetches the targets of the confirmed update; the operations
+// start the update itself once the fetch and the following inspections are
 // finished.
 func (m *Model) startUpdate() {
-	if m.batchRunning() {
-		m.setError("another batch is still running")
-		return
-	}
-	if m.loadingInventory {
+	if !m.ops.Running() && m.loadingInventory {
 		m.setError("the inventory is still loading")
 		return
 	}
-	var targets []domain.Repository
-	for _, id := range m.updateTargets {
-		if r := m.repo(id); r != nil {
-			targets = append(targets, *r)
-		}
+	n, started := m.ops.ConfirmUpdate(m.repos, m.updateTargets)
+	m.notify(n)
+	if n.Error {
+		return
 	}
-	m.refetch = &refetch{targets: m.updateTargets}
 	m.updateTargets = nil
-	js := app.FetchJobs(m.app.Git, m.repos, targets, m.app.FetchOptions(), m.app.Config.Git.FetchTimeout)
-	if len(js) == 0 {
-		m.mode = m.previewReturn
-		m.runUpdate(nil, true)
-		return
+	m.mode = m.previewReturn
+	if started {
+		m.showBatch(true)
 	}
-	m.submitBatch(domain.OperationFetch, js, nil, true)
-	m.refetch.batch = m.batch
-	m.setMessage(fmt.Sprintf("fetching %d repository stores before the update", len(js)))
-}
-
-// continueUpdate opens a new update preview for every repository of the
-// finished update batch that has not been updated.
-func (m *Model) continueUpdate() {
-	if m.batch == nil || m.batch.op != domain.OperationUpdate || !m.batch.done() {
-		m.setError("continue is available for a finished update batch")
-		return
-	}
-	var targets []domain.Repository
-	seen := map[domain.RepositoryID]bool{}
-	for _, row := range m.batch.rows {
-		id := row.job.RepositoryID
-		if row.result.Status == domain.StatusSucceeded || seen[id] {
-			continue
-		}
-		if r := m.repo(id); r != nil {
-			seen[id] = true
-			targets = append(targets, *r)
-		}
-	}
-	if len(targets) == 0 {
-		m.setMessage("nothing left to update")
-		return
-	}
-	m.openUpdatePreview(targets, 0, modeOperations)
 }
 
 type launcherItem struct {
@@ -736,74 +627,15 @@ func (m *Model) keyLaunchers(key string) tea.Cmd {
 }
 
 func (m *Model) startFetch(targets []domain.Repository, hidden int) {
-	if m.batchRunning() {
-		m.setError("another batch is still running")
+	n, started := m.ops.Fetch(m.repos, targets)
+	m.notify(n)
+	if !started {
 		return
 	}
-	js := app.FetchJobs(m.app.Git, m.repos, targets, m.app.FetchOptions(), m.app.Config.Git.FetchTimeout)
-	if len(js) == 0 {
-		m.setError("no available repositories to fetch")
-		return
-	}
-	m.submitBatch(domain.OperationFetch, js, nil, true)
+	m.showBatch(true)
 	if hidden > 0 {
 		m.setMessage(fmt.Sprintf("%s, including %d hidden marked", m.message, hidden))
 	}
-}
-
-// submitBatch starts js. skipped lists repositories that the update excluded;
-// they are shown as skipped rows so that they can be worked through. show
-// opens the operations view; a batch started without a key press only
-// refreshes the view if it is open.
-func (m *Model) submitBatch(op domain.OperationType, js []jobs.Job, skipped []app.UpdateCandidate, show bool) {
-	b := &batch{op: op, rows: make([]opRow, len(js), len(js)+len(skipped))}
-	for i, j := range js {
-		b.rows[i] = opRow{job: j, result: domain.OperationResult{
-			RepositoryID: j.RepositoryID, StoreID: j.StoreID, Operation: op, Status: domain.StatusQueued,
-		}}
-	}
-	now := m.now()
-	for _, c := range skipped {
-		r := c.Repository
-		b.rows = append(b.rows, opRow{
-			job: jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: op},
-			result: domain.OperationResult{
-				RepositoryID: r.ID, StoreID: r.StoreID, Operation: op, Status: domain.StatusSkipped,
-				FinishedAt: now, Error: errors.New(c.Verdict.String()),
-			},
-		})
-	}
-	if m.batch != nil {
-		delete(m.routes, m.batch.id)
-	}
-	m.batch = b
-	if show || m.mode == modeOperations {
-		m.mode, m.overlayIdx = modeOperations, m.firstOpRow()
-	}
-	if len(js) == 0 {
-		m.setMessage(fmt.Sprintf("nothing to %s; %d blocked repositories listed", op, len(skipped)))
-		return
-	}
-	b.id = m.submit(js, m.applyBatchEvent)
-	m.setMessage(fmt.Sprintf("%s started for %d repositories", op, len(js)))
-}
-
-func (m *Model) retryFailed() tea.Cmd {
-	if m.batch == nil || m.batchRunning() {
-		return nil
-	}
-	var js []jobs.Job
-	for _, r := range m.batch.rows {
-		if r.result.Status == domain.StatusFailed || r.result.Status == domain.StatusCancelled {
-			js = append(js, r.job)
-		}
-	}
-	if len(js) == 0 {
-		m.setMessage("nothing to retry")
-		return nil
-	}
-	m.submitBatch(m.batch.op, js, nil, true)
-	return nil
 }
 
 func (m *Model) openLazygit(r *domain.Repository) tea.Cmd {
@@ -832,14 +664,10 @@ func (m *Model) interactiveFetch(r domain.Repository) tea.Cmd {
 // handover gives the terminal to cmd. The store is locked so that no job runs
 // for it while the child process owns the terminal.
 func (m *Model) handover(r domain.Repository, label string, cmd *exec.Cmd) tea.Cmd {
-	if busy := m.storeActivity(r.StoreID); busy != "" || !m.app.Scheduler.Locks.TryLock(r.StoreID) {
-		if busy == "" {
-			busy = "another operation"
-		}
+	if busy, ok := m.ops.BeginHandover(r.StoreID); !ok {
 		m.setError(fmt.Sprintf("%s in progress for %s", busy, r.Name))
 		return nil
 	}
-	m.handovers[r.StoreID] = true
 	repo, store := r.ID, r.StoreID
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		var exitErr *exec.ExitError
@@ -849,12 +677,11 @@ func (m *Model) handover(r domain.Repository, label string, cmd *exec.Cmd) tea.C
 }
 
 func (m *Model) finishHandover(msg handoverDoneMsg) tea.Cmd {
-	m.app.Scheduler.Locks.Unlock(msg.store)
-	delete(m.handovers, msg.store)
+	m.ops.EndHandover(msg.store)
 	if v := m.visit; v != nil {
 		m.visit = nil
-		if v.batch == m.batch && v.row < len(m.batch.rows) {
-			m.batch.rows[v.row].revisitedAt = m.now()
+		if b := m.ops.Batch(); v.batch == b && v.row < len(b.Rows) {
+			b.Rows[v.row].RevisitedAt = m.now()
 		}
 	}
 	if msg.fatal {
@@ -866,9 +693,7 @@ func (m *Model) finishHandover(msg handoverDoneMsg) tea.Cmd {
 	} else {
 		m.setMessage(msg.label + " finished")
 		if msg.label == "git fetch" {
-			for _, id := range app.StoreMembers(m.repos, map[domain.StoreID]bool{msg.store: true}) {
-				delete(m.lastOps, id)
-			}
+			m.ops.ForgetResults(app.StoreMembers(m.repos, map[domain.StoreID]bool{msg.store: true}))
 		}
 	}
 	m.refresh(app.StoreMembers(m.repos, map[domain.StoreID]bool{msg.store: true}))

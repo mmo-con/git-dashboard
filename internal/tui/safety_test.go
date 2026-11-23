@@ -122,12 +122,10 @@ func TestExternalTextCannotInjectEscapeSequences(t *testing.T) {
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "abc", Author: "a" + evil, Subject: "s" + evil, Time: time.Now()})
 	r.Inspected.Err = errors.New("inspection " + evil + "\nsecond line " + evil)
 	m.Update(inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{r}, Warnings: []string{"warn " + evil}}})
-	m.lastOps[r.ID] = domain.OperationResult{Operation: domain.OperationFetch, Status: domain.StatusFailed,
-		Error: errors.New("fetch " + evil), Stderr: "fatal: " + evil + "\r\nmore " + evil}
-	m.batch = &batch{id: 1, op: domain.OperationFetch, rows: []opRow{{
-		job:    jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: domain.OperationFetch},
-		result: m.lastOps[r.ID],
-	}}}
+	b := fetchBatch(t, m, r.ID)
+	m.ops.Handle(jobs.Event{BatchID: b.ID, Repositories: []domain.RepositoryID{r.ID}, Result: domain.OperationResult{
+		RepositoryID: r.ID, Operation: domain.OperationFetch, Status: domain.StatusFailed,
+		Error: errors.New("fetch " + evil), Stderr: "fatal: " + evil + "\r\nmore " + evil}})
 	m.setError("toast " + evil)
 
 	for _, k := range []string{"", "e", "b", "/", "t"} {
@@ -158,10 +156,8 @@ func TestQuitAsksWhileBatchRuns(t *testing.T) {
 		t.Fatal("without a batch, q must quit at once")
 	}
 	r := m.repos[0]
-	m.batch = &batch{id: 1, op: domain.OperationUpdate, rows: []opRow{{
-		job:    jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: domain.OperationUpdate},
-		result: domain.OperationResult{Status: domain.StatusRunning},
-	}}}
+	fetchBatch(t, m, r.ID)
+	setRow(m, 0, domain.StatusRunning, nil)
 	m.mode = modeOperations
 	if cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}); cmd != nil || m.mode != modeNormal {
 		t.Fatal("q in the operations view closes the view")
