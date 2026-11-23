@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1032,5 +1033,46 @@ func TestHelpExplainsHealthColumn(t *testing.T) {
 			}
 		}
 		keys(m, "esc")
+	}
+}
+
+// TestBindingsDocumented keeps docs/keybindings.md in step with the help
+// view: every key of a help group appears in the first column of the
+// documentation section with the same title.
+func TestBindingsDocumented(t *testing.T) {
+	data, err := os.ReadFile("../../docs/keybindings.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sections := map[string]map[string]bool{}
+	var keys map[string]bool
+	for _, line := range strings.Split(string(data), "\n") {
+		if title, ok := strings.CutPrefix(line, "## "); ok {
+			keys = map[string]bool{}
+			sections[title] = keys
+			continue
+		}
+		if keys == nil || !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		cell := strings.Split(line, "|")[1]
+		for _, part := range strings.Split(cell, "`")[1:] {
+			keys[part] = true
+		}
+	}
+	aliases := strings.NewReplacer("S-Tab", "Shift+Tab")
+	for _, g := range Bindings {
+		doc, ok := sections[g.Title]
+		if !ok {
+			t.Errorf("docs/keybindings.md has no section %q", g.Title)
+			continue
+		}
+		for _, b := range g.Bindings {
+			for _, k := range strings.FieldsFunc(aliases.Replace(b.Keys), func(r rune) bool { return r == '/' || r == '…' }) {
+				if k = strings.TrimSpace(k); !doc[k] {
+					t.Errorf("section %q of docs/keybindings.md does not document key %q", g.Title, k)
+				}
+			}
+		}
 	}
 }

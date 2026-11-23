@@ -1,7 +1,8 @@
 package tui
 
-// Binding documents one key binding. The same list drives the help view and
-// docs/keybindings.md.
+// Binding documents one key binding in the help view. docs/keybindings.md
+// describes every binding in long form; a test checks that it lists each key
+// of this list in the section of its group.
 type Binding struct {
 	Keys   string
 	Action string
@@ -9,19 +10,21 @@ type Binding struct {
 
 // BindingGroup is a titled list of bindings.
 type BindingGroup struct {
-	Title    string
+	Title string
+	// Right places the group in the right column of the wide help view.
+	Right    bool
 	Bindings []Binding
 }
 
 // Bindings lists every key binding of the application.
 var Bindings = []BindingGroup{
-	{"Navigation", []Binding{
+	{Title: "Navigation", Bindings: []Binding{
 		{"j / ↓", "next row"},
 		{"k / ↑", "previous row"},
 		{"g / G", "first / last row"},
 		{"PgUp / PgDn", "page up / down"},
 	}},
-	{"View", []Binding{
+	{Title: "View", Bindings: []Binding{
 		{"/", "text filter, e.g. is:dirty"},
 		{"1 … 7", "quick filter (see header)"},
 		{"Esc", "clear filter / close dialog"},
@@ -36,12 +39,12 @@ var Bindings = []BindingGroup{
 		{"?", "help"},
 		{"q / Ctrl+C", "quit (asks while a batch runs)"},
 	}},
-	{"Repository", []Binding{
+	{Title: "Repository", Bindings: []Binding{
 		{"Enter", "open in lazygit"},
 		{"Enter", "expand or collapse a family row in the tree"},
 		{"o", "launcher menu"},
 	}},
-	{"Batch", []Binding{
+	{Title: "Batch", Right: true, Bindings: []Binding{
 		{"Space", "toggle mark"},
 		{"a / A", "mark all visible / clear marks"},
 		{"f", "fetch marked, else current row"},
@@ -49,10 +52,10 @@ var Bindings = []BindingGroup{
 		{"u", "update marked, else current row"},
 		{"U", "update visible repositories"},
 	}},
-	{"Update confirmation", []Binding{
+	{Title: "Update confirmation", Right: true, Bindings: []Binding{
 		{"Enter / y", "fetch, then update"},
 	}},
-	{"Operations view", []Binding{
+	{Title: "Operations view", Right: true, Bindings: []Binding{
 		{"Enter", "open row in lazygit"},
 		{"c", "cancel batch / pending update"},
 		{"x", "retry failed operations"},
@@ -60,7 +63,7 @@ var Bindings = []BindingGroup{
 		{"t", "retry failed fetch in terminal"},
 		{"Esc / b", "close (batch continues)"},
 	}},
-	{"Error view", []Binding{
+	{Title: "Error view", Right: true, Bindings: []Binding{
 		{"t", "fetch in terminal"},
 	}},
 }
