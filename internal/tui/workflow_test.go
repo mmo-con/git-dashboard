@@ -73,8 +73,8 @@ func TestFetchUpdateAndWorklistWithRealRepositories(t *testing.T) {
 	ids := map[string]domain.RepositoryID{}
 	for _, r := range m.repos {
 		ids[filepath.Base(r.Path)] = r.ID
-		if !r.IsAvailable() || r.Inspection.Err != nil {
-			t.Fatalf("%s: %v %v", r.Path, r.Availability, r.Inspection.Err)
+		if !r.IsAvailable() || r.Inspected.Err != nil {
+			t.Fatalf("%s: %v %v", r.Path, r.Availability, r.Inspected.Err)
 		}
 	}
 

@@ -13,7 +13,7 @@ import (
 )
 
 func loaded(r *domain.Repository) bool {
-	return !r.Inspection.FinishedAt.IsZero()
+	return !r.Inspected.FinishedAt.IsZero()
 }
 
 // stateSegs describes what the count columns cannot show: unavailable
@@ -432,7 +432,7 @@ func (m *Model) followUp(row opRow) (text string, resolved bool) {
 		return "", false
 	}
 	r := m.repo(row.job.RepositoryID)
-	if r == nil || !r.Inspection.FinishedAt.After(row.result.FinishedAt) {
+	if r == nil || !r.Inspected.FinishedAt.After(row.result.FinishedAt) {
 		return "", false
 	}
 	switch reason := app.Eligibility(*r, m.storeBusy(r.StoreID) != ""); {
@@ -440,7 +440,7 @@ func (m *Model) followUp(row opRow) (text string, resolved bool) {
 		return "now eligible", true
 	case reason == app.ReasonUpToDate:
 		return "now up to date", true
-	case !row.revisitedAt.IsZero() && r.Inspection.FinishedAt.After(row.revisitedAt):
+	case !row.revisitedAt.IsZero() && r.Inspected.FinishedAt.After(row.revisitedAt):
 		return "still blocked: " + reason, false
 	}
 	return "", false

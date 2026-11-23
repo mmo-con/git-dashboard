@@ -55,7 +55,7 @@ func TestRemoteMismatch(t *testing.T) {
 		{"state unknown", &ExpectedRemote{URL: "x"}, Known[[]Remote]{}, false},
 	}
 	for _, tc := range cases {
-		r := Repository{ExpectedRemote: tc.expected, Remotes: tc.remotes}
+		r := Repository{ExpectedRemote: tc.expected, Inspection: Inspection{Remotes: tc.remotes}}
 		if got := r.RemoteMismatch(); got != tc.want {
 			t.Errorf("%s: got %v", tc.name, got)
 		}

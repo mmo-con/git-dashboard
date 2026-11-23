@@ -16,11 +16,13 @@ import (
 func behindRepo() domain.Repository {
 	return domain.Repository{
 		ID: "r", StoreID: "s", Name: "r", Availability: domain.Available,
-		Inspection: domain.InspectionInfo{FinishedAt: time.Now()},
-		Head:       domain.KnownValue(domain.HeadState{Branch: "main", CommitID: "abc"}),
-		Operation:  domain.KnownValue(domain.NoOperation),
-		Worktree:   domain.KnownValue(domain.WorktreeState{Untracked: 3, UntrackedChecked: true}),
-		Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main", CommitID: "up1", Behind: 2}),
+		Inspected: domain.InspectionInfo{FinishedAt: time.Now()},
+		Inspection: domain.Inspection{
+			Head:      domain.KnownValue(domain.HeadState{Branch: "main", CommitID: "abc"}),
+			Operation: domain.KnownValue(domain.NoOperation),
+			Worktree:  domain.KnownValue(domain.WorktreeState{Untracked: 3, UntrackedChecked: true}),
+			Upstream:  domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main", CommitID: "up1", Behind: 2}),
+		},
 	}
 }
 
@@ -34,7 +36,7 @@ func TestEligibility(t *testing.T) {
 		{"eligible with untracked files", func(*domain.Repository) {}, false, ""},
 		{"unavailable", func(r *domain.Repository) { r.Availability = domain.Missing }, false, "repository is missing"},
 		{"unknown", func(r *domain.Repository) { r.Upstream = domain.Known[domain.UpstreamState]{} }, false, "state is unknown"},
-		{"inspection error", func(r *domain.Repository) { r.Inspection.Err = errors.New("x") }, false, "state is unknown"},
+		{"inspection error", func(r *domain.Repository) { r.Inspected.Err = errors.New("x") }, false, "state is unknown"},
 		{"rebase", func(r *domain.Repository) { r.Operation.Value = domain.Rebasing }, false, "rebasing in progress"},
 		{"dirty", func(r *domain.Repository) { r.Worktree.Value.Modified = 1 }, false, "worktree contains local changes"},
 		{"staged", func(r *domain.Repository) { r.Worktree.Value.Staged = 1 }, false, "worktree contains local changes"},
@@ -171,9 +173,9 @@ func TestFetchJobsDeduplicateStores(t *testing.T) {
 func TestRefreshStoreFetchTimes(t *testing.T) {
 	old, recent := time.Unix(100, 0), time.Unix(200, 0)
 	repos := []domain.Repository{
-		{StoreID: "s", FetchHead: domain.KnownValue(&old)},
-		{StoreID: "s", FetchHead: domain.KnownValue(&recent)},
-		{StoreID: "t", FetchHead: domain.KnownValue[*time.Time](nil)},
+		{StoreID: "s", Inspection: domain.Inspection{FetchHead: domain.KnownValue(&old)}},
+		{StoreID: "s", Inspection: domain.Inspection{FetchHead: domain.KnownValue(&recent)}},
+		{StoreID: "t", Inspection: domain.Inspection{FetchHead: domain.KnownValue[*time.Time](nil)}},
 		{StoreID: "u"},
 	}
 	RefreshStoreFetchTimes(repos)
@@ -190,22 +192,23 @@ func TestRefreshStoreFetchTimes(t *testing.T) {
 
 func TestStateTokens(t *testing.T) {
 	up := func(u domain.UpstreamState) *domain.Repository {
-		return &domain.Repository{Availability: domain.Available, Upstream: domain.KnownValue(u),
-			Worktree: domain.KnownValue(domain.WorktreeState{})}
+		return &domain.Repository{Availability: domain.Available, Inspection: domain.Inspection{
+			Upstream: domain.KnownValue(u), Worktree: domain.KnownValue(domain.WorktreeState{})}}
 	}
 	cases := []struct {
 		token string
 		match *domain.Repository
 		miss  *domain.Repository
 	}{
-		{"is:clean", up(domain.UpstreamState{}), &domain.Repository{Worktree: domain.KnownValue(domain.WorktreeState{Untracked: 1})}},
+		{"is:clean", up(domain.UpstreamState{}), &domain.Repository{Inspection: domain.Inspection{Worktree: domain.KnownValue(domain.WorktreeState{Untracked: 1})}}},
 		{"is:ahead", up(domain.UpstreamState{Configured: true, Ahead: 1}), up(domain.UpstreamState{Configured: true, Behind: 1})},
 		{"is:diverged", up(domain.UpstreamState{Configured: true, Ahead: 1, Behind: 1}), up(domain.UpstreamState{Configured: true, Ahead: 1})},
 		{"is:noupstream", up(domain.UpstreamState{Configured: true, Gone: true}), up(domain.UpstreamState{Configured: true})},
-		{"is:error", &domain.Repository{Inspection: domain.InspectionInfo{Err: errors.New("x")}}, up(domain.UpstreamState{})},
+		{"is:error", &domain.Repository{Inspected: domain.InspectionInfo{Err: errors.New("x")}}, up(domain.UpstreamState{})},
 		{"is:mismatch", &domain.Repository{ExpectedRemote: &domain.ExpectedRemote{URL: "a"},
-			Remotes: domain.KnownValue([]domain.Remote{{Name: "origin", URL: "b"}})}, up(domain.UpstreamState{})},
-		{"is:stashed", &domain.Repository{Stashes: domain.KnownValue(1)}, &domain.Repository{Stashes: domain.KnownValue(0)}},
+			Inspection: domain.Inspection{Remotes: domain.KnownValue([]domain.Remote{{Name: "origin", URL: "b"}})}}, up(domain.UpstreamState{})},
+		{"is:stashed", &domain.Repository{Inspection: domain.Inspection{Stashes: domain.KnownValue(1)}},
+			&domain.Repository{Inspection: domain.Inspection{Stashes: domain.KnownValue(0)}}},
 		{"is:unknown-token", nil, up(domain.UpstreamState{})},
 	}
 	for _, tc := range cases {
@@ -227,13 +230,15 @@ func TestFilterAndSort(t *testing.T) {
 	older := now.Add(-time.Hour)
 	repos := []*domain.Repository{
 		{Name: "beta", Path: "/w/beta", Family: "Work", Availability: domain.Available,
-			Worktree:   domain.KnownValue(domain.WorktreeState{Modified: 1}),
-			Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true}),
-			LastCommit: domain.KnownValue(&domain.CommitSummary{Time: older})},
+			Inspection: domain.Inspection{
+				Worktree:   domain.KnownValue(domain.WorktreeState{Modified: 1}),
+				Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true}),
+				LastCommit: domain.KnownValue(&domain.CommitSummary{Time: older})}},
 		{Name: "Alpha", Path: "/p/alpha", Family: "Personal", Availability: domain.Available,
-			Worktree:   domain.KnownValue(domain.WorktreeState{}),
-			Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true, Behind: 2}),
-			LastCommit: domain.KnownValue(&domain.CommitSummary{Time: now})},
+			Inspection: domain.Inspection{
+				Worktree:   domain.KnownValue(domain.WorktreeState{}),
+				Upstream:   domain.KnownValue(domain.UpstreamState{Configured: true, Behind: 2}),
+				LastCommit: domain.KnownValue(&domain.CommitSummary{Time: now})}},
 		{Name: "gamma", Path: "/w/gamma", Family: "Work", Availability: domain.Missing},
 	}
 	match := func(f Filter) []string {

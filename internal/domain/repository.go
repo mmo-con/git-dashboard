@@ -218,44 +218,28 @@ type Repository struct {
 	EntryError     error
 	Location       Location
 
-	Inspection    InspectionInfo
-	Head          Known[HeadState]
-	Operation     Known[OperationInProgress]
-	Worktree      Known[WorktreeState]
-	Upstream      Known[UpstreamState]
-	Remotes       Known[[]Remote]
+	// Inspected describes the inspection that supplied the embedded state.
+	Inspected InspectionInfo
+	// Inspection is the state of the latest applied inspection. In a
+	// Repository, Branches holds only the local branches other than HEAD
+	// that need attention according to BranchPolicy.
+	Inspection
 	PrimaryRemote *Remote
-	LastCommit    Known[*CommitSummary]
-	// FetchHead is the FETCH_HEAD time of this worktree; LastFetch is the
-	// newest FetchHead among all entries of the same store.
-	FetchHead Known[*time.Time]
+	// LastFetch is the newest FetchHead among all entries of the same store.
 	LastFetch Known[*time.Time]
-	// Stashes is the number of stash entries of the store.
-	Stashes Known[int]
-	// Branches holds the local branches other than HEAD that need attention
-	// according to BranchPolicy.
-	Branches Known[[]BranchState]
 }
 
 // ApplyInspection stores an inspection result unless a newer generation has
 // already been applied.
 func (r *Repository) ApplyInspection(gen uint64, in Inspection, err error, at time.Time) bool {
-	if gen < r.Inspection.Generation {
+	if gen < r.Inspected.Generation {
 		return false
 	}
-	r.Inspection = InspectionInfo{Generation: gen, FinishedAt: at, Err: err}
-	r.Head = in.Head
-	r.Operation = in.Operation
-	r.Worktree = in.Worktree
-	r.Upstream = in.Upstream
-	r.Remotes = in.Remotes
-	r.LastCommit = in.LastCommit
-	r.FetchHead = in.FetchHead
-	r.Stashes = in.Stashes
-	r.Branches = Known[[]BranchState]{}
+	r.Inspected = InspectionInfo{Generation: gen, FinishedAt: at, Err: err}
 	if in.Branches.Valid {
-		r.Branches = KnownValue(r.BranchPolicy.Select(in.Branches.Value, at))
+		in.Branches = KnownValue(r.BranchPolicy.Select(in.Branches.Value, at))
 	}
+	r.Inspection = in
 	name := ""
 	if r.ExpectedRemote != nil {
 		name = r.ExpectedRemote.Name

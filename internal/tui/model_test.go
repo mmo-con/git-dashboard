@@ -31,8 +31,8 @@ func repo(name string, family domain.FamilyID, dirty bool) domain.Repository {
 		// Unavailable entries are not inspected, which keeps the test free of
 		// Git processes.
 		Availability: domain.NotARepository,
-		Inspection:   domain.InspectionInfo{FinishedAt: time.Now(), Generation: 1},
-		Worktree:     domain.KnownValue(w),
+		Inspected:    domain.InspectionInfo{FinishedAt: time.Now(), Generation: 1},
+		Inspection:   domain.Inspection{Worktree: domain.KnownValue(w)},
 	}
 }
 
@@ -325,7 +325,7 @@ func TestBatchEventsAreApplied(t *testing.T) {
 func TestStaleInspectionIsIgnored(t *testing.T) {
 	m := newModel(t)
 	id := m.repos[0].ID
-	m.repo(id).Inspection.Generation = 5
+	m.repo(id).Inspected.Generation = 5
 	m.Update(inspectionEvent(m, id, app.InspectionPayload{Generation: 4, Inspection: domain.Inspection{
 		Worktree: domain.KnownValue(domain.WorktreeState{Conflicts: 9})}}))
 	if m.repo(id).Worktree.Value.Conflicts == 9 {
@@ -632,7 +632,7 @@ func TestUpdateWorklistAfterLazygit(t *testing.T) {
 	inspect := func(w domain.WorktreeState) {
 		now = now.Add(time.Minute)
 		r := m.repo(api.ID)
-		m.Update(inspectionEvent(m, api.ID, app.InspectionPayload{Generation: r.Inspection.Generation + 1, Inspection: domain.Inspection{
+		m.Update(inspectionEvent(m, api.ID, app.InspectionPayload{Generation: r.Inspected.Generation + 1, Inspection: domain.Inspection{
 			Head:      domain.KnownValue(domain.HeadState{Branch: "main"}),
 			Operation: domain.KnownValue(domain.NoOperation),
 			Worktree:  domain.KnownValue(w),
@@ -696,7 +696,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	var bs []domain.BranchState
 	bs = append(bs, domain.BranchState{Name: "main", Upstream: "origin/main", Behind: 2, CommitTime: time.Now()})
 	if got := plain(m.branchesMarker(&domain.Repository{Availability: domain.Available,
-		Branches: domain.KnownValue(bs)})); got != "⎇1" {
+		Inspection: domain.Inspection{Branches: domain.KnownValue(bs)}})); got != "⎇1" {
 		t.Fatalf("marker = %q", got)
 	}
 	for i := 0; i < 11; i++ {

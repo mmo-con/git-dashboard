@@ -119,7 +119,7 @@ func TestExternalTextCannotInjectEscapeSequences(t *testing.T) {
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "https://h/" + evil}})
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "abc", Author: "a" + evil, Subject: "s" + evil, Time: time.Now()})
-	r.Inspection.Err = errors.New("inspection " + evil + "\nsecond line " + evil)
+	r.Inspected.Err = errors.New("inspection " + evil + "\nsecond line " + evil)
 	m.Update(inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{r}, Warnings: []string{"warn " + evil}}})
 	m.lastOps[r.ID] = domain.OperationResult{Operation: domain.OperationFetch, Status: domain.StatusFailed,
 		Error: errors.New("fetch " + evil), Stderr: "fatal: " + evil + "\r\nmore " + evil}
