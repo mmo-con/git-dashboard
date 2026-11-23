@@ -1011,8 +1011,16 @@ func (m *Model) viewHelp(iw, rows int) (string, []string) {
 	}
 	var left, right []string
 	if iw >= 84 {
-		left = col(append(append([]BindingGroup{}, Bindings[:3]...), legend[0]))
-		right = col(append(append([]BindingGroup{}, Bindings[3:]...), legend[1]))
+		var lg, rg []BindingGroup
+		for _, g := range Bindings {
+			if g.Right {
+				rg = append(rg, g)
+			} else {
+				lg = append(lg, g)
+			}
+		}
+		left = col(append(lg, legend[0]))
+		right = col(append(rg, legend[1]))
 		w := iw / 2
 		var out []string
 		for i := 0; i < max(len(left), len(right)); i++ {
