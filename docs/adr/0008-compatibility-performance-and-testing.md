@@ -49,3 +49,7 @@ for the two-second target. CI runs lint and race-detector tests with coverage
 on Linux with Git 2.34, Linux with the latest Git, and macOS. A version-tag
 push creates a release draft only after the matrix passes; publication is
 manual.
+
+The POSIX shell installer is shipped with each release and pins downloads
+to its own release tag. CI tests it on Linux and macOS with local archives
+and simulated downloads, without contacting GitHub.
