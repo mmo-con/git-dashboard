@@ -74,187 +74,237 @@ func Parse(data []byte, baseDir string, getenv func(string) string) (*Config, er
 	return build(&f, baseDir, getenv)
 }
 
+// builder turns the decoded file into a Config. Each section has its own
+// method; all of them record errors instead of stopping at the first one, so
+// that the user sees every problem at once.
+type builder struct {
+	cfg     *Config
+	baseDir string
+	getenv  func(string) string
+	errs    []error
+}
+
+func (b *builder) errorf(format string, args ...any) {
+	b.errs = append(b.errs, fmt.Errorf(format, args...))
+}
+
+func (b *builder) warnf(format string, args ...any) {
+	b.cfg.Warnings = append(b.cfg.Warnings, fmt.Sprintf(format, args...))
+}
+
 func build(f *file, baseDir string, getenv func(string) string) (*Config, error) {
-	cfg := Default()
-	var errs []error
-	addErr := func(format string, args ...any) { errs = append(errs, fmt.Errorf(format, args...)) }
-
-	if f.Version == 0 {
-		cfg.Warnings = append(cfg.Warnings, "configuration has no version; assuming version 1")
-	} else if f.Version != CurrentVersion {
-		addErr("unsupported configuration version %d (supported: %d)", f.Version, CurrentVersion)
+	b := &builder{cfg: Default(), baseDir: baseDir, getenv: getenv}
+	b.version(f.Version)
+	b.git(f.Git)
+	b.branches(f.Branches)
+	b.lazygit(f.Lazygit)
+	for i, r := range f.Repositories {
+		b.repository(i, r)
 	}
+	for i, d := range f.Discovery {
+		b.discovery(i, d)
+	}
+	b.ui(f.UI)
+	for i, l := range f.Launchers {
+		b.launcher(i, l)
+	}
+	if len(b.errs) > 0 {
+		return nil, errors.Join(b.errs...)
+	}
+	return b.cfg, nil
+}
 
-	g := f.Git
+func (b *builder) version(v int) {
+	if v == 0 {
+		b.warnf("configuration has no version; assuming version 1")
+	} else if v != CurrentVersion {
+		b.errorf("unsupported configuration version %d (supported: %d)", v, CurrentVersion)
+	}
+}
+
+func (b *builder) git(g fileGit) {
+	cfg := &b.cfg.Git
 	if g.Executable != "" {
-		p, err := expandCommand(g.Executable, baseDir, getenv)
+		p, err := expandCommand(g.Executable, b.baseDir, b.getenv)
 		if err != nil {
-			addErr("[git].executable: %v", err)
+			b.errorf("[git].executable: %v", err)
 		}
-		cfg.Git.Executable = p
+		cfg.Executable = p
 	}
 	if g.InspectionParallelism != nil {
 		if *g.InspectionParallelism < 1 {
-			addErr("[git].inspection_parallelism must be at least 1")
+			b.errorf("[git].inspection_parallelism must be at least 1")
 		}
-		cfg.Git.InspectionParallelism = *g.InspectionParallelism
+		cfg.InspectionParallelism = *g.InspectionParallelism
 	}
 	if g.FetchParallelism != nil {
 		if *g.FetchParallelism < 1 {
-			addErr("[git].fetch_parallelism must be at least 1")
+			b.errorf("[git].fetch_parallelism must be at least 1")
 		}
-		cfg.Git.FetchParallelism = *g.FetchParallelism
+		cfg.FetchParallelism = *g.FetchParallelism
 	}
 	if g.InspectionTimeout != nil {
-		cfg.Git.InspectionTimeout = g.InspectionTimeout.Duration
+		cfg.InspectionTimeout = g.InspectionTimeout.Duration
 	}
 	if g.FetchTimeout != nil {
-		cfg.Git.FetchTimeout = g.FetchTimeout.Duration
+		cfg.FetchTimeout = g.FetchTimeout.Duration
 	}
 	if g.FetchPrune != nil {
-		cfg.Git.FetchPrune = *g.FetchPrune
+		cfg.FetchPrune = *g.FetchPrune
 	}
 	if g.Untracked != "" {
 		if !validUntracked(g.Untracked) {
-			addErr("[git].untracked must be \"normal\" or \"no\", not %q", g.Untracked)
+			b.errorf("[git].untracked must be \"normal\" or \"no\", not %q", g.Untracked)
 		}
-		cfg.Git.Untracked = g.Untracked
+		cfg.Untracked = g.Untracked
 	}
+}
 
-	b := f.Branches
-	if b.Enabled != nil {
-		cfg.Branches.Enabled = *b.Enabled
+func (b *builder) branches(fb fileBranches) {
+	cfg := &b.cfg.Branches
+	if fb.Enabled != nil {
+		cfg.Enabled = *fb.Enabled
 	}
-	if b.Pinned != nil {
-		cfg.Branches.Pinned = *b.Pinned
-		if err := validateBranchNames(*b.Pinned); err != nil {
-			addErr("[branches].pinned: %v", err)
+	if fb.Pinned != nil {
+		cfg.Pinned = *fb.Pinned
+		if err := validateBranchNames(*fb.Pinned); err != nil {
+			b.errorf("[branches].pinned: %v", err)
 		}
 	}
-	for _, p := range b.Ignore {
+	for _, p := range fb.Ignore {
 		if err := validatePattern(p); err != nil {
-			addErr("[branches].ignore: %v", err)
+			b.errorf("[branches].ignore: %v", err)
 		}
 	}
-	cfg.Branches.Ignore = b.Ignore
-	if b.MaxAge != nil {
-		cfg.Branches.MaxAge = b.MaxAge.Duration
+	cfg.Ignore = fb.Ignore
+	if fb.MaxAge != nil {
+		cfg.MaxAge = fb.MaxAge.Duration
 	}
+}
 
-	if f.Lazygit.Command != "" {
-		p, err := expandCommand(f.Lazygit.Command, baseDir, getenv)
+func (b *builder) lazygit(l fileLazygit) {
+	cfg := &b.cfg.Lazygit
+	if l.Command != "" {
+		p, err := expandCommand(l.Command, b.baseDir, b.getenv)
 		if err != nil {
-			addErr("[lazygit].command: %v", err)
+			b.errorf("[lazygit].command: %v", err)
 		}
-		cfg.Lazygit.Command = p
+		cfg.Command = p
 	}
-	cfg.Lazygit.Args = f.Lazygit.Args
-	if f.Lazygit.Enabled != nil {
-		cfg.Lazygit.Enabled = *f.Lazygit.Enabled
+	cfg.Args = l.Args
+	if l.Enabled != nil {
+		cfg.Enabled = *l.Enabled
 	}
+}
 
-	for i, r := range f.Repositories {
-		if r.Path == "" {
-			addErr("repositories[%d]: path is required", i)
-			continue
-		}
-		p, err := expandPath(r.Path, baseDir, getenv)
-		if err != nil {
-			addErr("repositories[%d].path: %v", i, err)
-			continue
-		}
-		if r.Untracked != "" && !validUntracked(r.Untracked) {
-			addErr("repositories[%d].untracked must be \"normal\" or \"no\", not %q", i, r.Untracked)
-		}
-		if r.RemoteName != "" && r.Remote == "" {
-			cfg.Warnings = append(cfg.Warnings, fmt.Sprintf("repositories[%d]: remote_name has no effect without remote", i))
-		}
-		var pinned []string
-		if r.PinnedBranches != nil {
-			pinned = append([]string{}, *r.PinnedBranches...)
-			if err := validateBranchNames(pinned); err != nil {
-				addErr("repositories[%d].pinned_branches: %v", i, err)
-			}
-		}
-		ws, err := expandWorkspace(r.Workspace, getenv)
-		if err != nil {
-			addErr("repositories[%d].workspace: %v", i, err)
-		}
-		enabled := true
-		if r.Enabled != nil {
-			enabled = *r.Enabled
-		}
-		cfg.Repositories = append(cfg.Repositories, Repository{
-			Path: p, Name: strings.TrimSpace(r.Name), Family: r.Family, Workspace: ws, Enabled: enabled, Remote: r.Remote,
-			RemoteName: r.RemoteName, Untracked: r.Untracked, PinnedBranches: pinned,
-		})
+func (b *builder) repository(i int, r fileRepository) {
+	if r.Path == "" {
+		b.errorf("repositories[%d]: path is required", i)
+		return
 	}
-
-	for i, d := range f.Discovery {
-		if d.Root == "" {
-			addErr("discovery[%d]: root is required", i)
-			continue
-		}
-		root, err := expandPath(d.Root, baseDir, getenv)
-		if err != nil {
-			addErr("discovery[%d].root: %v", i, err)
-			continue
-		}
-		depth := DefaultMaxDepth
-		if d.MaxDepth != nil {
-			depth = *d.MaxDepth
-			if depth < 1 {
-				addErr("discovery[%d].max_depth must be at least 1", i)
-			}
-		}
-		include := d.Include
-		if len(include) == 0 {
-			include = []string{"**"}
-		}
-		for _, p := range append(append([]string{}, include...), d.Exclude...) {
-			if err := validatePattern(p); err != nil {
-				addErr("discovery[%d]: %v", i, err)
-			}
-		}
-		ws, err := expandWorkspace(d.Workspace, getenv)
-		if err != nil {
-			addErr("discovery[%d].workspace: %v", i, err)
-		}
-		cfg.Discovery = append(cfg.Discovery, Discovery{
-			Root: root, MaxDepth: depth, Family: d.Family, Workspace: ws, Include: include,
-			Exclude: d.Exclude, FollowSymlinks: d.FollowSymlinks,
-		})
+	p, err := expandPath(r.Path, b.baseDir, b.getenv)
+	if err != nil {
+		b.errorf("repositories[%d].path: %v", i, err)
+		return
 	}
+	if r.Untracked != "" && !validUntracked(r.Untracked) {
+		b.errorf("repositories[%d].untracked must be \"normal\" or \"no\", not %q", i, r.Untracked)
+	}
+	if r.RemoteName != "" && r.Remote == "" {
+		b.warnf("repositories[%d]: remote_name has no effect without remote", i)
+	}
+	var pinned []string
+	if r.PinnedBranches != nil {
+		pinned = append([]string{}, *r.PinnedBranches...)
+		if err := validateBranchNames(pinned); err != nil {
+			b.errorf("repositories[%d].pinned_branches: %v", i, err)
+		}
+	}
+	ws, err := expandWorkspace(r.Workspace, b.getenv)
+	if err != nil {
+		b.errorf("repositories[%d].workspace: %v", i, err)
+	}
+	enabled := true
+	if r.Enabled != nil {
+		enabled = *r.Enabled
+	}
+	b.cfg.Repositories = append(b.cfg.Repositories, Repository{
+		Path: p, Name: strings.TrimSpace(r.Name), Family: r.Family, Workspace: ws, Enabled: enabled, Remote: r.Remote,
+		RemoteName: r.RemoteName, Untracked: r.Untracked, PinnedBranches: pinned,
+	})
+}
 
-	if f.UI.Icons != "" {
-		switch f.UI.Icons {
+func (b *builder) discovery(i int, d fileDiscovery) {
+	if d.Root == "" {
+		b.errorf("discovery[%d]: root is required", i)
+		return
+	}
+	root, err := expandPath(d.Root, b.baseDir, b.getenv)
+	if err != nil {
+		b.errorf("discovery[%d].root: %v", i, err)
+		return
+	}
+	depth := DefaultMaxDepth
+	if d.MaxDepth != nil {
+		depth = *d.MaxDepth
+		if depth < 1 {
+			b.errorf("discovery[%d].max_depth must be at least 1", i)
+		}
+	}
+	include := d.Include
+	if len(include) == 0 {
+		include = []string{"**"}
+	}
+	for _, p := range append(append([]string{}, include...), d.Exclude...) {
+		if err := validatePattern(p); err != nil {
+			b.errorf("discovery[%d]: %v", i, err)
+		}
+	}
+	ws, err := expandWorkspace(d.Workspace, b.getenv)
+	if err != nil {
+		b.errorf("discovery[%d].workspace: %v", i, err)
+	}
+	b.cfg.Discovery = append(b.cfg.Discovery, Discovery{
+		Root: root, MaxDepth: depth, Family: d.Family, Workspace: ws, Include: include,
+		Exclude: d.Exclude, FollowSymlinks: d.FollowSymlinks,
+	})
+}
+
+func (b *builder) ui(u fileUI) {
+	cfg := &b.cfg.UI
+	if u.Icons != "" {
+		switch u.Icons {
 		case "unicode", "nerd", "ascii":
-			cfg.UI.Icons = f.UI.Icons
+			cfg.Icons = u.Icons
 		default:
-			addErr("[ui].icons must be \"unicode\", \"nerd\", or \"ascii\", not %q", f.UI.Icons)
+			b.errorf("[ui].icons must be \"unicode\", \"nerd\", or \"ascii\", not %q", u.Icons)
 		}
 	}
-	if f.UI.View != "" {
-		switch f.UI.View {
+	if u.View != "" {
+		switch u.View {
 		case "list", "tree":
-			cfg.UI.View = f.UI.View
+			cfg.View = u.View
 		default:
-			addErr("[ui].view must be \"list\" or \"tree\", not %q", f.UI.View)
+			b.errorf("[ui].view must be \"list\" or \"tree\", not %q", u.View)
 		}
 	}
-	if n := f.UI.DetailCommits; n != nil {
+	if n := u.DetailCommits; n != nil {
 		if *n < 1 || *n > MaxDetailCommits {
-			addErr("[ui].detail_commits must be between 1 and %d, not %d", MaxDetailCommits, *n)
+			b.errorf("[ui].detail_commits must be between 1 and %d, not %d", MaxDetailCommits, *n)
 		} else {
-			cfg.UI.DetailCommits = *n
+			cfg.DetailCommits = *n
 		}
 	}
-	t := f.UI.Theme
+	b.theme(u.Theme)
+}
+
+func (b *builder) theme(t fileTheme) {
+	cfg := &b.cfg.UI.Theme
 	if t.Preset != "" {
 		if p, ok := ThemePresets[t.Preset]; ok {
-			cfg.UI.Theme = p
+			*cfg = p
 		} else {
-			addErr("[ui.theme].preset must be one of %s, not %q", strings.Join(ThemePresetNames(), ", "), t.Preset)
+			b.errorf("[ui.theme].preset must be one of %s, not %q", strings.Join(ThemePresetNames(), ", "), t.Preset)
 		}
 	}
 	for _, c := range []struct {
@@ -262,62 +312,57 @@ func build(f *file, baseDir string, getenv func(string) string) (*Config, error)
 		val  string
 		dest *string
 	}{
-		{"active_border", t.ActiveBorder, &cfg.UI.Theme.ActiveBorder},
-		{"inactive_border", t.InactiveBorder, &cfg.UI.Theme.InactiveBorder},
-		{"title", t.Title, &cfg.UI.Theme.Title},
-		{"selected_background", t.SelectedBackground, &cfg.UI.Theme.SelectedBackground},
-		{"selected_foreground", t.SelectedForeground, &cfg.UI.Theme.SelectedForeground},
-		{"selected_accent", t.SelectedAccent, &cfg.UI.Theme.SelectedAccent},
-		{"header_background", t.HeaderBackground, &cfg.UI.Theme.HeaderBackground},
-		{"header_foreground", t.HeaderForeground, &cfg.UI.Theme.HeaderForeground},
-		{"key", t.Key, &cfg.UI.Theme.Key},
-		{"branch", t.Branch, &cfg.UI.Theme.Branch},
-		{"clean", t.Clean, &cfg.UI.Theme.Clean},
-		{"dirty", t.Dirty, &cfg.UI.Theme.Dirty},
-		{"ahead", t.Ahead, &cfg.UI.Theme.Ahead},
-		{"behind", t.Behind, &cfg.UI.Theme.Behind},
-		{"success", t.Success, &cfg.UI.Theme.Success},
-		{"error", t.Error, &cfg.UI.Theme.Error},
-		{"warning", t.Warning, &cfg.UI.Theme.Warning},
-		{"dim", t.Dim, &cfg.UI.Theme.Dim},
+		{"active_border", t.ActiveBorder, &cfg.ActiveBorder},
+		{"inactive_border", t.InactiveBorder, &cfg.InactiveBorder},
+		{"title", t.Title, &cfg.Title},
+		{"selected_background", t.SelectedBackground, &cfg.SelectedBackground},
+		{"selected_foreground", t.SelectedForeground, &cfg.SelectedForeground},
+		{"selected_accent", t.SelectedAccent, &cfg.SelectedAccent},
+		{"header_background", t.HeaderBackground, &cfg.HeaderBackground},
+		{"header_foreground", t.HeaderForeground, &cfg.HeaderForeground},
+		{"key", t.Key, &cfg.Key},
+		{"branch", t.Branch, &cfg.Branch},
+		{"clean", t.Clean, &cfg.Clean},
+		{"dirty", t.Dirty, &cfg.Dirty},
+		{"ahead", t.Ahead, &cfg.Ahead},
+		{"behind", t.Behind, &cfg.Behind},
+		{"success", t.Success, &cfg.Success},
+		{"error", t.Error, &cfg.Error},
+		{"warning", t.Warning, &cfg.Warning},
+		{"dim", t.Dim, &cfg.Dim},
 	} {
 		if c.val == "" {
 			continue
 		}
 		if err := validateColor(c.val); err != nil {
-			addErr("[ui.theme].%s: %v", c.key, err)
+			b.errorf("[ui.theme].%s: %v", c.key, err)
 			continue
 		}
 		*c.dest = c.val
 	}
+}
 
-	for i, l := range f.Launchers {
-		if l.Name == "" {
-			addErr("launchers[%d]: name is required", i)
-		}
-		if len(l.Command) == 0 || l.Command[0] == "" {
-			addErr("launchers[%d]: command must be a non-empty argument array", i)
-			continue
-		}
-		exe, err := expandCommand(l.Command[0], baseDir, getenv)
-		if err != nil {
-			addErr("launchers[%d].command: %v", i, err)
-		}
-		cmd := append([]string{exe}, l.Command[1:]...)
-		for _, a := range cmd[1:] {
-			for _, ph := range []string{"{path}", "{workspace}"} {
-				if strings.Contains(a, ph) && a != ph {
-					addErr("launchers[%d]: %s must be a complete argument, not part of %q", i, ph, a)
-				}
+func (b *builder) launcher(i int, l fileLauncher) {
+	if l.Name == "" {
+		b.errorf("launchers[%d]: name is required", i)
+	}
+	if len(l.Command) == 0 || l.Command[0] == "" {
+		b.errorf("launchers[%d]: command must be a non-empty argument array", i)
+		return
+	}
+	exe, err := expandCommand(l.Command[0], b.baseDir, b.getenv)
+	if err != nil {
+		b.errorf("launchers[%d].command: %v", i, err)
+	}
+	cmd := append([]string{exe}, l.Command[1:]...)
+	for _, a := range cmd[1:] {
+		for _, ph := range []string{"{path}", "{workspace}"} {
+			if strings.Contains(a, ph) && a != ph {
+				b.errorf("launchers[%d]: %s must be a complete argument, not part of %q", i, ph, a)
 			}
 		}
-		cfg.Launchers = append(cfg.Launchers, Launcher{Name: l.Name, Command: cmd})
 	}
-
-	if len(errs) > 0 {
-		return nil, errors.Join(errs...)
-	}
-	return cfg, nil
+	b.cfg.Launchers = append(b.cfg.Launchers, Launcher{Name: l.Name, Command: cmd})
 }
 
 func validUntracked(v string) bool { return v == "normal" || v == "no" }
