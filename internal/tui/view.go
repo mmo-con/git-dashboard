@@ -755,8 +755,8 @@ func (m *Model) firstError(r *domain.Repository) string {
 	switch {
 	case r.EntryError != nil:
 		return r.EntryError.Error()
-	case r.Inspection.Err != nil:
-		return r.Inspection.Err.Error()
+	case r.Inspected.Err != nil:
+		return r.Inspected.Err.Error()
 	}
 	if last := m.lastOp(r.ID); last != nil && last.Error != nil {
 		return fmt.Sprintf("%s %s: %v", last.Operation, last.Status, last.Error)
@@ -1058,8 +1058,8 @@ func (m *Model) viewError(iw, rows int) (string, []string) {
 			body = append(body, renderLines(t.err, "", "entry: "+r.Availability.String()+": "+r.EntryError.Error())...)
 			found = true
 		}
-		if r.Inspection.Err != nil {
-			body = append(body, renderLines(t.err, "", "inspection: "+r.Inspection.Err.Error())...)
+		if r.Inspected.Err != nil {
+			body = append(body, renderLines(t.err, "", "inspection: "+r.Inspected.Err.Error())...)
 			found = true
 		}
 		if last := m.lastOp(r.ID); last != nil {

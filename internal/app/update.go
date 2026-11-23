@@ -19,7 +19,7 @@ func Eligibility(r domain.Repository, storeBusy bool) string {
 	switch {
 	case !r.IsAvailable():
 		return "repository is " + r.Availability.String()
-	case r.Inspection.Err != nil || !r.Head.Valid || !r.Worktree.Valid || !r.Upstream.Valid || !r.Operation.Valid:
+	case r.Inspected.Err != nil || !r.Head.Valid || !r.Worktree.Valid || !r.Upstream.Valid || !r.Operation.Valid:
 		return "state is unknown"
 	case r.Operation.Value != domain.NoOperation:
 		return r.Operation.Value.String() + " in progress"
@@ -87,7 +87,7 @@ func UpdateJobs(client git.Interface, all []domain.Repository, eligible []Update
 					return nil, fmt.Errorf("recheck failed: %w", err)
 				}
 				fresh := r
-				fresh.ApplyInspection(fresh.Inspection.Generation, in, nil, time.Now())
+				fresh.ApplyInspection(fresh.Inspected.Generation, in, nil, time.Now())
 				if reason := Eligibility(fresh, false); reason != "" {
 					return nil, &jobs.SkipError{Reason: "update skipped: " + reason}
 				}

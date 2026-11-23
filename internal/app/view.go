@@ -56,7 +56,7 @@ func matchState(tok string, r *domain.Repository, marked bool) bool {
 	case "is:noupstream":
 		return u.Valid && (!u.Value.Configured || u.Value.Gone)
 	case "is:error":
-		return r.EntryError != nil || r.Inspection.Err != nil
+		return r.EntryError != nil || r.Inspected.Err != nil
 	case "is:unavailable":
 		return !r.IsAvailable()
 	case "is:mismatch":
