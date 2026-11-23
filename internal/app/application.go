@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"sync/atomic"
-	"time"
 
 	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/git"
@@ -91,10 +90,8 @@ func (a *Application) LoadConfig(ctx context.Context) (*Loaded, error) {
 	if a.ScanRoot != "" {
 		cfg.ScanOnly(a.ScanRoot)
 	}
-	client := git.New(cfg.Git.Executable)
-	vctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if _, err := client.CheckVersion(vctx); err != nil {
+	client, _, err := git.Open(ctx, cfg.Git.Executable)
+	if err != nil {
 		return nil, err
 	}
 	return &Loaded{Config: cfg, Git: client}, nil

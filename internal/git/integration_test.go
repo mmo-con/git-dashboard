@@ -35,10 +35,13 @@ func inspect(t *testing.T, c *git.Client, loc domain.Location) domain.Inspection
 	return in
 }
 
-func TestCheckVersion(t *testing.T) {
+func TestOpen(t *testing.T) {
 	tu.IsolateGit(t)
-	if _, err := git.New("git").CheckVersion(context.Background()); err != nil {
-		t.Fatal(err)
+	if c, _, err := git.Open(context.Background(), "git"); err != nil || c == nil {
+		t.Fatalf("Open: client=%v err=%v", c, err)
+	}
+	if c, _, err := git.Open(context.Background(), filepath.Join(t.TempDir(), "missing")); err == nil || c != nil {
+		t.Fatalf("Open of a missing executable: client=%v err=%v", c, err)
 	}
 }
 
