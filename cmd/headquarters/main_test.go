@@ -3,12 +3,56 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
+
+func TestMakeReleaseTag(t *testing.T) {
+	makePath, err := exec.LookPath("make")
+	if err != nil {
+		t.Skip("make is not installed")
+	}
+	makefile, err := filepath.Abs(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tu.IsolateGit(t)
+	repo := tu.InitRepo(t, t.TempDir())
+	makeTag := func(tag string) (string, error) {
+		cmd := exec.Command(makePath, "-f", makefile, "tag", "TAG="+tag)
+		cmd.Dir = repo
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	for _, invalid := range []string{"", "1.0.1", "v1.0", "v1.0.1-rc.1", "v1.0.1\nv1.0.2"} {
+		if out, err := makeTag(invalid); err == nil || !strings.Contains(out, "Usage: make tag TAG=vMAJOR.MINOR.PATCH") {
+			t.Errorf("make tag TAG=%q: err=%v, output=%s", invalid, err, out)
+		}
+	}
+	if tags := tu.Git(t, repo, "tag", "--list"); tags != "" {
+		t.Fatalf("invalid input created tags: %s", tags)
+	}
+
+	if out, err := makeTag("v1.0.1"); err != nil {
+		t.Fatalf("make tag: %v\n%s", err, out)
+	}
+	ref := "refs/tags/v1.0.1"
+	if got := tu.Git(t, repo, "for-each-ref", "--format=%(objecttype) %(contents:subject)", ref); got != "tag headquarters v1.0.1" {
+		t.Errorf("unexpected tag type or message: %q", got)
+	}
+	head := tu.Git(t, repo, "rev-parse", "HEAD")
+	tu.Commit(t, repo, "README", "next\n", "next commit")
+	if out, err := makeTag("v1.0.1"); err == nil {
+		t.Errorf("make tag unexpectedly accepted a duplicate: %s", out)
+	}
+	if got := tu.Git(t, repo, "rev-parse", ref+"^{commit}"); got != head {
+		t.Errorf("tagged commit = %s, want %s", got, head)
+	}
+}
 
 func runCLI(t *testing.T, env map[string]string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
