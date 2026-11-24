@@ -26,6 +26,7 @@ func (m *Model) modal(h int) []string {
 		modeOperations:    {100, m.viewOperations},
 		modeUpdatePreview: {100, m.viewUpdatePreview},
 		modeLaunchers:     {50, m.viewLaunchers},
+		modeCopy:          {70, m.viewCopy},
 		modeConfirmQuit:   {72, m.viewConfirmQuit},
 	}
 	s, ok := specs[m.mode]
