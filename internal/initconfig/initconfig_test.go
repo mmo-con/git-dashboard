@@ -278,7 +278,6 @@ func TestSpecialNames(t *testing.T) {
 	root := filepath.Join(base, "src")
 	glob := tu.InitRepo(t, filepath.Join(root, "a[1]{x}", "repo"))
 	dollar := tu.InitRepo(t, filepath.Join(root, "$HOME", "repo"))
-	invalid := tu.InitRepo(t, filepath.Join(root, "bad\xff", "repo"))
 	direct := tu.InitRepo(t, filepath.Join(root, "direct"))
 	tu.InitRepo(t, filepath.Join(direct, "n$x"))
 	tu.InitRepo(t, filepath.Join(base, "r$", "repo"))
@@ -292,12 +291,29 @@ func TestSpecialNames(t *testing.T) {
 	if !reflect.DeepEqual(f.Discovery, want) {
 		t.Fatalf("discovery = %+v\n%s", f.Discovery, res.Config)
 	}
-	if len(res.Warnings) != 4 || commentedEntry.Match(res.Config) {
+	if len(res.Warnings) != 3 || commentedEntry.Match(res.Config) {
 		t.Fatalf("warnings = %q\n%s", res.Warnings, res.Config)
 	}
 	got, warnings := resolve(t, load(t, res.Config))
-	wantRepos := map[string]string{glob: "a[1]{x}", dollar: "Ungrouped", invalid: "Ungrouped", direct: "Ungrouped"}
+	wantRepos := map[string]string{glob: "a[1]{x}", dollar: "Ungrouped", direct: "Ungrouped"}
 	if !reflect.DeepEqual(got, wantRepos) || len(warnings) != 0 {
+		t.Fatalf("repositories = %v, warnings = %v", got, warnings)
+	}
+}
+
+func TestInvalidUTF8DirectoryStaysUngrouped(t *testing.T) {
+	root := newRoot(t)
+	dir := filepath.Join(root, "bad\xff")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Skipf("file system rejects invalid UTF-8 names: %v", err)
+	}
+	repo := tu.InitRepo(t, filepath.Join(dir, "repo"))
+
+	res, f := generate(t, initconfig.Options{Roots: []string{root}})
+	if len(f.Discovery) != 1 || len(res.Warnings) != 1 {
+		t.Fatalf("warnings = %q\n%s", res.Warnings, res.Config)
+	}
+	if got, warnings := resolve(t, load(t, res.Config)); got[repo] != "Ungrouped" || len(warnings) != 0 {
 		t.Fatalf("repositories = %v, warnings = %v", got, warnings)
 	}
 }
