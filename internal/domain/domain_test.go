@@ -36,6 +36,20 @@ func TestRedactURL(t *testing.T) {
 	}
 }
 
+func TestStripURLUserInfo(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://user:token@github.com/o/r.git": "https://github.com/o/r.git",
+		"HTTP://token@host/path@x":              "HTTP://host/path@x",
+		"https://github.com/o/r.git":            "https://github.com/o/r.git",
+		"git@github.com:o/r.git":                "git@github.com:o/r.git",
+		"ssh://git@host/r.git":                  "ssh://git@host/r.git",
+	} {
+		if got := StripURLUserInfo(in); got != want {
+			t.Errorf("StripURLUserInfo(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestRemoteMismatch(t *testing.T) {
 	remotes := KnownValue([]Remote{
 		{Name: "upstream", URL: "git@host:u/r.git"},

@@ -54,6 +54,16 @@ func NormalizeRemoteURL(u string) string {
 // RedactURL removes user information from URLs such as
 // https://user:token@host/path. SSH user names such as git@ are kept.
 func RedactURL(u string) string {
+	return replaceUserInfo(u, "***@")
+}
+
+// StripURLUserInfo removes user information from HTTP(S) URLs entirely, so
+// the result is still a usable URL. SSH user names such as git@ are kept.
+func StripURLUserInfo(u string) string {
+	return replaceUserInfo(u, "")
+}
+
+func replaceUserInfo(u, with string) string {
 	i := strings.Index(u, "://")
 	if i < 0 || !strings.HasPrefix(strings.ToLower(u[:i]), "http") {
 		return u
@@ -67,7 +77,7 @@ func RedactURL(u string) string {
 	if at < 0 {
 		return u
 	}
-	return u[:i+3] + "***@" + rest[at+1:]
+	return u[:i+3] + with + rest[at+1:]
 }
 
 // Printable makes text from external sources, such as commit subjects, Git
