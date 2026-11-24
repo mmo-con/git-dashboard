@@ -27,6 +27,51 @@ individual entries, such as a missing path, are shown as entry states.
 
 A complete example is in [../examples/config.toml](../examples/config.toml).
 
+## Generating a configuration
+
+```sh
+headquarters init [--max-depth N] [-o FILE] [--force] DIR...
+```
+
+`init` scans the directories once with the discovery rules below and prints
+a commented configuration that contains `version = 1` and only
+`[[discovery]]` and `[[repositories]]` entries. Review it before use; all
+other sections keep their defaults. `init` does not read a configuration
+file, uses `git` from `PATH`, and never changes repositories.
+
+| Option | Default | Description |
+|---|---|---|
+| `--max-depth N` | `3` | directory levels below each directory that are scanned, as for `headquarters <path>` |
+| `-o FILE` | standard output | write the configuration to `FILE`; missing parent directories are created and the file is replaced atomically |
+| `--force` | off | replace an existing `FILE`; a symbolic link is kept and its target is replaced |
+
+`init` must be the first argument, and options precede the directories. A
+directory named `init` is scanned with `headquarters ./init`.
+
+For each directory, the generated configuration covers the scanned area, so
+repositories cloned later are found as well:
+
+- Every first-level directory that contains repositories becomes a
+  `[[discovery]]` entry with the directory name as `family` and
+  `max_depth = N - 1`.
+- The directory itself becomes a `[[discovery]]` entry with family
+  `Ungrouped` and `max_depth = N` that excludes the grouped directories.
+- A directory that is itself a repository becomes a `[[repositories]]`
+  entry.
+- Nested repositories are written as commented-out `[[repositories]]`
+  entries; submodules are skipped.
+
+Paths below the home directory are written as `~/…`. A directory that
+overlaps an earlier one is skipped. Paths that contain `$` or are not valid
+UTF-8 cannot be written; affected directories stay `Ungrouped` or are
+skipped. Every warning is printed to standard error and repeated as a
+`# warning:` comment at the top of the generated file.
+
+The exit status is `0` on success, also with warnings; `1` if Git is
+unusable, no repository is found (nothing is written), or the file cannot
+be written, including an existing file without `--force`; and `2` for usage
+errors such as a missing directory.
+
 ## Paths
 
 All path values (`path`, `root`, `[git].executable`, `[lazygit].command`, and

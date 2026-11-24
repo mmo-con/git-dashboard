@@ -9,9 +9,10 @@ decisions, their rationale, and their constraints.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/headquarters` | flags, configuration lookup, version check, `--check` |
+| `cmd/headquarters` | flags, configuration lookup, version check, `--check`, `init` |
 | `internal/config` | TOML decoding, defaults, paths, validation, themes |
 | `internal/inventory` | discovery, patterns, identity, precedence, validation states |
+| `internal/initconfig` | one-time scan and generation of a starting configuration, atomic file writing |
 | `internal/git` | isolated Git command runner, parsers, inspection, fetch, update |
 | `internal/jobs` | scheduler, timeouts, store locks, event queue |
 | `internal/app` | application services, operations, handover, filters, sorting |
@@ -34,6 +35,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Domain state and error handling | [ADR 0006](adr/0006-domain-state-and-errors.md) |
 | User interface principles | [ADR 0007](adr/0007-user-interface-principles.md) |
 | Compatibility, performance, and testing | [ADR 0008](adr/0008-compatibility-performance-and-testing.md) |
+| Generating a starting configuration | [ADR 0009](adr/0009-starting-configuration-generation.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
