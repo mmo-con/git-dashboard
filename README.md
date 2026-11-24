@@ -79,8 +79,9 @@ The architecture and the decisions behind it are documented in
   reason. The operations view then serves as a worklist: open blocked
   repositories in lazygit, see which blockers are resolved, and continue.
 - Configurable launchers for a shell, an editor, or a file manager.
-- `y` copies the worktree path, branch name, or primary remote URL of the
-  selected repository to the clipboard.
+- `y` copies the worktree path, branch name, primary remote URL, or its web
+  URL (HTTPS, also for SSH remotes) of the selected repository to the
+  clipboard.
 - lazygit-style panels with titled borders, one column per count (staged,
   modified, untracked, stashed, ahead, behind) plus a State column for everything
   else, per-cell colors, spinners and progress bars, dialogs as overlays, and

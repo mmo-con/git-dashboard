@@ -1179,13 +1179,14 @@ func TestCopyMenuCopiesRepositoryValues(t *testing.T) {
 	m, copied := copyModel(t, copyRepo(), nil)
 	keys(m, "y")
 	view := ansi.Strip(m.View())
-	for _, want := range []string{"Copy ─ api", "Path", "/r/api", "Branch", "main", "Remote URL", "git@host:o/api.git"} {
+	for _, want := range []string{"Copy ─ api", "Path", "/r/api", "Branch", "main", "Remote URL", "git@host:o/api.git",
+		"Web URL", "https://host/o/api"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("copy menu lacks %q", want)
 		}
 	}
 	keys(m, "esc")
-	for i, want := range []string{"/r/api", "main", "git@host:o/api.git"} {
+	for i, want := range []string{"/r/api", "main", "git@host:o/api.git", "https://host/o/api"} {
 		copyEntry(m, i)
 		if m.mode != modeNormal || len(*copied) != i+1 || (*copied)[i] != want {
 			t.Fatalf("entry %d: mode %v, copied %q", i, m.mode, *copied)
@@ -1225,6 +1226,9 @@ func TestCopyUnavailableEntries(t *testing.T) {
 		{"head unknown", func(r *domain.Repository) { r.Head = domain.Known[domain.HeadState]{} }, 1, "branch unknown"},
 		{"no remote", func(r *domain.Repository) { r.Remotes = domain.KnownValue([]domain.Remote{}) }, 2, "no remote configured"},
 		{"remotes unknown", func(r *domain.Repository) { r.Remotes = domain.Known[[]domain.Remote]{} }, 2, "remotes unknown"},
+		{"no web URL", func(r *domain.Repository) {
+			r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "/srv/git/api.git"}})
+		}, 3, "no web URL for this remote"},
 		{"control characters", func(r *domain.Repository) { r.Location.WorktreeRoot = "/r/a\nb" }, 0, "control characters"},
 	}
 	for _, tc := range cases {
@@ -1261,7 +1265,8 @@ func TestCopyRemoteURLWithoutCredentials(t *testing.T) {
 	menu := m.View()
 	keys(m, "esc")
 	copyEntry(m, 2)
-	if len(*copied) != 1 || (*copied)[0] != "https://host/o/api.git" {
+	copyEntry(m, 3)
+	if strings.Join(*copied, " ") != "https://host/o/api.git https://host/o/api" {
 		t.Fatalf("copied %q", *copied)
 	}
 	if strings.Contains(menu+m.message, "s3cret") {

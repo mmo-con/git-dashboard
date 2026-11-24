@@ -8,6 +8,7 @@ import (
 
 	"github.com/mmo-con/headquarters/internal/clipboard"
 	"github.com/mmo-con/headquarters/internal/domain"
+	"github.com/mmo-con/headquarters/internal/launcher"
 )
 
 // copyItem is an entry of the copy menu. An entry with a reason is
@@ -49,15 +50,23 @@ func copyItems(r *domain.Repository) []copyItem {
 	items = append(items, branch)
 
 	remote := copyItem{title: "Remote URL", label: "remote URL"}
+	web := copyItem{title: "Web URL", label: "web URL"}
 	switch {
 	case !r.Remotes.Valid:
-		remote.reason = "remotes unknown"
+		remote.reason, web.reason = "remotes unknown", "remotes unknown"
 	case r.PrimaryRemote == nil:
-		remote.reason = "no remote configured"
+		remote.reason, web.reason = "no remote configured", "no remote configured"
 	default:
 		remote.value = domain.StripURLUserInfo(r.PrimaryRemote.URL)
+		// The same derivation as "Open remote in browser", so that an SSH
+		// remote can be pasted into a browser.
+		if u, ok := launcher.BrowserURL(r.PrimaryRemote.URL); ok {
+			web.value = u
+		} else {
+			web.reason = "no web URL for this remote"
+		}
 	}
-	items = append(items, remote)
+	items = append(items, remote, web)
 
 	for i := range items {
 		if items[i].reason != "" {
