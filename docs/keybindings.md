@@ -46,7 +46,7 @@ without colors.
 |---|---|
 | `Enter` | open selected repository in lazygit, or expand/collapse a selected family row |
 | `o` | open launcher menu |
-| `y` | copy the worktree path, branch name, or primary remote URL to the clipboard |
+| `y` | copy the worktree path, branch name, primary remote URL, or its web URL to the clipboard |
 
 The copy menu shows each value before it is copied. An entry is unavailable,
 with the reason, when the value does not exist or is unknown: a detached
@@ -54,7 +54,9 @@ HEAD has no branch, and a repository may have no remote or not yet be
 inspected. An unborn HEAD copies the branch it will create. Remote URLs are
 copied without user information such as `user:token@`. Values that contain
 control characters are never copied. The primary remote is the configured
-`remote_name`, else `origin`, else the alphabetically first remote.
+`remote_name`, else `origin`, else the alphabetically first remote. The web
+URL is the HTTPS address that *Open remote in browser* opens, also for SSH
+remotes; see [configuration](configuration.md) for how it is derived.
 
 headquarters copies with `pbcopy` on macOS and with `wl-copy` (Wayland),
 `xclip`, or `xsel` (X11) on Linux, trying them in this order. Without a

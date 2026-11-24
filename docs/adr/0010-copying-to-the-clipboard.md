@@ -14,8 +14,10 @@ states that headquarters emits no escape sequences of its own.
 ## Decision
 
 `y` on a repository row opens a copy menu with the worktree path, the
-checked-out branch, and the URL of the primary remote as defined in ADR
-0005. A value that is unknown or does not exist is unavailable with its
+checked-out branch, the URL of the primary remote as defined in ADR 0005,
+and its web URL. The web URL uses the derivation of the browser launcher, so
+an SSH remote yields an address that a browser can open; no SSH URL is
+derived from an HTTPS remote, because the SSH user and port are unknown. A value that is unknown or does not exist is unavailable with its
 reason; no placeholder is ever copied. An unborn HEAD has a branch name, a
 detached HEAD has none.
 

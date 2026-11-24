@@ -43,7 +43,7 @@ var Bindings = []BindingGroup{
 		{"Enter", "open in lazygit"},
 		{"Enter", "expand or collapse a family row in the tree"},
 		{"o", "launcher menu"},
-		{"y", "copy path, branch, or remote URL"},
+		{"y", "copy path, branch, remote or web URL"},
 	}},
 	{Title: "Batch", Right: true, Bindings: []Binding{
 		{"Space", "toggle mark"},
