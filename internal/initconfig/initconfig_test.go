@@ -422,3 +422,14 @@ func TestWriteFile(t *testing.T) {
 		t.Errorf("temporary files left: %v", entries)
 	}
 }
+
+func TestFileSystemRootOverlapsEveryRoot(t *testing.T) {
+	root := newRoot(t)
+	tu.InitRepo(t, filepath.Join(root, "a"))
+	fsRoot := string(filepath.Separator)
+
+	res, f := generate(t, initconfig.Options{Roots: []string{root, fsRoot}})
+	if len(f.Discovery) != 1 || f.Discovery[0].Root != root || len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], "overlaps") {
+		t.Fatalf("warnings = %q\n%s", res.Warnings, res.Config)
+	}
+}
