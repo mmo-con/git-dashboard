@@ -32,6 +32,9 @@ func main() {
 // run executes the command line and returns the exit status: 0 on success,
 // 1 on runtime errors, and 2 on usage or configuration errors.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
+	if len(args) > 0 && args[0] == "init" {
+		return runInit(args[1:], stdout, stderr, getenv)
+	}
 	flags := flag.NewFlagSet("headquarters", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	configFlag := flags.String("config", "", "path of the configuration file")
@@ -39,7 +42,9 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	checkConfig := flags.Bool("check", false, "validate the configuration, print the inventory, and exit")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: headquarters [options] [path]")
+		fmt.Fprintln(stderr, "       headquarters init [options] directory...")
 		fmt.Fprintln(stderr, "\nWith a path, the repositories below it replace the configured ones.")
+		fmt.Fprintln(stderr, "init prints a starting configuration; see headquarters init -h.")
 		fmt.Fprintln(stderr, "\noptions:")
 		flags.PrintDefaults()
 	}
@@ -55,6 +60,10 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		return 0
 	}
 
+	if flags.Arg(0) == "init" {
+		fmt.Fprintln(stderr, "headquarters: init must be the first argument; use ./init for a directory named init")
+		return 2
+	}
 	scanRoot, err := scanRootArg(flags.Args())
 	if err != nil {
 		fmt.Fprintln(stderr, "headquarters:", err)
@@ -147,7 +156,12 @@ func scanRootArg(args []string) (string, error) {
 	case len(args) > 1:
 		return "", fmt.Errorf("expected at most one path, got %d", len(args))
 	}
-	root, err := filepath.Abs(args[0])
+	return directoryArg(args[0])
+}
+
+// directoryArg returns arg as an absolute path of an existing directory.
+func directoryArg(arg string) (string, error) {
+	root, err := filepath.Abs(arg)
 	if err != nil {
 		return "", err
 	}
