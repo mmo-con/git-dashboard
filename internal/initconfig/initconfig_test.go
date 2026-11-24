@@ -365,3 +365,44 @@ func TestNoRepositoriesIsAnError(t *testing.T) {
 		t.Fatalf("err = %v, config = %q", err, res.Config)
 	}
 }
+
+func TestWriteFile(t *testing.T) {
+	dir := t.TempDir()
+	read := func(path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+
+	path := filepath.Join(dir, "new", "parent", "config.toml")
+	if err := initconfig.WriteFile(path, []byte("one"), false); err != nil || read(path) != "one" {
+		t.Fatalf("new file: %v", err)
+	}
+	if err := initconfig.WriteFile(path, []byte("two"), false); !errors.Is(err, os.ErrExist) || read(path) != "one" {
+		t.Fatalf("existing file without force: %v", err)
+	}
+	if err := initconfig.WriteFile(path, []byte("three"), true); err != nil || read(path) != "three" {
+		t.Fatalf("existing file with force: %v", err)
+	}
+
+	link := filepath.Join(dir, "link.toml")
+	if err := os.Symlink(path, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := initconfig.WriteFile(link, []byte("four"), false); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("symbolic link without force: %v", err)
+	}
+	if err := initconfig.WriteFile(link, []byte("four"), true); err != nil || read(path) != "four" {
+		t.Fatalf("symbolic link with force: %v", err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("link was replaced: %v", err)
+	}
+	entries, _ := os.ReadDir(filepath.Dir(path))
+	if len(entries) != 1 {
+		t.Errorf("temporary files left: %v", entries)
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -231,6 +232,7 @@ func render(opts Options, plans []rootPlan, warnings []string) []byte {
 		}
 		writeEntry(&buf, "discovery", discoveryEntry{Root: short(p.root), MaxDepth: opts.MaxDepth, Family: ungrouped, Exclude: exclude})
 		for _, g := range p.groups {
+			buf.WriteString("\n")
 			writeEntry(&buf, "discovery", discoveryEntry{Root: short(filepath.Join(p.root, g)), MaxDepth: opts.MaxDepth - 1, Family: g})
 		}
 	}
@@ -242,8 +244,8 @@ func render(opts Options, plans []rootPlan, warnings []string) []byte {
 				first = false
 			}
 			n.Path = short(n.Path)
-			var entry bytes.Buffer
-			writeEntry(&entry, "repositories", n)
+			entry := bytes.NewBufferString("\n")
+			writeEntry(entry, "repositories", n)
 			for _, line := range strings.SplitAfter(entry.String(), "\n") {
 				if line != "" && line != "\n" {
 					buf.WriteString("# ")
@@ -308,9 +310,48 @@ func writeEntry(buf *bytes.Buffer, table string, entry any) {
 	if err != nil {
 		panic(err) // entries contain only strings and integers
 	}
-	buf.WriteString("\n")
 	buf.Write(out)
 }
 
 // ErrNoRepositories reports that the roots contain no repository.
 var ErrNoRepositories = errors.New("no repositories found")
+
+// WriteFile writes data to path through a temporary file and a rename, and
+// creates missing parent directories. An existing file is replaced only with
+// force; if path is a symbolic link, its target is replaced.
+func WriteFile(path string, data []byte, force bool) error {
+	target := path
+	if fi, err := os.Lstat(path); err == nil {
+		if !force {
+			return fmt.Errorf("%s: %w; use --force to replace it", path, os.ErrExist)
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if target, err = filepath.EvalSymlinks(path); err != nil {
+				return err
+			}
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	dir := filepath.Dir(target)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".headquarters-init-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), target)
+}
