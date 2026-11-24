@@ -159,7 +159,7 @@ func (m *Model) footerLine() string {
 		left = " " + m.hints("Enter/y", "fetch and update", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
-	case modeSort, modeLaunchers:
+	case modeSort, modeLaunchers, modeCopy:
 		left = " " + m.hints("j/k", "move", "Enter", "choose", "Esc", "close")
 	case modeError:
 		left = " " + m.hints("t", "fetch in terminal", "Esc", "close")
@@ -196,7 +196,7 @@ func (m *Model) normalHints() []string {
 		}
 		pairs = append(pairs, "Enter", action)
 	} else if m.current() != nil {
-		pairs = append(pairs, "Enter", "lazygit")
+		pairs = append(pairs, "Enter", "lazygit", "y", "copy")
 	}
 	if len(m.marks) > 0 {
 		pairs = append(pairs, "f", "fetch marked", "u", "update marked", "A", "clear marks")

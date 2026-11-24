@@ -17,6 +17,7 @@ decisions, their rationale, and their constraints.
 | `internal/jobs` | scheduler, timeouts, store locks, event queue |
 | `internal/app` | application services, operations, handover, filters, sorting |
 | `internal/launcher` | lazygit, custom launchers, browser |
+| `internal/clipboard` | native clipboard tools, value checks |
 | `internal/domain` | repository and operation models |
 | `internal/tui` | Bubble Tea model, views, layout, theme, icons, key map |
 | `internal/testutil` | real Git repositories for tests |
@@ -36,6 +37,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | User interface principles | [ADR 0007](adr/0007-user-interface-principles.md) |
 | Compatibility, performance, and testing | [ADR 0008](adr/0008-compatibility-performance-and-testing.md) |
 | Generating a starting configuration | [ADR 0009](adr/0009-starting-configuration-generation.md) |
+| Copying values to the clipboard | [ADR 0010](adr/0010-copying-to-the-clipboard.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).

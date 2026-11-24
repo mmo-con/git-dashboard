@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/clipboard"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
@@ -26,6 +27,7 @@ const (
 	modeOperations
 	modeUpdatePreview
 	modeLaunchers
+	modeCopy
 	modeConfirmQuit
 )
 
@@ -117,6 +119,9 @@ type Model struct {
 	// ops runs the fetch and update batches.
 	ops *app.Operations
 
+	// clipboard copies text and returns the name of the tool used.
+	clipboard func(ctx context.Context, text string) (string, error)
+
 	preview    *updatePreview
 	quitReturn mode
 	visit      *visit
@@ -154,6 +159,7 @@ func New(a *app.Application) *Model {
 		theme:            newTheme(a.Config.UI.Theme),
 		icons:            iconSet(a.Config.UI.Icons),
 		tree:             a.Config.UI.View == "tree",
+		clipboard:        clipboard.System().Copy,
 	}
 	m.ops = app.NewOperations(a, func(js []jobs.Job) uint64 { return m.submit(js, m.applyBatchEvent) },
 		func() time.Time { return m.now() })

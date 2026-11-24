@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -701,7 +702,7 @@ func TestViewRendersAllModes(t *testing.T) {
 	m := newModel(t)
 	for _, width := range []int{80, 120, 160} {
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
-		for _, k := range []string{"", "?", "e", "s", "u", "o"} {
+		for _, k := range []string{"", "?", "e", "s", "u", "o", "y"} {
 			if k != "" {
 				keys(m, k)
 			}
@@ -1133,5 +1134,145 @@ func TestFailedInspectionAppliesPartialStateAndJobError(t *testing.T) {
 	}
 	if m.pendingInspect() != 0 || len(m.routes) != 0 {
 		t.Fatalf("finished inspection batch must be forgotten: pending=%d routes=%d", m.pendingInspect(), len(m.routes))
+	}
+}
+
+// copyModel returns a model whose only repository is r, with a fake
+// clipboard that records the copied texts or fails with err.
+func copyModel(t *testing.T, r domain.Repository, err error) (*Model, *[]string) {
+	t.Helper()
+	m := newModel(t)
+	r.PrimaryRemote = domain.SelectPrimaryRemote(r.Remotes, "")
+	m.Update(inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{r}}})
+	var copied []string
+	m.clipboard = func(_ context.Context, text string) (string, error) {
+		if err != nil {
+			return "", err
+		}
+		copied = append(copied, text)
+		return "fake-copy", nil
+	}
+	return m, &copied
+}
+
+// copyEntry opens the copy menu, moves down n entries, and presses Enter,
+// delivering the result of the copy command.
+func copyEntry(m *Model, n int) {
+	keys(m, "y")
+	for range n {
+		keys(m, "j")
+	}
+	if cmd := m.handleKey(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		m.Update(cmd())
+	}
+}
+
+func copyRepo() domain.Repository {
+	r := repo("api", "Work", false)
+	r.Location.WorktreeRoot = "/r/api"
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main", CommitID: "abc"})
+	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@host:o/api.git"}})
+	return r
+}
+
+func TestCopyMenuCopiesRepositoryValues(t *testing.T) {
+	m, copied := copyModel(t, copyRepo(), nil)
+	keys(m, "y")
+	view := ansi.Strip(m.View())
+	for _, want := range []string{"Copy ─ api", "Path", "/r/api", "Branch", "main", "Remote URL", "git@host:o/api.git"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("copy menu lacks %q", want)
+		}
+	}
+	keys(m, "esc")
+	for i, want := range []string{"/r/api", "main", "git@host:o/api.git"} {
+		copyEntry(m, i)
+		if m.mode != modeNormal || len(*copied) != i+1 || (*copied)[i] != want {
+			t.Fatalf("entry %d: mode %v, copied %q", i, m.mode, *copied)
+		}
+		if !strings.Contains(m.message, want) || !strings.Contains(m.message, "fake-copy") || m.messageErr {
+			t.Errorf("entry %d: message %q", i, m.message)
+		}
+	}
+}
+
+func TestCopyOnlyOnRepositoryRows(t *testing.T) {
+	m, _ := copyModel(t, copyRepo(), nil)
+	if h := strings.Join(m.normalHints(), " "); !strings.Contains(h, "y copy") {
+		t.Errorf("hints on a repository row = %q", h)
+	}
+	keys(m, "v")
+	if m.currentRow().count == 0 {
+		t.Fatal("tree view must start on the family row")
+	}
+	keys(m, "y")
+	if m.mode != modeNormal {
+		t.Fatal("y on a family row must not open the copy menu")
+	}
+	if h := strings.Join(m.normalHints(), " "); strings.Contains(h, "copy") {
+		t.Errorf("hints on a family row = %q", h)
+	}
+}
+
+func TestCopyUnavailableEntries(t *testing.T) {
+	cases := []struct {
+		name  string
+		edit  func(r *domain.Repository)
+		entry int
+		want  string
+	}{
+		{"detached", func(r *domain.Repository) { r.Head.Value = domain.HeadState{CommitID: "abc", Detached: true} }, 1, "detached HEAD"},
+		{"head unknown", func(r *domain.Repository) { r.Head = domain.Known[domain.HeadState]{} }, 1, "branch unknown"},
+		{"no remote", func(r *domain.Repository) { r.Remotes = domain.KnownValue([]domain.Remote{}) }, 2, "no remote configured"},
+		{"remotes unknown", func(r *domain.Repository) { r.Remotes = domain.Known[[]domain.Remote]{} }, 2, "remotes unknown"},
+		{"control characters", func(r *domain.Repository) { r.Location.WorktreeRoot = "/r/a\nb" }, 0, "control characters"},
+	}
+	for _, tc := range cases {
+		r := copyRepo()
+		tc.edit(&r)
+		m, copied := copyModel(t, r, nil)
+		keys(m, "y")
+		if view := ansi.Strip(m.View()); !strings.Contains(view, tc.want) {
+			t.Errorf("%s: menu does not show %q", tc.name, tc.want)
+		}
+		keys(m, "esc")
+		copyEntry(m, tc.entry)
+		if len(*copied) != 0 || !m.messageErr || !strings.Contains(m.message, tc.want) {
+			t.Errorf("%s: copied %q, message %q", tc.name, *copied, m.message)
+		}
+	}
+}
+
+func TestCopyUnbornBranch(t *testing.T) {
+	r := copyRepo()
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "trunk", Unborn: true})
+	m, copied := copyModel(t, r, nil)
+	copyEntry(m, 1)
+	if len(*copied) != 1 || (*copied)[0] != "trunk" {
+		t.Fatalf("copied %q", *copied)
+	}
+}
+
+func TestCopyRemoteURLWithoutCredentials(t *testing.T) {
+	r := copyRepo()
+	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "https://user:s3cret@host/o/api.git"}})
+	m, copied := copyModel(t, r, nil)
+	keys(m, "y")
+	menu := m.View()
+	keys(m, "esc")
+	copyEntry(m, 2)
+	if len(*copied) != 1 || (*copied)[0] != "https://host/o/api.git" {
+		t.Fatalf("copied %q", *copied)
+	}
+	if strings.Contains(menu+m.message, "s3cret") {
+		t.Fatal("the token must not be shown")
+	}
+}
+
+func TestCopyReportsClipboardErrors(t *testing.T) {
+	m, _ := copyModel(t, copyRepo(), errors.New("no clipboard tool found (xclip, xsel)"))
+	copyEntry(m, 0)
+	if !m.messageErr || !strings.Contains(m.message, "no clipboard tool found (xclip, xsel)") {
+		t.Fatalf("message %q", m.message)
 	}
 }

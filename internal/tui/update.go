@@ -81,6 +81,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.waitEvents()
 	case handoverDoneMsg:
 		return m, m.finishHandover(msg)
+	case copyDoneMsg:
+		m.finishCopy(msg)
+		return m, nil
 	case tea.KeyMsg:
 		return m, m.handleKey(msg)
 	}
@@ -235,6 +238,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return m.keyUpdatePreview(key)
 	case modeLaunchers:
 		return m.keyLaunchers(key)
+	case modeCopy:
+		return m.keyCopy(key)
 	}
 	return m.keyNormal(key)
 }
@@ -319,6 +324,8 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		if m.current() != nil {
 			m.mode, m.overlayIdx = modeLaunchers, 0
 		}
+	case "y":
+		m.openCopy()
 	case " ":
 		if r := m.current(); r != nil {
 			if m.marks[r.ID] {
