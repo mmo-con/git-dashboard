@@ -18,8 +18,8 @@ func loaded(r *domain.Repository) bool {
 
 // stateSegs describes what the count columns cannot show: unavailable
 // entries, loading and running operations, unknown state, conflicts and
-// operations in progress, the upstream relation, a remote mismatch, and other
-// branches. It is empty for a repository without findings. Every symbol
+// operations in progress, the upstream relation, a remote mismatch, a stale
+// fetch, and other branches. It is empty for a repository without findings. Every symbol
 // carries a count or text, so color is never the only carrier of information.
 func (m *Model) stateSegs(r *domain.Repository) []seg {
 	t, ic := m.theme, m.icons
@@ -78,6 +78,9 @@ func (m *Model) stateSegs(r *domain.Repository) []seg {
 	}
 	if r.RemoteMismatch() {
 		add(seg{ic.mismatch + "remote", t.warn})
+	}
+	if f := m.fetchFinding(r); f != "" {
+		add(seg{f, t.warn})
 	}
 	add(m.branchesMarker(r)...)
 	return out
@@ -219,8 +222,8 @@ const (
 // healthOf classifies r: errors and unavailable entries first, then
 // conflicts, operations in progress, and divergence, a dirty worktree,
 // behind, ahead, and other attention such as a remote mismatch, other
-// branches, or stash entries. Repositories that are not inspected yet are
-// unknown.
+// branches, stash entries, or a stale fetch. Repositories that are not
+// inspected yet are unknown.
 func (m *Model) healthOf(r *domain.Repository) healthLevel {
 	if !r.IsAvailable() || m.firstError(r) != "" {
 		return healthError
@@ -238,7 +241,7 @@ func (m *Model) healthOf(r *domain.Repository) healthLevel {
 		return healthBehind
 	case u.Ahead > 0:
 		return healthAhead
-	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone || stashed(r):
+	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone || stashed(r) || m.fetchFinding(r) != "":
 		return healthAttention
 	}
 	return healthOK
@@ -249,7 +252,7 @@ func stashed(r *domain.Repository) bool { return r.Stashes.Valid && r.Stashes.Va
 // healthSeg returns the symbol of a health level, and its label for family
 // summaries. Other attention is highlighted as a warning only if it involves
 // unpublished work (including stash entries), a remote mismatch, a detached
-// HEAD, or a gone upstream.
+// HEAD, a gone upstream, or a stale fetch.
 func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
 	t, ic := m.theme, m.icons
 	switch l {
@@ -278,7 +281,7 @@ func (m *Model) healthSeg(l healthLevel, warn bool) (s seg, label string) {
 // available, inspected repository without findings.
 func (m *Model) health(r *domain.Repository) (s seg, healthy bool) {
 	l := m.healthOf(r)
-	warn := r.UnpublishedBranches() > 0 || r.RemoteMismatch() || stashed(r) ||
+	warn := r.UnpublishedBranches() > 0 || r.RemoteMismatch() || stashed(r) || m.fetchFinding(r) != "" ||
 		(r.Head.Valid && r.Head.Value.Detached) || (r.Upstream.Valid && r.Upstream.Value.Gone)
 	s, _ = m.healthSeg(l, warn)
 	return s, l == healthOK
@@ -298,7 +301,8 @@ func (m *Model) familyHealth() map[domain.FamilyID][]healthLevel {
 }
 
 // familySummary counts the repositories of a family by health level and
-// lists the levels that need attention, most important first.
+// lists the levels that need attention, most important first. A healthy
+// family shows only the healthy symbol.
 func (m *Model) familySummary(levels []healthLevel) []seg {
 	counts := map[healthLevel]int{}
 	for _, l := range levels {
@@ -318,7 +322,7 @@ func (m *Model) familySummary(levels []healthLevel) []seg {
 	}
 	if len(out) == 0 && counts[healthOK] == len(levels) && len(levels) > 0 {
 		s, _ := m.healthSeg(healthOK, false)
-		out = append(out, seg{s.text + " all healthy", s.style})
+		out = append(out, s)
 	}
 	return out
 }
@@ -449,15 +453,46 @@ func (m *Model) followUp(row app.BatchRow) (text string, resolved bool) {
 
 // fetchSeg describes the last fetch; old or missing fetches are highlighted.
 func (m *Model) fetchSeg(now time.Time, r *domain.Repository) seg {
+	s := m.fetchAge(now, r)
 	switch {
 	case !r.LastFetch.Valid:
-		return seg{"fetch time unknown", m.theme.dim}
+		s.text = "fetch time unknown"
 	case r.LastFetch.Value == nil:
-		return seg{"never fetched", m.theme.warn}
-	case now.Sub(*r.LastFetch.Value) > staleFetch:
-		return seg{"fetched " + ago(now, *r.LastFetch.Value), m.theme.warn}
+		s.text = "never fetched"
+	default:
+		s.text = "fetched " + s.text
 	}
-	return seg{"fetched " + ago(now, *r.LastFetch.Value), m.theme.dim}
+	return s
+}
+
+// fetchAge is the age of the last fetch for the labeled detail line; old or
+// missing fetches are highlighted.
+func (m *Model) fetchAge(now time.Time, r *domain.Repository) seg {
+	switch {
+	case !r.LastFetch.Valid:
+		return seg{"unknown", m.theme.dim}
+	case r.LastFetch.Value == nil:
+		return seg{"never", m.theme.warn}
+	case now.Sub(*r.LastFetch.Value) > staleFetch:
+		return seg{ago(now, *r.LastFetch.Value), m.theme.warn}
+	}
+	return seg{ago(now, *r.LastFetch.Value), m.theme.dim}
+}
+
+// fetchFinding reports a repository with remotes that was never fetched or
+// not fetched for longer than staleFetch, so its upstream state may be
+// outdated. It is empty otherwise, including when the fetch time is unknown.
+func (m *Model) fetchFinding(r *domain.Repository) string {
+	if !r.LastFetch.Valid || !r.Remotes.Valid || len(r.Remotes.Value) == 0 {
+		return ""
+	}
+	switch {
+	case r.LastFetch.Value == nil:
+		return "never fetched"
+	case m.now().Sub(*r.LastFetch.Value) > staleFetch:
+		return "stale fetch"
+	}
+	return ""
 }
 
 func firstLine(s string) string {

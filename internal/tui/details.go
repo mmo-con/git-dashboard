@@ -34,7 +34,7 @@ func (m *Model) detailsBox(w, h int) []string {
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
-	return m.box(r.Name, sourceLabel(r), lines, w, h, false)
+	return m.box(r.Name, "", lines, w, h, false)
 }
 
 // sourceLabel describes how the repository entered the inventory.
@@ -175,39 +175,35 @@ func (m *Model) label(s string) seg {
 }
 
 // detailLines builds the detail panel for a content width of width cells.
-// The current branch, the worktree, and errors come first, so they stay
-// visible when the panel is cut off at the bottom.
+// The status of the branch and the worktree and errors come first, so they
+// stay visible when the panel is cut off at the bottom; the static location
+// of the repository comes last.
 func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	t := m.theme
 	now := m.now()
 	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) },
 		width: width, rule: t.inactiveBorder}
-	d.text(seg{r.Path, t.dim})
-	d.text(m.label("family"), seg{string(r.Family), t.key})
-	if r.Workspace != "" && r.Workspace != r.Path {
-		d.text(m.label("workspace"), seg{r.Workspace, t.dim})
-	}
 
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {
-		d.section("branch", t.title)
-		b := m.branchSegs(r, true)
+		d.section("status", t.title)
+		b := append([]seg{m.label("branch")}, m.branchSegs(r, true)...)
 		if r.Upstream.Valid && r.Upstream.Value.Configured {
 			b = append(b, seg{" → " + r.Upstream.Value.Ref, t.dim})
 		}
 		b = append(b, seg{"  ", t.plain})
 		d.text(append(b, m.upstreamSegs(r)...)...)
+		d.text(m.label("fetched"), m.fetchAge(now, r))
 
 		if r.Worktree.Valid {
-			d.section("worktree", t.title)
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
-				d.text(seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
+				d.text(m.label("operation"), seg{r.Operation.Value.String() + " in progress", t.err.Bold(true)})
 			}
-			d.text(m.worktreeSegs(r.Worktree.Value)...)
+			d.text(append([]seg{m.label("worktree")}, m.worktreeSegs(r.Worktree.Value)...)...)
 			// An unknown count is shown as "?" in the table; a failed
 			// inspection has its own section.
 			if r.Stashes.Valid && r.Stashes.Value > 0 {
-				s := []seg{{fmt.Sprintf("%s%d stash entries", m.icons.stash, r.Stashes.Value), t.warn}}
+				s := []seg{m.label("stash"), {fmt.Sprintf("%s%d entries", m.icons.stash, r.Stashes.Value), t.warn}}
 				if len(m.worktreeSiblings(r)) > 0 {
 					s = append(s, seg{"  shared by all worktrees", t.dim})
 				}
@@ -253,7 +249,6 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 					d.add(line(seg{"older commits unavailable: " + firstLine(e.err.Error()), t.dim}), detailOlderCommit)
 				}
 			}
-			d.text(m.fetchSeg(now, r))
 		}
 
 		if r.Remotes.Valid {
@@ -282,6 +277,14 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 			}
 		}
 	}
+
+	d.section("repository", t.title)
+	d.text(m.label("path"), seg{shortenHome(r.Path), t.dim})
+	d.text(m.label("family"), seg{string(r.Family), t.key})
+	if r.Workspace != "" && r.Workspace != r.Path {
+		d.text(m.label("workspace"), seg{shortenHome(r.Workspace), t.dim})
+	}
+	d.text(m.label("source"), seg{sourceLabel(r), t.dim})
 	return d
 }
 

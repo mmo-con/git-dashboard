@@ -281,7 +281,7 @@ func TestDetailPanelShowsRecentCommits(t *testing.T) {
 
 	full := len(m.detailLines(r, 80).fit(100))
 	small := strings.Join(m.detailLines(r, 80).fit(full-1), "\n")
-	if strings.Contains(small, "commit second") || !strings.Contains(small, "commit third") || !strings.Contains(small, "── BRANCH") {
+	if strings.Contains(small, "commit second") || !strings.Contains(small, "commit third") || !strings.Contains(small, "── STATUS") {
 		t.Fatalf("the oldest commit must be dropped first:\n%s", small)
 	}
 
