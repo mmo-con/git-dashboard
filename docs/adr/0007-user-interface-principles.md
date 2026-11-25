@@ -46,7 +46,7 @@ has its own color, distinct from ahead.
   its sections are defined by
   [ADR 0013](0013-calmer-table-and-detail-panel.md). It shortens the
   other-branches list before dropping section titles. Sections use titled
-  rules, shortened to a prefix by ADR 0013; recent commits are one line each and oldest ones are dropped first.
+  rules; recent commits are one line each and oldest ones are dropped first.
 - Commit times have the same absolute format in table and detail panel
   (`Nov 13 22:16`, with the year for earlier years). Narrow columns drop
   time of day and then day rather than truncating. Fetch and branch ages

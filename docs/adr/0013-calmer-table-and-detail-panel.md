@@ -10,8 +10,7 @@ were hard to read or restless:
 
 - Path and family stood untitled at the top of the detail panel, while the
   source of the repository sat far away in the bottom border. Branch and
-  worktree each took a titled section for a single line, and every section
-  title had a rule across the panel.
+  worktree each took a titled section for a single line.
 - The fetch age stood below the recent commits and looked like another
   commit, although it belongs to the upstream state. The result of the
   latest fetch or update was visible only if it failed.
@@ -29,8 +28,7 @@ were hard to read or restless:
 
 ## Decision
 
-The detail panel has labeled lines in sections titled with a short rule
-prefix (`── STATUS`):
+The detail panel has labeled lines in titled sections:
 
 - **Status** comes first: the branch with its upstream and relation, the
   fetch age, the latest fetch or update of this session with its result and
