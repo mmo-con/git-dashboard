@@ -70,6 +70,7 @@ jobs:
         with:
           go-version: stable
           check-latest: true
+          cache: false
       - run: go version
       - run: make vuln
 
@@ -94,6 +95,7 @@ jobs:
         with:
           go-version: stable
           check-latest: true
+          cache: false
       - run: go version
       - name: Build release archives
         run: |
