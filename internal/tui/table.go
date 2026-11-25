@@ -149,9 +149,11 @@ func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 type repoTable struct {
 	now time.Time
 	// cells holds the cells of a repository row from the health column on;
-	// family holds a family row of the tree without the cursor.
+	// family holds the toggle, name, and count of a family row of the tree
+	// without the cursor, and summary its health summary.
 	cells   [][][]seg
 	family  [][]seg
+	summary [][]seg
 	natural []int
 	// familyWidth is the width of the widest family row with its cursor.
 	familyWidth int
@@ -159,26 +161,33 @@ type repoTable struct {
 
 func (m *Model) measureTable() repoTable {
 	t := repoTable{now: m.now(), cells: make([][][]seg, len(m.rows)), family: make([][]seg, len(m.rows)),
-		natural: make([]int, len(colSpecs))}
+		summary: make([][]seg, len(m.rows)), natural: make([]int, len(colSpecs))}
 	var health map[domain.FamilyID][]healthLevel
 	if m.tree {
 		health = m.familyHealth()
 	}
 	for i, row := range m.rows {
 		if row.count > 0 {
+			// The toggle takes the mark column, so family names start left of
+			// the tree guides and stand out from repository names. Expanded
+			// families show the health in their rows instead of a summary.
 			toggle := m.icons.collapsed
-			if m.isExpanded(row.family) {
+			expanded := m.isExpanded(row.family)
+			if expanded {
 				toggle = m.icons.expanded
 			}
-			ss := []seg{
-				{"   " + toggle + " ", m.theme.dim}, {string(row.family), m.theme.bold},
+			t.family[i] = []seg{
+				{" " + toggle + " ", m.theme.dim}, {string(row.family), m.theme.title},
 				{fmt.Sprintf(" (%d)", row.count), m.theme.dim},
 			}
-			if summary := m.familySummary(health[row.family]); len(summary) > 0 {
-				ss = append(append(ss, seg{"   ", m.theme.plain}), summary...)
+			if !expanded {
+				t.summary[i] = m.familySummary(health[row.family])
 			}
-			t.family[i] = ss
-			t.familyWidth = max(t.familyWidth, 1+runewidth.StringWidth(domain.Printable(plain(ss))))
+			w := 1 + runewidth.StringWidth(domain.Printable(plain(t.family[i])))
+			if len(t.summary[i]) > 0 {
+				w += familySummaryGap + runewidth.StringWidth(domain.Printable(plain(t.summary[i])))
+			}
+			t.familyWidth = max(t.familyWidth, w)
 			continue
 		}
 		t.cells[i] = m.rowCells(m.repo(row.id), t.now)
@@ -233,6 +242,12 @@ func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
 		}
 		if entry.count > 0 {
 			ss := append([]seg{{cursor, m.theme.accent}}, t.family[i]...)
+			if summary := t.summary[i]; len(summary) > 0 {
+				// The summary starts in the State column, like the state of
+				// the repositories, unless the family name reaches into it.
+				gap := max(stateStart(cols)-runewidth.StringWidth(domain.Printable(plain(ss))), familySummaryGap)
+				ss = append(append(ss, seg{strings.Repeat(" ", gap), m.theme.plain}), summary...)
+			}
 			if i == m.cursor {
 				for k := range ss {
 					ss[k].style = m.theme.onSelected(ss[k].style)
@@ -333,6 +348,15 @@ func tableWidth(cols []column) int {
 		}
 	}
 	return w
+}
+
+// familySummaryGap is the minimum space between a family name and its health
+// summary.
+const familySummaryGap = 3
+
+// stateStart is the column at which the State column starts in a row.
+func stateStart(cols []column) int {
+	return tableWidth(cols[:colState]) + colGap(colState)
 }
 
 // align truncates or pads s to w cells, on the left if right is set.

@@ -88,6 +88,9 @@ retain their expansion state when you switch between views. While a text or
 quick filter is active, every family with matches is expanded; expanding or
 collapsing during the filter lasts until the filter is cleared, which
 restores the previous state. The family filter does not expand families.
+A collapsed family row summarizes the health of its matching repositories in
+the State column, for example `✗1 error  ●2 dirty`, or shows `✓` if all are
+healthy; an expanded family row has no summary.
 `h`, `l`, `z`, `[`, and `]` act only in the tree.
 
 `a`, `F`, and `U` act only on matching repositories in expanded families,
@@ -159,7 +162,7 @@ is updated until the new update is confirmed.
 | Repository | name |
 | Family | family of the repository; hidden in the tree, whose family rows name it |
 | Branch | checked-out branch, or the commit of a detached HEAD |
-| State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, divergence, a remote mismatch, and other branches; empty when there is nothing to report |
+| State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, divergence, a remote mismatch, a repository with remotes that was never fetched or not within seven days (`never fetched`, `stale fetch`), and other branches; empty when there is nothing to report |
 | Staged | staged entries |
 | Modified | entries modified or deleted in the worktree and not staged |
 | Untracked | untracked entries |
@@ -205,7 +208,7 @@ the rest.
 | `●` | `*` | local changes in the worktree |
 | `↓` | `v` | behind the upstream |
 | `↑` | `^` | ahead of the upstream |
-| `!` | `~` | other attention: other branches, stash entries, a remote mismatch, a detached HEAD, or a gone upstream; the State column names it |
+| `!` | `~` | other attention: other branches, stash entries, a remote mismatch, a detached HEAD, a gone upstream, or a stale fetch; the State column names it |
 | `✓` | `ok` | healthy |
 | empty | empty | not inspected yet |
 

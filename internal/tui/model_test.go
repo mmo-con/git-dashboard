@@ -600,11 +600,11 @@ func TestStashHints(t *testing.T) {
 		t.Fatalf("7 must show the repositories with stash entries: %q", names(m))
 	}
 	detail := func() string { return strings.Join(m.detailLines(api, 60).fit(100), "\n") }
-	if v := detail(); !strings.Contains(v, "≡2 stash entries") || strings.Contains(v, "shared") {
+	if v := detail(); !strings.Contains(v, "stash     ≡2 entries") || strings.Contains(v, "shared") {
 		t.Fatalf("detail:\n%s", v)
 	}
 	m.repo("/r/frontend").StoreID = api.StoreID
-	if v := detail(); !strings.Contains(v, "≡2 stash entries  shared by all worktrees") {
+	if v := detail(); !strings.Contains(v, "stash     ≡2 entries  shared by all worktrees") {
 		t.Fatalf("a store with linked worktrees must say that they share the stash:\n%s", v)
 	}
 	api.Stashes = domain.Known[int]{}
@@ -700,11 +700,113 @@ func TestFamilySummaryCountsHealthLevels(t *testing.T) {
 	if got != "✗1 error  ●2 dirty" {
 		t.Errorf("summary = %q", got)
 	}
-	if got := plain(m.familySummary([]healthLevel{healthOK, healthOK})); got != "✓ all healthy" {
-		t.Errorf("healthy summary = %q", got)
+	if got := plain(m.familySummary([]healthLevel{healthOK, healthOK})); got != "✓" {
+		t.Errorf("a healthy family must show only the symbol: %q", got)
 	}
 	if got := plain(m.familySummary([]healthLevel{healthOK, healthUnknown})); got != "" {
 		t.Errorf("a family that is still inspected must not be called healthy: %q", got)
+	}
+}
+
+// viewLine returns the first line of the plain view that contains s.
+func viewLine(m *Model, s string) string {
+	for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+		if strings.Contains(l, s) {
+			return l
+		}
+	}
+	return ""
+}
+
+// colOf returns the display column at which s starts in l, or -1.
+func colOf(l, s string) int {
+	i := strings.Index(l, s)
+	if i < 0 {
+		return -1
+	}
+	return runewidth.StringWidth(l[:i])
+}
+
+func TestFamilyRowsStandOutFromRepositories(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "g", "enter")
+	family, repo := viewLine(m, "Personal (1)"), viewLine(m, "dotfiles")
+	if c := colOf(family, "▾"); c != 3 {
+		t.Errorf("the toggle must take the mark column, after border and cursor, got %d:\n%q", c, family)
+	}
+	if fc, rc := colOf(family, "Personal"), colOf(repo, "dotfiles"); rc-fc < 5 {
+		t.Errorf("repository names must be indented clearly below the family name: %d vs %d", fc, rc)
+	}
+	tbl := m.measureTable()
+	for i, row := range m.rows {
+		if row.count > 0 {
+			name := tbl.family[i][1]
+			if name.text != "Personal" || name.style.GetForeground() != m.theme.title.GetForeground() {
+				t.Errorf("the family name must use the title color: %+v", name)
+			}
+			break
+		}
+	}
+}
+
+func TestFamilySummaryIsAlignedAndOnlyForCollapsedFamilies(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v")
+	header, row := viewLine(m, "State"), viewLine(m, "Work (2)")
+	if hc, sc := colOf(header, "State"), colOf(row, "✗2 error"); hc < 0 || sc != hc {
+		t.Errorf("the summary must start in the State column (%d), got %d:\n%q\n%q", hc, sc, header, row)
+	}
+	keys(m, "G", "enter")
+	if row := viewLine(m, "Work (2)"); strings.Contains(row, "error") {
+		t.Errorf("an expanded family shows the health in its rows, not in a summary: %q", row)
+	}
+	if row := viewLine(m, "Personal (1)"); !strings.Contains(row, "✗1 error") {
+		t.Errorf("a collapsed family must keep its summary: %q", row)
+	}
+}
+
+func TestStaleFetchNeedsAttention(t *testing.T) {
+	m := newModel(t)
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return now }
+	r := repo("x", "", false)
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	r.Stashes = domain.KnownValue(0)
+	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
+	at := func(d time.Duration) domain.Known[*time.Time] {
+		v := now.Add(-d)
+		return domain.KnownValue(&v)
+	}
+	for _, c := range []struct {
+		name    string
+		fetch   domain.Known[*time.Time]
+		remotes bool
+		want    string
+	}{
+		{"recent", at(6 * 24 * time.Hour), true, ""},
+		{"stale", at(8 * 24 * time.Hour), true, "stale fetch"},
+		{"never", domain.KnownValue[*time.Time](nil), true, "never fetched"},
+		{"unknown", domain.Known[*time.Time]{}, true, ""},
+		{"no remote", domain.KnownValue[*time.Time](nil), false, ""},
+	} {
+		r.LastFetch = c.fetch
+		r.Remotes = domain.KnownValue([]domain.Remote{})
+		if c.remotes {
+			r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
+		}
+		s, healthy := m.health(&r)
+		if got := m.stateText(&r); got != c.want {
+			t.Errorf("%s: state = %q, want %q", c.name, got, c.want)
+		}
+		if c.want == "" && !healthy {
+			t.Errorf("%s: the repository must stay healthy, got %q", c.name, s.text)
+		}
+		if c.want != "" && (s.text != "!" || s.style.GetForeground() != m.theme.warn.GetForeground()) {
+			t.Errorf("%s: a stale fetch needs attention as a warning, got %q", c.name, s.text)
+		}
 	}
 }
 
@@ -733,6 +835,54 @@ func TestOperationsAreGroupedByStatus(t *testing.T) {
 	v := m.View()
 	if !strings.Contains(v, "RUNNING 2") || !strings.Contains(v, "COMPLETED 1") || strings.Index(v, "FAILED") > strings.Index(v, "COMPLETED") {
 		t.Fatal("groups must be titled and ordered")
+	}
+}
+
+func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
+	t.Setenv("HOME", "/home/u")
+	m := newModel(t)
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return now }
+	fetched := now.Add(-2 * time.Hour)
+	r := repo("svc", "Work", false)
+	r.Path = "/home/u/src/svc"
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
+	r.LastFetch = domain.KnownValue(&fetched)
+	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Time: now, Subject: "Ship it"})
+	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
+	lines := m.detailLines(&r, 60).fit(100)
+	idx := func(prefix string) int {
+		for i, l := range lines {
+			if strings.HasPrefix(ansi.Strip(l), prefix) {
+				return i
+			}
+		}
+		return -1
+	}
+	v := ansi.Strip(strings.Join(lines, "\n"))
+	status, commits, repository := idx("── STATUS"), idx("── RECENT COMMITS"), idx("── REPOSITORY")
+	if status != 0 || strings.Contains(v, "── BRANCH") || strings.Contains(v, "── WORKTREE") {
+		t.Fatalf("branch and worktree must form the first section, STATUS:\n%s", v)
+	}
+	for _, want := range []string{"branch    main → origin/main  ✓", "fetched   2 h ago", "worktree  ✓ clean"} {
+		if i := idx(want); i <= status || i >= commits {
+			t.Errorf("STATUS must contain the line %q:\n%s", want, v)
+		}
+	}
+	if repository < commits || repository < idx("── REMOTES") {
+		t.Fatalf("REPOSITORY must be the last section:\n%s", v)
+	}
+	for _, want := range []string{"path      ~/src/svc", "family    Work", "source    configured"} {
+		if i := idx(want); i <= repository {
+			t.Errorf("REPOSITORY must contain the line %q:\n%s", want, v)
+		}
+	}
+
+	box := m.detailsBox(60, 30)
+	if bottom := ansi.Strip(box[len(box)-1]); strings.Contains(bottom, "configured") {
+		t.Errorf("the source belongs to the REPOSITORY section, not the border: %q", bottom)
 	}
 }
 
@@ -922,7 +1072,7 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 	}
 	found := false
 	for _, l := range lines {
-		if strings.HasPrefix(l, "── BRANCH ─") {
+		if strings.HasPrefix(l, "── STATUS ─") {
 			found = true
 			if w := lipgloss.Width(l); w != 40 {
 				t.Errorf("a section rule must span the panel: width %d, want 40", w)
@@ -974,7 +1124,7 @@ func TestSmallDetailPanelShortensOtherBranchesFirst(t *testing.T) {
 	r.Branches = domain.KnownValue(bs)
 	fetchBatch(t, m, r.ID)
 	setRow(m, 0, domain.StatusFailed, errors.New("offline"))
-	v := strings.Join(m.detailsBox(120, 12), "\n")
+	v := strings.Join(m.detailsBox(120, 14), "\n")
 	for _, want := range []string{"merging in progress", "offline", "wip-0", "more"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("a small detail panel must show %q:\n%s", want, v)
