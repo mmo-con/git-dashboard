@@ -11,6 +11,9 @@ of the health column and the status symbols.
 | `k` / `↑` | previous row |
 | `g` / `G` | first / last row |
 | `PgUp` / `PgDn` | page up / down |
+| `h` / `←` | in the tree: collapse the family; on a repository, select its family row and collapse it |
+| `l` / `→` | in the tree: expand the family |
+| `[` / `]` | in the tree: previous / next family row |
 
 The repository list keeps up to two rows of context above and below the
 cursor when space and list bounds allow. When you reverse direction, the
@@ -26,6 +29,7 @@ cursor moves within the current view before the list scrolls again.
 | `Tab` / `Shift+Tab` | next / previous family |
 | `t` | search and choose a family |
 | `v` | switch between the flat list and the family tree |
+| `z` | in the tree: collapse all families if any is expanded, otherwise expand all |
 | `s` | choose sorting |
 | `r` | refresh visible repository state |
 | `R` | reload configuration, rebuild inventory, refresh all; a new Git executable, parallelism limits, lazygit, and launchers take effect at once. When started with a path, the same path is scanned again |
@@ -67,12 +71,12 @@ reports an error; the terminal clipboard (OSC 52) is not used.
 
 | Key | Action |
 |---|---|
-| `Space` | toggle mark |
+| `Space` | toggle mark; on a family row, mark its matching repositories, or unmark them if all are marked |
 | `a` | mark all visible repositories |
 | `A` | clear all marks |
-| `f` | fetch marked repositories, or the repository under the cursor if none are marked |
+| `f` | fetch marked repositories, or the repository or family under the cursor if none are marked |
 | `F` | fetch visible repositories |
-| `u` | safe update of marked repositories, or the repository under the cursor if none are marked |
+| `u` | safe update of marked repositories, or the repository or family under the cursor if none are marked |
 | `U` | safe update of visible repositories |
 
 A fetch starts at once. An update asks for confirmation first.
@@ -80,13 +84,18 @@ A fetch starts at once. An update asks for confirmation first.
 The view at startup is set with `[ui].view` in the configuration. In the
 tree, families are listed alphabetically, with the current sort order
 applied within each family. Filters still apply. Families start collapsed and
-retain their expansion state when you switch between views.
+retain their expansion state when you switch between views. While a text or
+quick filter is active, every family with matches is expanded; expanding or
+collapsing during the filter lasts until the filter is cleared, which
+restores the previous state. The family filter does not expand families.
+`h`, `l`, `z`, `[`, and `]` act only in the tree.
 
 `a`, `F`, and `U` act only on matching repositories in expanded families,
 regardless of marks. Rows outside the viewport still count. Marks persist
 when filters change or families collapse. A batch on marked repositories
 includes all of them; the update confirmation and the fetch message state
-how many are hidden.
+how many are hidden. Without marks, `f` and `u` on a family row act on all
+its matching repositories, also when the family is collapsed.
 The repository panel shows the total number of marks and the `A` shortcut
 whenever any marks are set, including when all marked rows are hidden.
 

@@ -23,6 +23,9 @@ var Bindings = []BindingGroup{
 		{"k / ↑", "previous row"},
 		{"g / G", "first / last row"},
 		{"PgUp / PgDn", "page up / down"},
+		{"h / ←", "tree: collapse family"},
+		{"l / →", "tree: expand family"},
+		{"[ / ]", "tree: previous / next family"},
 	}},
 	{Title: "View", Bindings: []Binding{
 		{"/", "text filter, e.g. is:dirty"},
@@ -31,6 +34,7 @@ var Bindings = []BindingGroup{
 		{"Tab / S-Tab", "next / previous family"},
 		{"t", "search and choose a family"},
 		{"v", "switch between list and family tree"},
+		{"z", "tree: expand/collapse all"},
 		{"s", "choose sorting"},
 		{"r", "refresh visible repositories"},
 		{"R", "reload config and inventory"},
@@ -46,11 +50,11 @@ var Bindings = []BindingGroup{
 		{"y", "copy path, branch, remote or web URL"},
 	}},
 	{Title: "Batch", Right: true, Bindings: []Binding{
-		{"Space", "toggle mark"},
+		{"Space", "toggle mark (row or family)"},
 		{"a / A", "mark all visible / clear marks"},
-		{"f", "fetch marked, else current row"},
+		{"f", "fetch marked, else row/family"},
 		{"F", "fetch visible repositories"},
-		{"u", "update marked, else current row"},
+		{"u", "update marked, else row/family"},
 		{"U", "update visible repositories"},
 	}},
 	{Title: "Update confirmation", Right: true, Bindings: []Binding{

@@ -191,7 +191,7 @@ func (m *Model) normalHints() []string {
 	var pairs []string
 	if row := m.currentRow(); row.count > 0 {
 		action := "expand"
-		if m.expanded[row.family] {
+		if m.isExpanded(row.family) {
 			action = "collapse"
 		}
 		pairs = append(pairs, "Enter", action)

@@ -60,6 +60,10 @@ func keys(m *Model, ks ...string) {
 			msg = tea.KeyMsg{Type: tea.KeyEsc}
 		case "tab":
 			msg = tea.KeyMsg{Type: tea.KeyTab}
+		case "left":
+			msg = tea.KeyMsg{Type: tea.KeyLeft}
+		case "right":
+			msg = tea.KeyMsg{Type: tea.KeyRight}
 		case " ":
 			msg = tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
 		default:
@@ -251,16 +255,163 @@ func TestFamilyTreeBatchScope(t *testing.T) {
 		t.Fatal("U must confirm the expanded repos, regardless of marks")
 	}
 	keys(m, "esc", "A", "u")
-	if m.mode != modeNormal || m.message != "no repository selected" {
-		t.Fatalf("u without marks on a family row selects nothing: mode=%v message=%q", m.mode, m.message)
+	if m.mode != modeUpdatePreview || len(m.preview.skip) != 1 || m.preview.skip[0].Repository.Name != "dotfiles" {
+		t.Fatal("u without marks on a family row must confirm the family's repositories")
 	}
-	keys(m, "j", "u")
+	keys(m, "esc", "j", "u")
 	if len(m.preview.skip) != 1 || m.preview.skip[0].Repository.Name != "dotfiles" {
 		t.Fatal("u without marks must confirm the repository under the cursor")
 	}
 	keys(m, "esc", "a")
 	if len(m.marks) != 1 || !m.marks["/r/dotfiles"] {
 		t.Fatal("mark-all must mark only the expanded repos")
+	}
+}
+
+func TestTreeFilterOpensFamiliesWithMatches(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "/", "api", "enter")
+	if names(m) != "api" || !strings.Contains(m.View(), "▾ Work (1)") {
+		t.Fatalf("a text filter must open families with matches: %q", names(m))
+	}
+	keys(m, "esc")
+	if names(m) != "" {
+		t.Fatalf("clearing the filter must collapse the families again: %q", names(m))
+	}
+	keys(m, "1")
+	if names(m) != "api" {
+		t.Fatalf("a quick filter must open families with matches: %q", names(m))
+	}
+}
+
+func TestTreeExpansionDuringFilterIsTemporary(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "g", "enter") // expand Personal only
+	keys(m, "/", "o", "enter")
+	if names(m) != "dotfiles frontend" {
+		t.Fatalf("the filter must open all families with matches: %q", names(m))
+	}
+	keys(m, "g", "enter")
+	if names(m) != "frontend" {
+		t.Fatalf("Enter during a filter must collapse the family: %q", names(m))
+	}
+	keys(m, "esc")
+	if names(m) != "dotfiles" {
+		t.Fatalf("clearing the filter must restore the previous expansion: %q", names(m))
+	}
+	keys(m, "/", "o", "enter")
+	if names(m) != "dotfiles frontend" {
+		t.Fatalf("a new filter must start without earlier temporary changes: %q", names(m))
+	}
+}
+
+func TestTreeExpandAndCollapseKeys(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "g", "l")
+	if names(m) != "dotfiles" {
+		t.Fatalf("l must expand the family: %q", names(m))
+	}
+	keys(m, "G", "right")
+	if names(m) != "dotfiles api frontend" {
+		t.Fatalf("→ must expand the family: %q", names(m))
+	}
+	keys(m, "G", "k", "k", "h")
+	if names(m) != "dotfiles" || m.currentRow().family != "Work" || m.currentRow().count == 0 {
+		t.Fatalf("h on a family row must collapse it: %q", names(m))
+	}
+	keys(m, "g", "left")
+	if names(m) != "" {
+		t.Fatalf("← must collapse the family: %q", names(m))
+	}
+}
+
+func TestTreeCollapseFromRepositoryRow(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "g", "enter", "G", "enter", "G") // cursor on frontend
+	keys(m, "h")
+	if row := m.currentRow(); names(m) != "dotfiles" || row.count == 0 || row.family != "Work" {
+		t.Fatalf("h on a repository must collapse its family and select the family row: %q %+v", names(m), row)
+	}
+	keys(m, "g", "j", "left") // cursor on dotfiles
+	if row := m.currentRow(); names(m) != "" || row.count == 0 || row.family != "Personal" {
+		t.Fatalf("← on a repository must collapse its family and select the family row: %q %+v", names(m), row)
+	}
+}
+
+func TestTreeToggleAllFamilies(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "z")
+	if names(m) != "dotfiles api frontend" {
+		t.Fatalf("z with all families collapsed must expand all: %q", names(m))
+	}
+	keys(m, "z")
+	if names(m) != "" {
+		t.Fatalf("z with expanded families must collapse all: %q", names(m))
+	}
+	keys(m, "g", "enter", "z")
+	if names(m) != "" {
+		t.Fatalf("z with one expanded family must collapse all: %q", names(m))
+	}
+}
+
+func TestSpaceOnFamilyRowMarksItsRepositories(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "G", " ")
+	if len(m.marks) != 2 || !m.marks["/r/api"] || !m.marks["/r/frontend"] {
+		t.Fatalf("Space on a collapsed family must mark its repositories: %v", m.marks)
+	}
+	keys(m, "G", " ")
+	if len(m.marks) != 0 {
+		t.Fatalf("Space on a fully marked family must unmark its repositories: %v", m.marks)
+	}
+	keys(m, "/", "front", "enter", "g", " ")
+	if len(m.marks) != 1 || !m.marks["/r/frontend"] {
+		t.Fatalf("Space on a family must mark only matching repositories: %v", m.marks)
+	}
+}
+
+func TestFetchAndUpdateOnFamilyRow(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "G") // collapsed Work row
+	if ts, hidden := m.targets(false); len(ts) != 2 || hidden != 0 {
+		t.Fatalf("f on a family row must target its repositories: %d targets, %d hidden", len(ts), hidden)
+	}
+	keys(m, "u")
+	if m.mode != modeUpdatePreview || len(m.preview.skip) != 2 || m.preview.hidden != 0 {
+		t.Fatal("u on a family row must confirm its repositories without hidden marks")
+	}
+	keys(m, "esc")
+	m.marks["/r/dotfiles"] = true
+	if ts, hidden := m.targets(false); len(ts) != 1 || ts[0].Name != "dotfiles" || hidden != 1 {
+		t.Fatal("marks must take precedence over the family row")
+	}
+}
+
+func TestFamilyJumpKeys(t *testing.T) {
+	m := newModel(t)
+	keys(m, "v", "z", "g", "]") // rows: Personal, dotfiles, Work, api, frontend
+	if m.cursor != 2 {
+		t.Fatalf("] must move to the next family row: %d", m.cursor)
+	}
+	keys(m, "]")
+	if m.cursor != 2 {
+		t.Fatalf("] on the last family must stay: %d", m.cursor)
+	}
+	keys(m, "G", "[")
+	if m.cursor != 2 {
+		t.Fatalf("[ on a repository must move to the previous family row: %d", m.cursor)
+	}
+	keys(m, "[")
+	if m.cursor != 0 {
+		t.Fatalf("[ must move to the previous family row: %d", m.cursor)
+	}
+}
+
+func TestTreeKeysDoNothingInList(t *testing.T) {
+	m := newModel(t)
+	keys(m, "j", "h", "l", "left", "right", "z", "[", "]")
+	if m.tree || m.cursor != 1 || names(m) != "api dotfiles frontend" || len(m.marks) != 0 {
+		t.Fatalf("tree keys must do nothing in the list: cursor=%d names=%q", m.cursor, names(m))
 	}
 }
 

@@ -87,6 +87,10 @@ type Model struct {
 
 	tree     bool
 	expanded map[domain.FamilyID]bool
+	// filterExpanded holds expansion changes made while a text or quick
+	// filter is active. They are discarded when the filter is cleared, so
+	// expanded is restored.
+	filterExpanded map[domain.FamilyID]bool
 
 	filter      app.Filter
 	families    []domain.FamilyID
@@ -279,6 +283,9 @@ func (m *Model) pendingInspect() int {
 // repository where possible.
 func (m *Model) recompute() {
 	keep := m.currentRow()
+	if !m.filterActive() {
+		m.filterExpanded = nil
+	}
 	m.filter.Family = ""
 	if m.familyIdx > 0 && m.familyIdx <= len(m.families) {
 		m.filter.Family = m.families[m.familyIdx-1]
@@ -308,7 +315,7 @@ func (m *Model) recompute() {
 				continue
 			}
 			m.rows = append(m.rows, repoRow{family: family, count: len(group)})
-			if m.expanded[family] {
+			if m.isExpanded(family) {
 				for _, r := range group {
 					addRepo(r)
 				}
@@ -342,6 +349,76 @@ func (m *Model) recompute() {
 func (m *Model) moveRepoCursor(to int) {
 	m.cursor = min(max(to, 0), max(len(m.rows)-1, 0))
 	m.adjustRepoViewport()
+}
+
+// filterActive reports whether a text or quick filter is set. It opens the
+// families with matches in the tree.
+func (m *Model) filterActive() bool { return strings.TrimSpace(m.filter.Text) != "" }
+
+// isExpanded reports whether a family is expanded in the tree. While a filter
+// is active, families are expanded unless collapsed during the filter.
+func (m *Model) isExpanded(f domain.FamilyID) bool {
+	if m.filterActive() {
+		if v, ok := m.filterExpanded[f]; ok {
+			return v
+		}
+		return true
+	}
+	return m.expanded[f]
+}
+
+// setExpanded expands or collapses a family; while a filter is active, only
+// until the filter is cleared.
+func (m *Model) setExpanded(f domain.FamilyID, v bool) {
+	if !m.filterActive() {
+		m.expanded[f] = v
+		return
+	}
+	if m.filterExpanded == nil {
+		m.filterExpanded = map[domain.FamilyID]bool{}
+	}
+	m.filterExpanded[f] = v
+}
+
+// familyMembers returns the repositories of a family that match the filter,
+// also when the family is collapsed.
+func (m *Model) familyMembers(f domain.FamilyID) []*domain.Repository {
+	var list []*domain.Repository
+	for i := range m.repos {
+		r := &m.repos[i]
+		if r.Family == f && m.filter.Matches(r, m.marks[r.ID]) {
+			list = append(list, r)
+		}
+	}
+	return list
+}
+
+// toggleFamilyMarks marks the matching repositories of a family, or unmarks
+// them if all are marked.
+func (m *Model) toggleFamilyMarks(f domain.FamilyID) {
+	members := m.familyMembers(f)
+	all := true
+	for _, r := range members {
+		all = all && m.marks[r.ID]
+	}
+	for _, r := range members {
+		if all {
+			delete(m.marks, r.ID)
+		} else {
+			m.marks[r.ID] = true
+		}
+	}
+}
+
+// moveToFamilyRow moves the cursor to the nearest family row in direction
+// step (-1 or 1), if there is one.
+func (m *Model) moveToFamilyRow(step int) {
+	for i := m.cursor + step; i >= 0 && i < len(m.rows); i += step {
+		if m.rows[i].count > 0 {
+			m.moveRepoCursor(i)
+			return
+		}
+	}
 }
 
 func (m *Model) adjustRepoViewport() {
@@ -497,6 +574,12 @@ func (m *Model) targets(visible bool) (list []domain.Repository, hidden int) {
 			}
 		}
 		return list, hidden
+	}
+	if row := m.currentRow(); row.count > 0 {
+		for _, r := range m.familyMembers(row.family) {
+			list = append(list, *r)
+		}
+		return list, 0
 	}
 	if r := m.current(); r != nil {
 		list = append(list, *r)
