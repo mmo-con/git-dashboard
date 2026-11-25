@@ -31,7 +31,7 @@ func (m *Model) detailsBox(w, h int) []string {
 	if r == nil {
 		return m.box("Details", "", nil, w, h, false)
 	}
-	lines := m.detailLines(r).fit(h - 2)
+	lines := m.detailLines(r, w-4).fit(h - 2)
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
@@ -84,8 +84,9 @@ type details struct {
 	kinds []detailKind
 	// more renders the line that replaces n hidden other branches.
 	more func(n int) string
-	// rule is the style of the rule before a section title.
-	rule lipgloss.Style
+	// width is the width of a section rule, drawn in the rule style.
+	width int
+	rule  lipgloss.Style
 }
 
 func (d *details) add(l string, k detailKind) {
@@ -95,13 +96,15 @@ func (d *details) add(l string, k detailKind) {
 
 func (d *details) text(ss ...seg) { d.add(line(ss...), detailText) }
 
-// section starts a titled section: the title in its style after a short
-// rule, separated from the previous section by a blank line.
+// section starts a titled section: the title in its style within a rule
+// across the panel, separated from the previous section by a blank line.
 func (d *details) section(title string, style lipgloss.Style) {
 	if len(d.lines) > 0 {
 		d.add("", detailBlank)
 	}
-	d.add(d.rule.Render("── ")+style.Render(strings.ToUpper(title)), detailSection)
+	title = strings.ToUpper(title)
+	rest := max(d.width-runewidth.StringWidth(title)-4, 0)
+	d.add(d.rule.Render("── ")+style.Render(title)+d.rule.Render(" "+strings.Repeat("─", rest)), detailSection)
 }
 
 // fit returns at most n lines if possible. At most maxBranchLines other
@@ -172,15 +175,15 @@ func (m *Model) label(s string) seg {
 	return seg{runewidth.FillRight(s, detailLabelWidth), m.theme.dim}
 }
 
-// detailLines builds the detail panel.
+// detailLines builds the detail panel for a content width of width cells.
 // The status of the branch and the worktree and errors come first, so they
 // stay visible when the panel is cut off at the bottom; the static location
 // of the repository comes last.
-func (m *Model) detailLines(r *domain.Repository) *details {
+func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	t := m.theme
 	now := m.now()
 	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) },
-		rule: t.inactiveBorder}
+		width: width, rule: t.inactiveBorder}
 
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {

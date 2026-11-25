@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -613,7 +612,7 @@ func TestStashHints(t *testing.T) {
 	if m.filter.Text != "is:stashed" || names(m) != "api" {
 		t.Fatalf("7 must show the repositories with stash entries: %q", names(m))
 	}
-	detail := func() string { return strings.Join(m.detailLines(api).fit(100), "\n") }
+	detail := func() string { return strings.Join(m.detailLines(api, 60).fit(100), "\n") }
 	if v := detail(); !strings.Contains(v, "stash     ≡2 entries") || strings.Contains(v, "shared") {
 		t.Fatalf("detail:\n%s", v)
 	}
@@ -817,7 +816,7 @@ func TestStatusShowsLastOperation(t *testing.T) {
 	r.Availability = domain.Available
 	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
-	detail := func() string { return ansi.Strip(strings.Join(m.detailLines(r).fit(100), "\n")) }
+	detail := func() string { return ansi.Strip(strings.Join(m.detailLines(r, 60).fit(100), "\n")) }
 	if strings.Contains(detail(), "last op") {
 		t.Fatal("without an operation in this session there is no last operation")
 	}
@@ -920,7 +919,7 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 	r.LastFetch = domain.KnownValue(&fetched)
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Time: now, Subject: "Ship it"})
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
-	lines := m.detailLines(&r).fit(100)
+	lines := m.detailLines(&r, 60).fit(100)
 	idx := func(prefix string) int {
 		for i, l := range lines {
 			if strings.HasPrefix(ansi.Strip(l), prefix) {
@@ -952,7 +951,7 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 	}
 
 	m.repos[0].StoreID, m.repos[0].Path = r.StoreID, "/home/u/src/svc-wt"
-	if v := ansi.Strip(strings.Join(m.detailLines(&r).fit(100), "\n")); !strings.Contains(v, "\n~/src/svc-wt") {
+	if v := ansi.Strip(strings.Join(m.detailLines(&r, 60).fit(100), "\n")); !strings.Contains(v, "\n~/src/svc-wt") {
 		t.Errorf("linked worktrees must be shortened to ~:\n%s", v)
 	}
 
@@ -1123,7 +1122,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	if len(lines) != 12 || !strings.Contains(lines[0], "↓2") {
 		t.Fatalf("lines = %q", lines)
 	}
-	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
+	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
 		strings.Contains(v, "wip-9") || !strings.Contains(v, "+2 more") {
 		t.Fatalf("the detail panel lists at most %d other branches:\n%s", maxBranchLines, v)
 	}
@@ -1141,13 +1140,22 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Author: "Sam",
 		Time: now.Add(-5 * time.Hour), Subject: "Show delivery estimate"})
-	lines := m.detailLines(&r).fit(100)
+	lines := m.detailLines(&r, 40).fit(100)
 	v := strings.Join(lines, "\n")
 	if !strings.Contains(v, "c28633b  Nov 22 07:00  Show delivery estimate") || strings.Contains(v, "Sam") {
 		t.Fatalf("the commit must be one line of hash, date, and subject:\n%s", v)
 	}
-	if !slices.Contains(lines, "── STATUS") {
-		t.Fatalf("a section title must be a short rule prefix without a rule across the panel:\n%s", v)
+	found := false
+	for _, l := range lines {
+		if strings.HasPrefix(l, "── STATUS ─") {
+			found = true
+			if w := lipgloss.Width(l); w != 40 {
+				t.Errorf("a section rule must span the panel: width %d, want 40", w)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("sections must be titled within a rule:\n%s", v)
 	}
 
 	for _, c := range []struct {
@@ -1359,7 +1367,7 @@ func TestBranchSymbolOnlyInDetails(t *testing.T) {
 	if got := plain(m.rowCells(&r, time.Now())[colBranch-colHealth]); got != "main" {
 		t.Errorf("branch cell = %q, want the name alone", got)
 	}
-	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, m.icons.branch+"main") {
+	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, m.icons.branch+"main") {
 		t.Errorf("the detail panel must keep the branch symbol:\n%s", v)
 	}
 }
