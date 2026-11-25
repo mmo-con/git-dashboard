@@ -5,8 +5,11 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
 # Coverage counts code exercised by the tests of any package, except the test
 # helpers themselves.
 COVERPKG = $(shell go list ./... | grep -v /internal/testutil | paste -sd, -)
+# The scanner itself is not a dependency of the module; the latest release
+# knows the newest vulnerability data format.
+GOVULNCHECK_VERSION ?= latest
 
-.PHONY: build install test test-installer test-race coverage perf lint tag release installer clean
+.PHONY: build install test test-installer test-race coverage perf lint vuln tag release installer clean
 
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) ./cmd/headquarters
@@ -35,6 +38,11 @@ perf:
 lint:
 	go vet ./...
 	@test -z "$$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+# Reports known vulnerabilities that the code reaches, in the modules and in
+# the standard library of the Go toolchain on PATH.
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
 
 tag: export RELEASE_TAG := $(value TAG)
 tag:

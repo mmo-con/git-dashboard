@@ -1,6 +1,6 @@
 # ADR 0008: Compatibility, performance, and testing
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0014](0014-dependency-security-and-go-toolchain.md)
 
 ## Context
 
@@ -51,7 +51,9 @@ because process startup on shared runners, especially macOS, is too erratic
 for the two-second target. CI runs lint and race-detector tests with coverage
 on Linux with Git 2.34, Linux with the latest Git, and macOS. A version-tag
 push creates a release draft only after the matrix passes; publication is
-manual.
+manual. [ADR 0014](0014-dependency-security-and-go-toolchain.md) sets the Go
+version of the matrix and of releases and adds a vulnerability check that
+the release draft also waits for.
 
 The POSIX shell installer is shipped with each release and pins downloads
 to its own release tag. CI tests it on Linux and macOS with local archives

@@ -102,7 +102,7 @@ write into the user interface.
 - lazygit (optional, for `Enter`)
 - `pbcopy` on macOS, or `wl-copy`, `xclip`, or `xsel` on Linux (optional,
   for copying to the clipboard with `y`)
-- Go 1.25 or newer to build from source
+- Go 1.26 or newer to build from source
 
 ## Installation
 
@@ -184,6 +184,7 @@ make test-race        # tests with the race detector
 make coverage         # race-detector tests with a Markdown coverage report
 make perf             # local benchmark: 200 repositories within 2 seconds
 make lint             # go vet and gofmt check
+make vuln             # govulncheck for modules and the Go standard library
 make release          # cross-compiled archives, checksums, and installer in ./dist
 ```
 

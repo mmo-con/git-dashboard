@@ -10,6 +10,7 @@ source of truth for design decisions and their constraints.
 ```sh
 make build              # ./bin/headquarters
 make lint               # go vet and gofmt check
+make vuln               # govulncheck; CI runs it with the newest stable Go
 go test -race ./...     # all tests; CI also runs make coverage
 make perf               # local performance benchmark
 ```

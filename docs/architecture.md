@@ -41,6 +41,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Families in the tree | [ADR 0011](adr/0011-families-in-the-tree.md) |
 | No persistent state and no automatic activity | [ADR 0012](adr/0012-no-persistent-state-and-no-automatic-activity.md) |
 | Calmer table and detail panel | [ADR 0013](adr/0013-calmer-table-and-detail-panel.md) |
+| Dependency security and Go toolchain | [ADR 0014](adr/0014-dependency-security-and-go-toolchain.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
