@@ -39,6 +39,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Generating a starting configuration | [ADR 0009](adr/0009-starting-configuration-generation.md) |
 | Copying values to the clipboard | [ADR 0010](adr/0010-copying-to-the-clipboard.md) |
 | Families in the tree | [ADR 0011](adr/0011-families-in-the-tree.md) |
+| No persistent state and no automatic activity | [ADR 0012](adr/0012-no-persistent-state-and-no-automatic-activity.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
