@@ -27,10 +27,13 @@ real temporary repositories, isolated from the user's Git configuration.
 
 Integration tests cover worktree states, operations in progress, HEAD and
 upstream states, remotes, linked worktrees, bare and invalid repositories,
-inventory precedence, symlink loops, macOS case-insensitive deduplication,
-inspection without `index.lock`, terminal isolation, process-group
-termination, and fast-forward acceptance and rejection. Expected states
-come from the Git CLI itself.
+inventory precedence, symlink loops, case-insensitive deduplication,
+untrusted owners, inspection without `index.lock`, terminal isolation,
+process-group termination, and fast-forward acceptance and rejection.
+Expected states come from the Git CLI itself. Tests that need a particular
+environment skip elsewhere: case-insensitive deduplication runs on
+case-insensitive filesystems such as the macOS job, and untrusted owners
+run as root, as in the Git 2.34 container job.
 
 Handover tests use a controlled helper executable to report working directory
 and environment and return chosen exit codes; they verify that events
