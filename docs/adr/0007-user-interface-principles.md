@@ -1,6 +1,6 @@
 # ADR 0007: User interface principles
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0013](0013-detail-panel-and-tree-layout.md)
 
 ## Context
 
@@ -23,7 +23,8 @@ Put a health symbol in a separate left column, ordered by priority: errors,
 critical states, dirty, behind, ahead, and other attention. Only healthy
 names are not emphasized. Family rows summarize repository health; their
 behavior in the tree is defined by
-[ADR 0011](0011-families-in-the-tree.md).
+[ADR 0011](0011-families-in-the-tree.md), their layout and when they show a
+summary by [ADR 0013](0013-detail-panel-and-tree-layout.md).
 
 Each count has its own column: staged, modified, untracked, stashed, ahead,
 and behind. Local work comes first, relation to upstream last. Findings
@@ -38,7 +39,9 @@ has its own color, distinct from ahead.
   and takes the remaining width. Row highlighting ends at the table edge.
 - The header has its own colors. Counters with matches are boxes in their
   state color; the active quick filter is bracketed even without color.
-- The detail panel puts branch, worktree, and errors first. It shortens the
+- The detail panel puts the status of branch and worktree and errors first;
+  its sections are defined by
+  [ADR 0013](0013-detail-panel-and-tree-layout.md). It shortens the
   other-branches list before dropping section titles. Sections use titled
   rules; recent commits are one line each and oldest ones are dropped first.
 - Commit times have the same absolute format in table and detail panel
