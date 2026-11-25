@@ -40,7 +40,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Copying values to the clipboard | [ADR 0010](adr/0010-copying-to-the-clipboard.md) |
 | Families in the tree | [ADR 0011](adr/0011-families-in-the-tree.md) |
 | No persistent state and no automatic activity | [ADR 0012](adr/0012-no-persistent-state-and-no-automatic-activity.md) |
-| Detail panel and tree layout | [ADR 0013](adr/0013-detail-panel-and-tree-layout.md) |
+| Calmer table and detail panel | [ADR 0013](adr/0013-calmer-table-and-detail-panel.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
