@@ -29,7 +29,7 @@ var Bindings = []BindingGroup{
 	}},
 	{Title: "View", Bindings: []Binding{
 		{"/", "text filter, e.g. is:dirty"},
-		{"1 … 7", "quick filter (see header)"},
+		{"1 … 8", "quick filter (see header)"},
 		{"Esc", "clear filter / close dialog"},
 		{"Tab / S-Tab", "next / previous family"},
 		{"t", "search and choose a family"},

@@ -199,6 +199,17 @@ func TestStateTokens(t *testing.T) {
 		return &domain.Repository{Availability: domain.Available, Inspection: domain.Inspection{
 			Upstream: domain.KnownValue(u), Worktree: domain.KnownValue(domain.WorktreeState{})}}
 	}
+	// fetched returns a repository fetched at t (nil: never), with or
+	// without a remote.
+	fetched := func(t *time.Time, remote bool) *domain.Repository {
+		r := &domain.Repository{Availability: domain.Available, LastFetch: domain.KnownValue(t)}
+		r.Remotes = domain.KnownValue([]domain.Remote{})
+		if remote {
+			r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
+		}
+		return r
+	}
+	stale, recent := time.Now().Add(-8*24*time.Hour), time.Now().Add(-time.Hour)
 	cases := []struct {
 		token string
 		match *domain.Repository
@@ -213,6 +224,8 @@ func TestStateTokens(t *testing.T) {
 			Inspection: domain.Inspection{Remotes: domain.KnownValue([]domain.Remote{{Name: "origin", URL: "b"}})}}, up(domain.UpstreamState{})},
 		{"is:stashed", &domain.Repository{Inspection: domain.Inspection{Stashes: domain.KnownValue(1)}},
 			&domain.Repository{Inspection: domain.Inspection{Stashes: domain.KnownValue(0)}}},
+		{"is:stale", fetched(nil, true), fetched(nil, false)},
+		{"is:stale", fetched(&stale, true), fetched(&recent, true)},
 		{"is:unknown-token", nil, up(domain.UpstreamState{})},
 	}
 	for _, tc := range cases {
