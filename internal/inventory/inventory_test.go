@@ -2,6 +2,7 @@ package inventory_test
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -205,6 +206,63 @@ func TestExplicitSubdirectoryAndDuplicates(t *testing.T) {
 	}
 	if len(res.Warnings) != 1 {
 		t.Errorf("warnings: %v", res.Warnings)
+	}
+}
+
+func TestCaseAliasesAreOneEntry(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	repo := tu.InitRepo(t, filepath.Join(base, "Repo"))
+	alias := filepath.Join(base, "repo")
+	if _, err := os.Stat(alias); err != nil {
+		t.Skip("the file system is case-sensitive")
+	}
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{
+		{Path: alias, Family: "Work", Enabled: true},
+		{Path: repo, Enabled: true},
+	}
+	cfg.Discovery = []config.Discovery{{Root: base, MaxDepth: 1, Include: []string{"**"}}}
+	res := build(t, cfg)
+	if len(res.Repositories) != 1 {
+		t.Fatalf("case aliases must be merged: %v", keys(paths(base, res)))
+	}
+	if r := res.Repositories[0]; r.Availability != domain.Available || r.Source != domain.InventorySourceExplicit || r.Family != "Work" {
+		t.Errorf("the first explicit entry must win: %+v", r)
+	}
+}
+
+func TestUntrustedOwner(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.Skip("changing the owner of a repository requires root")
+	}
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	explicit := tu.InitRepo(t, filepath.Join(base, "explicit"))
+	discovered := tu.InitRepo(t, filepath.Join(base, "found", "discovered"))
+	for _, repo := range []string{explicit, discovered} {
+		err := filepath.WalkDir(repo, func(p string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			return os.Lchown(p, 65534, 65534)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{{Path: explicit, Enabled: true}}
+	cfg.Discovery = []config.Discovery{{Root: filepath.Join(base, "found"), MaxDepth: 1, Include: []string{"**"}}}
+	got := paths(base, build(t, cfg))
+	for _, rel := range []string{"explicit", "found/discovered"} {
+		r, ok := got[rel]
+		if !ok {
+			t.Fatalf("%s is missing from the inventory: %v", rel, keys(got))
+		}
+		if r.Availability != domain.UntrustedOwner || r.EntryError == nil || !strings.Contains(r.EntryError.Error(), "safe.directory") {
+			t.Errorf("%s: %v %v", rel, r.Availability, r.EntryError)
+		}
 	}
 }
 
