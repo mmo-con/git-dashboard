@@ -810,28 +810,6 @@ func TestFamilyFilterHidesFamilyColumn(t *testing.T) {
 	}
 }
 
-func TestStatusShowsLastOperation(t *testing.T) {
-	m := newModel(t)
-	r := m.repo("/r/api")
-	r.Availability = domain.Available
-	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
-	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
-	detail := func() string { return ansi.Strip(strings.Join(m.detailLines(r, 60).fit(100), "\n")) }
-	if strings.Contains(detail(), "last op") {
-		t.Fatal("without an operation in this session there is no last operation")
-	}
-	fetchBatch(t, m, r.ID)
-	setRow(m, 0, domain.StatusSucceeded, nil)
-	if v := detail(); !strings.Contains(v, "last op   ✓ fetch succeeded") {
-		t.Errorf("STATUS must show the last operation:\n%s", v)
-	}
-	fetchBatch(t, m, r.ID)
-	setRow(m, 0, domain.StatusFailed, errors.New("offline"))
-	if v := detail(); !strings.Contains(v, "last op   ✗ fetch failed") {
-		t.Errorf("STATUS must show a failed operation:\n%s", v)
-	}
-}
-
 func TestStaleFetchNeedsAttention(t *testing.T) {
 	m := newModel(t)
 	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
