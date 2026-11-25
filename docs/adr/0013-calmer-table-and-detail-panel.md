@@ -12,8 +12,7 @@ were hard to read or restless:
   source of the repository sat far away in the bottom border. Branch and
   worktree each took a titled section for a single line.
 - The fetch age stood below the recent commits and looked like another
-  commit, although it belongs to the upstream state. The result of the
-  latest fetch or update was visible only if it failed.
+  commit, although it belongs to the upstream state.
 - Family names were bold like the names of all repositories that need
   attention, and only three columns further left. The health summary of a
   family started right after its name, at a different position in every
@@ -31,8 +30,9 @@ were hard to read or restless:
 The detail panel has labeled lines in titled sections:
 
 - **Status** comes first: the branch with its upstream and relation, the
-  fetch age, the latest fetch or update of this session with its result and
-  age, an operation in progress, the worktree, and stash entries.
+  fetch age, an operation in progress, the worktree, and stash entries. The
+  result of a successful fetch or update is not repeated; the fetch age
+  shows it, and failures appear in the error section.
 - Errors, other branches, recent commits, remotes, and linked worktrees
   follow. Remote names take the label column; linked worktree paths are
   shortened to `~`.

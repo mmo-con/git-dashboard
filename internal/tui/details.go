@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -195,9 +194,6 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		b = append(b, seg{"  ", t.plain})
 		d.text(append(b, m.upstreamSegs(r)...)...)
 		d.text(m.label("fetched"), m.fetchAge(now, r))
-		if op := m.lastOpSegs(now, r); op != nil {
-			d.text(append([]seg{m.label("last op")}, op...)...)
-		}
 
 		if r.Worktree.Valid {
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
@@ -322,29 +318,6 @@ func (m *Model) worktreeSegs(w domain.WorktreeState) []seg {
 	}
 	if !w.UntrackedChecked {
 		out = append(out, seg{"   untracked not checked", t.dim})
-	}
-	return out
-}
-
-// lastOpSegs describes the latest fetch or update of r in this session, or
-// returns nil if there was none.
-func (m *Model) lastOpSegs(now time.Time, r *domain.Repository) []seg {
-	last := m.lastOp(r.ID)
-	if last == nil {
-		return nil
-	}
-	t, ic := m.theme, m.icons
-	s := seg{"– ", t.dim}
-	switch last.Status {
-	case domain.StatusSucceeded:
-		s = seg{ic.clean + " ", t.clean}
-	case domain.StatusFailed:
-		s = seg{ic.failed + " ", t.err}
-	}
-	s.text += fmt.Sprintf("%s %s", last.Operation, last.Status)
-	out := []seg{s}
-	if !last.FinishedAt.IsZero() {
-		out = append(out, seg{" · " + ago(now, last.FinishedAt), t.dim})
 	}
 	return out
 }
