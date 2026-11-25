@@ -315,11 +315,41 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 		m.recompute()
 	case "enter":
 		if row := m.currentRow(); row.count > 0 {
-			m.expanded[row.family] = !m.expanded[row.family]
+			m.setExpanded(row.family, !m.isExpanded(row.family))
 			m.recompute()
 			return nil
 		}
 		return m.openLazygit(m.current())
+	case "l", "right":
+		if row := m.currentRow(); m.tree && row.count > 0 {
+			m.setExpanded(row.family, true)
+			m.recompute()
+		}
+	case "h", "left":
+		// On a repository, the family row keeps the cursor after recompute.
+		if row := m.currentRow(); m.tree && (row.count > 0 || row.id != "") {
+			m.setExpanded(row.family, false)
+			m.recompute()
+		}
+	case "z":
+		if m.tree {
+			anyExpanded := false
+			for _, row := range m.rows {
+				anyExpanded = anyExpanded || (row.count > 0 && m.isExpanded(row.family))
+			}
+			for _, f := range m.families {
+				m.setExpanded(f, !anyExpanded)
+			}
+			m.recompute()
+		}
+	case "[":
+		if m.tree {
+			m.moveToFamilyRow(-1)
+		}
+	case "]":
+		if m.tree {
+			m.moveToFamilyRow(1)
+		}
 	case "o":
 		if m.current() != nil {
 			m.mode, m.overlayIdx = modeLaunchers, 0
@@ -327,7 +357,10 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 	case "y":
 		m.openCopy()
 	case " ":
-		if r := m.current(); r != nil {
+		if row := m.currentRow(); row.count > 0 {
+			m.toggleFamilyMarks(row.family)
+			m.moveRepoCursor(m.cursor + 1)
+		} else if r := m.current(); r != nil {
 			if m.marks[r.ID] {
 				delete(m.marks, r.ID)
 			} else {

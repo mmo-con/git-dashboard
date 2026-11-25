@@ -16,14 +16,15 @@ import (
 func (m *Model) detailsBox(w, h int) []string {
 	if row := m.currentRow(); row.count > 0 {
 		action := "expand"
-		if m.expanded[row.family] {
+		if m.isExpanded(row.family) {
 			action = "collapse"
 		}
 		lines := []string{fmt.Sprintf(" Matching repositories: %d", row.count)}
 		if summary := m.familySummary(m.familyHealth()[row.family]); len(summary) > 0 {
 			lines = append(lines, " "+line(summary...))
 		}
-		return m.box(string(row.family), "", append(lines, "", " Enter: "+action+" family"), w, h, false)
+		lines = append(lines, "", " Enter: "+action+" family", " Space: mark family", " f / u: fetch / update family")
+		return m.box(string(row.family), "", lines, w, h, false)
 	}
 	r := m.current()
 	if r == nil {

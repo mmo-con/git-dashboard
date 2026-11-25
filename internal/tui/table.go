@@ -167,7 +167,7 @@ func (m *Model) measureTable() repoTable {
 	for i, row := range m.rows {
 		if row.count > 0 {
 			toggle := m.icons.collapsed
-			if m.expanded[row.family] {
+			if m.isExpanded(row.family) {
 				toggle = m.icons.expanded
 			}
 			ss := []seg{
