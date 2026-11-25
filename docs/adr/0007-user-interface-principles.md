@@ -1,6 +1,6 @@
 # ADR 0007: User interface principles
 
-Status: Accepted, amended by [ADR 0013](0013-detail-panel-and-tree-layout.md)
+Status: Accepted, amended by [ADR 0013](0013-calmer-table-and-detail-panel.md)
 
 ## Context
 
@@ -21,10 +21,11 @@ current mode, row, and selection; `?` shows all keys.
 
 Put a health symbol in a separate left column, ordered by priority: errors,
 critical states, dirty, behind, ahead, and other attention. Only healthy
-names are not emphasized. Family rows summarize repository health; their
+names are not emphasized; [ADR 0013](0013-calmer-table-and-detail-panel.md)
+limits emphasis to errors and critical states. Family rows summarize repository health; their
 behavior in the tree is defined by
 [ADR 0011](0011-families-in-the-tree.md), their layout and when they show a
-summary by [ADR 0013](0013-detail-panel-and-tree-layout.md).
+summary by [ADR 0013](0013-calmer-table-and-detail-panel.md).
 
 Each count has its own column: staged, modified, untracked, stashed, ahead,
 and behind. Local work comes first, relation to upstream last. Findings
@@ -39,15 +40,19 @@ has its own color, distinct from ahead.
   and takes the remaining width. Row highlighting ends at the table edge.
 - The header has its own colors. Counters with matches are boxes in their
   state color; the active quick filter is bracketed even without color.
+  [ADR 0013](0013-calmer-table-and-detail-panel.md) makes counters colored
+  text and gives only the active quick filter a background.
 - The detail panel puts the status of branch and worktree and errors first;
   its sections are defined by
-  [ADR 0013](0013-detail-panel-and-tree-layout.md). It shortens the
+  [ADR 0013](0013-calmer-table-and-detail-panel.md). It shortens the
   other-branches list before dropping section titles. Sections use titled
-  rules; recent commits are one line each and oldest ones are dropped first.
+  rules, shortened to a prefix by ADR 0013; recent commits are one line each and oldest ones are dropped first.
 - Commit times have the same absolute format in table and detail panel
   (`Nov 13 22:16`, with the year for earlier years). Narrow columns drop
   time of day and then day rather than truncating. Fetch and branch ages
-  remain relative.
+  remain relative. [ADR 0013](0013-calmer-table-and-detail-panel.md)
+  replaces the table's commit time with a relative age; the detail panel
+  keeps the absolute time.
 - Column widths use all visible rows, avoiding shifts while scrolling. State
   reserves room for transient states and shrinks last. Count titles become
   symbols if full titles do not fit.
