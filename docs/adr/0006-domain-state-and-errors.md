@@ -27,7 +27,9 @@ resolved at startup and be regular executable files.
 
 ## Consequences
 
-The domain has no dependencies on UI, processes, or Git output formats.
-The TUI consumes application services and domain models and never builds
-Git commands. Unknown, unavailable, and zero states remain distinguishable
-through presentation; see [ADR 0007](0007-user-interface-principles.md).
+The domain has no dependencies on UI, processes, Git output formats, or
+other internal packages. Only `internal/git` builds and starts Git
+commands; `internal/tui` does not import it and works through application
+services, jobs, and domain models. Unknown, unavailable, and zero states
+remain distinguishable through presentation; see
+[ADR 0007](0007-user-interface-principles.md).

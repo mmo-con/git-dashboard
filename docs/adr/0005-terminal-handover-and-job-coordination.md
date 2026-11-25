@@ -54,6 +54,12 @@ remote in a browser derives an HTTPS URL from the primary remote: configured
 `remote_name`, else `origin`, else the alphabetically first remote. For SSH
 remotes, assume the web interface uses the same host and path.
 
+The built-in browser entry of the launcher menu is not a handover: the
+browser runs outside the terminal and headquarters does not wait for it.
+`xdg-open` or `open` is resolved when used and started without a shell, in
+its own session, with the URL as its only argument and no terminal
+attached. It takes no store lock and triggers no inspection.
+
 ## Consequences
 
 The lazygit process boundary avoids dependence on its internal, non-public

@@ -23,8 +23,9 @@ in [ADR 0006](0006-domain-state-and-errors.md).
 
 Every Git process started while the TUI owns the terminal:
 
-- gets `GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `--no-pager`, and
-  `GIT_EDITOR=true`; read-only commands also get `GIT_OPTIONAL_LOCKS=0`;
+- gets `GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `PAGER=cat`, `--no-pager`,
+  `GIT_EDITOR=true`, and `GIT_SEQUENCE_EDITOR=true`; read-only commands also
+  get `GIT_OPTIONAL_LOCKS=0`;
 - reads `/dev/null`, with stdout and stderr captured;
 - starts in a new session without a controlling terminal. SSH and credential
   helpers cannot open `/dev/tty`; ssh-agent, credential helpers, and
@@ -61,9 +62,12 @@ git -C <path> rev-parse --path-format=absolute --git-dir --git-common-dir --show
 Only paths with a `.git` entry are passed to Git. Other paths are classified
 through the filesystem, including bare repositories with `HEAD`, `objects`,
 and `refs`, because Git refuses `-C` access to bare repositories with
-`safe.bareRepository = explicit`. Cache the worktree root, Git and common
-directories, and marker paths. `--git-path` resolves worktree-specific paths;
-`rev-parse` has no NUL mode, so reject paths containing newlines.
+`safe.bareRepository = explicit`. When `rev-parse` fails for a path owned
+by another user, the path is classified as `untrusted owner` from the file
+owner, not from Git's localized stderr. Cache the worktree root, Git and
+common directories, and marker paths. `--git-path` resolves
+worktree-specific paths; `rev-parse` has no NUL mode, so reject paths
+containing newlines.
 
 ### Inspection
 
