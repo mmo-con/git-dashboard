@@ -22,7 +22,9 @@ version is released. The test matrix of
 minimum, so it shows that the stated requirement holds.
 
 Releases are built with the newest stable Go release, including its latest
-patch, not with the minimum from `go.mod`.
+patch, not with the minimum from `go.mod`. The release build and the
+vulnerability check do not use the Actions cache, so no state from earlier
+runs reaches the release binaries and new Go versions add no cache entries.
 
 `make vuln` runs the latest govulncheck in source mode, which reports only
 vulnerabilities the code reaches, in modules and in the standard library of
