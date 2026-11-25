@@ -21,7 +21,9 @@ current mode, row, and selection; `?` shows all keys.
 
 Put a health symbol in a separate left column, ordered by priority: errors,
 critical states, dirty, behind, ahead, and other attention. Only healthy
-names are not emphasized. Family rows summarize repository health.
+names are not emphasized. Family rows summarize repository health; their
+behavior in the tree is defined by
+[ADR 0011](0011-families-in-the-tree.md).
 
 Each count has its own column: staged, modified, untracked, stashed, ahead,
 and behind. Local work comes first, relation to upstream last. Findings

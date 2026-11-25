@@ -1,6 +1,6 @@
 # ADR 0004: Batch fetch and safe update
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0011](0011-families-in-the-tree.md)
 
 ## Context
 
@@ -14,6 +14,8 @@ Lowercase `f` and `u` target marked repositories, or the cursor row if none
 are marked. Uppercase `F` and `U` target all visible rows regardless of
 marks. Marks survive filter changes; the fetch message and update
 confirmation state how many marked targets are hidden.
+[ADR 0011](0011-families-in-the-tree.md) defines the targets of a family
+row and which rows count as visible in the tree.
 
 ### Fetch
 

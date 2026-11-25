@@ -13,12 +13,16 @@ original document recorded them.
 
 Use sequential numbers and descriptive names. Each record has a status,
 context, decision, and consequences. Correct an existing record when it
-misstates the decision; when a decision changes, add a new record and mark
-the old one superseded, linking the two. A superseded record remains as
-history, not current guidance. Update the index and affected documentation
-when adding or superseding a record.
+misstates the decision; when a decision changes, add a new record and link
+the two. If the new record replaces the whole decision, mark the old one
+superseded; a superseded record remains as history, not current guidance. If
+it changes only part of the decision, mark the old one amended and point to
+the new record at each changed passage; the rest of the old record remains
+current. Update the index and affected documentation when adding,
+amending, or superseding a record.
 
 | Status | Meaning |
 |---|---|
 | Accepted | The decision is current. |
+| Accepted, amended by ADR NNNN | The decision is current except for the passages that the linked ADR changes. |
 | Superseded | A later, linked ADR replaces the decision. |
