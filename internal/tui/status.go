@@ -18,9 +18,11 @@ func loaded(r *domain.Repository) bool {
 
 // stateSegs describes what the count columns cannot show: unavailable
 // entries, loading and running operations, unknown state, conflicts and
-// operations in progress, the upstream relation, a remote mismatch, a stale
-// fetch, and other branches. It is empty for a repository without findings. Every symbol
-// carries a count or text, so color is never the only carrier of information.
+// operations in progress, a missing or gone upstream, a remote mismatch, a
+// stale fetch, and other branches. Divergence is shown by the ahead and
+// behind counts in the error color and by the health symbol. It is empty for
+// a repository without findings. Every symbol carries a count or text, so
+// color is never the only carrier of information.
 func (m *Model) stateSegs(r *domain.Repository) []seg {
 	t, ic := m.theme, m.icons
 	if !r.IsAvailable() {
@@ -72,8 +74,6 @@ func (m *Model) stateSegs(r *domain.Repository) []seg {
 			add(seg{ic.noUpstream + " no upstream", t.dim})
 		case u.Gone:
 			add(seg{ic.noUpstream + " upstream gone", t.warn})
-		case u.Diverged():
-			add(seg{"diverged", t.err})
 		}
 	}
 	if r.RemoteMismatch() {
@@ -406,26 +406,35 @@ func ago(now, t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// commitTime is the time of a commit in one format for table and detail
-// panel: month, day, and time, with the year for an earlier year. The day is
-// padded, so the times line up in the table. For a narrow column, it drops
-// the time of day and then the day instead of truncating; width 0 means no
-// limit.
-func commitTime(now, t time.Time, width int) string {
-	layouts := []string{"Jan _2 15:04", "Jan _2"}
+// commitTime is the time of a commit in the detail panel: month, day, and
+// time, with the year for an earlier year. The day is padded, so the times
+// line up.
+func commitTime(now, t time.Time) string {
 	if t.Year() != now.Year() {
-		layouts = []string{"Jan _2 2006 15:04", "Jan 2006", "2006"}
+		return t.Format("Jan _2 2006 15:04")
 	}
-	for _, l := range layouts {
-		if s := t.Format(l); width <= 0 || len(s) <= width {
-			return s
-		}
-	}
-	return t.Format(layouts[len(layouts)-1])
+	return t.Format("Jan _2 15:04")
 }
 
-// staleFetch is the age after which the last fetch is highlighted.
-const staleFetch = 7 * 24 * time.Hour
+// commitAge is the age of a commit in the table: "now", minutes, hours up to
+// two days, days up to two months, then months and years.
+func commitAge(now, t time.Time) string {
+	d := now.Sub(t)
+	days := int(d.Hours() / 24)
+	switch {
+	case d < time.Minute:
+		return "now"
+	case d < time.Hour:
+		return fmt.Sprintf("%d min", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%d h", int(d.Hours()))
+	case days < 60:
+		return fmt.Sprintf("%d d", days)
+	case days < 730:
+		return fmt.Sprintf("%d mo", days/30)
+	}
+	return fmt.Sprintf("%d y", days/365)
+}
 
 // followUp describes the current state of a row of a finished update batch
 // that was not updated. A row that became eligible or up to date is always
@@ -473,26 +482,22 @@ func (m *Model) fetchAge(now time.Time, r *domain.Repository) seg {
 		return seg{"unknown", m.theme.dim}
 	case r.LastFetch.Value == nil:
 		return seg{"never", m.theme.warn}
-	case now.Sub(*r.LastFetch.Value) > staleFetch:
+	case now.Sub(*r.LastFetch.Value) > domain.StaleFetchAge:
 		return seg{ago(now, *r.LastFetch.Value), m.theme.warn}
 	}
 	return seg{ago(now, *r.LastFetch.Value), m.theme.dim}
 }
 
-// fetchFinding reports a repository with remotes that was never fetched or
-// not fetched for longer than staleFetch, so its upstream state may be
-// outdated. It is empty otherwise, including when the fetch time is unknown.
+// fetchFinding names a stale fetch (see domain.Repository.FetchStale); it is
+// empty otherwise.
 func (m *Model) fetchFinding(r *domain.Repository) string {
-	if !r.LastFetch.Valid || !r.Remotes.Valid || len(r.Remotes.Value) == 0 {
-		return ""
-	}
 	switch {
+	case !r.FetchStale(m.now()):
+		return ""
 	case r.LastFetch.Value == nil:
 		return "never fetched"
-	case m.now().Sub(*r.LastFetch.Value) > staleFetch:
-		return "stale fetch"
 	}
-	return ""
+	return "stale fetch"
 }
 
 func firstLine(s string) string {

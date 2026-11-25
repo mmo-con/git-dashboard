@@ -62,7 +62,7 @@ The architecture and the decisions behind it are documented in
   upstream state, stash entries, remotes, latest commit, and last fetch time;
   the detail panel lists the most recent commits (three by default). A
   repository that was never fetched or not within seven days is flagged in
-  the table.
+  the table and has a quick filter.
   Stash entries are only reported, as a count and with a quick filter;
   applying or dropping them stays with lazygit.
 - Other local branches that need attention, such as a stale `main` or a

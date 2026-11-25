@@ -24,7 +24,7 @@ cursor moves within the current view before the list scrolls again.
 | Key | Action |
 |---|---|
 | `/` | text filter |
-| `1` … `7` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashed; press again to clear |
+| `1` … `8` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashed, stale fetch; press again to clear |
 | `Esc` | clear the text filter or close the current overlay |
 | `Tab` / `Shift+Tab` | next / previous family |
 | `t` | search and choose a family |
@@ -39,10 +39,10 @@ cursor moves within the current view before the list scrolls again.
 | `q` / `Ctrl+C` | quit; while a fetch or update batch runs, asks first, because quitting cancels it |
 
 The header shows the quick filters with their key and the number of
-matching repositories in the current family. A counter with matches is a
-box in its state color, a counter without matches is dimmed, and the active
-quick filter is bracketed, for example `[1 dirty 3]`, so it is recognizable
-without colors.
+matching repositories in the current family. A counter with matches is
+text in its state color, a counter without matches is dimmed, and the
+active quick filter has a background and is bracketed, for example
+`[1 dirty 3]`, so it is recognizable without colors.
 
 ## Repository
 
@@ -160,15 +160,15 @@ is updated until the new update is confirmed.
 |---|---|
 | (untitled) | health symbol: the most important state of the row |
 | Repository | name |
-| Family | family of the repository; hidden in the tree, whose family rows name it |
+| Family | family of the repository; hidden in the tree, whose family rows name it, and under a family filter |
 | Branch | checked-out branch, or the commit of a detached HEAD |
-| State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, divergence, a remote mismatch, a repository with remotes that was never fetched or not within seven days (`never fetched`, `stale fetch`), and other branches; empty when there is nothing to report |
+| State | what the counts do not show: an unavailable entry, a queued, running, or failed fetch or update, unknown state, an operation in progress, conflicts, no commits, a detached HEAD, no or a gone upstream, a remote mismatch, a repository with remotes that was never fetched or not within seven days (`never fetched`, `stale fetch`), and other branches; empty when there is nothing to report |
 | Staged | staged entries |
 | Modified | entries modified or deleted in the worktree and not staged |
 | Untracked | untracked entries |
 | Stashed | number of stash entries of the repository; linked worktrees share them |
-| Ahead / Behind | commits ahead of / behind the upstream as of the last fetch |
-| Commit | time of the latest commit, such as `Nov 13 22:16`, with the year for an earlier year; a narrow column drops the time of day first |
+| Ahead / Behind | commits ahead of / behind the upstream as of the last fetch; both in the error color if the branch diverged |
+| Commit | age of the latest commit: `now`, minutes, hours up to two days, days up to two months, then months and years, such as `15 h` or `21 d`; the detail panel shows the absolute time |
 
 In the count columns, `–` is a known zero and `?` an unknown value. A cell
 is empty while the repository loads and where the count does not apply,
@@ -234,3 +234,4 @@ Plain tokens match the name or the path case-insensitively. State tokens:
 | `is:branches` | other local branches need attention |
 | `is:unpublished` | another local branch has no upstream, a gone upstream, unpushed commits, or is missing |
 | `is:stashed` | the repository has stash entries |
+| `is:stale` | the repository has remotes and was never fetched or not within seven days |

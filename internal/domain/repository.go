@@ -280,6 +280,19 @@ func SelectPrimaryRemote(remotes Known[[]Remote], configured string) *Remote {
 	return &first
 }
 
+// StaleFetchAge is the age after which the last fetch is stale.
+const StaleFetchAge = 7 * 24 * time.Hour
+
+// FetchStale reports whether a repository with remotes was never fetched or
+// not within StaleFetchAge before now, so its upstream state may be outdated.
+// It returns false if the fetch time or the remotes are unknown.
+func (r *Repository) FetchStale(now time.Time) bool {
+	if !r.LastFetch.Valid || !r.Remotes.Valid || len(r.Remotes.Value) == 0 {
+		return false
+	}
+	return r.LastFetch.Value == nil || now.Sub(*r.LastFetch.Value) > StaleFetchAge
+}
+
 // RemoteMismatch reports whether the expected remote differs from the actual
 // one. It returns false if no assertion is configured or the state is unknown.
 func (r *Repository) RemoteMismatch() bool {

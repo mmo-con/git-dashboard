@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -169,6 +170,19 @@ func TestQuickFilterHeaderMarksActiveFilter(t *testing.T) {
 	keys(m, "1")
 	if h := m.headerLine(); !strings.Contains(h, "[1 dirty 1]") || strings.Contains(h, "[2") {
 		t.Fatalf("the active quick filter must be bracketed: %q", h)
+	}
+	if h := m.headerLine(); !strings.Contains(h, " 8 stale 0 ") {
+		t.Fatalf("the header must count stale fetches: %q", h)
+	}
+	th := m.theme
+	if s := chipStyle(th, th.dirty, 1, false); s.GetReverse() || s.GetForeground() != th.dirty.GetForeground() {
+		t.Error("a counter with matches must be colored text without a background")
+	}
+	if !chipStyle(th, th.dirty, 1, true).GetReverse() || !chipStyle(th, th.dirty, 0, true).GetReverse() {
+		t.Error("only the active quick filter has a background")
+	}
+	if s := chipStyle(th, th.dirty, 0, false); s.GetReverse() || s.GetForeground() != th.dim.GetForeground() {
+		t.Error("a counter without matches must be dim")
 	}
 }
 
@@ -541,8 +555,8 @@ func TestStatusTexts(t *testing.T) {
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:c.git"}})
 	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip"}})
 	r.Stashes = domain.KnownValue(3)
-	if got := m.stateText(&r); got != "merging  ✘1 conflicts  diverged  ≠remote  ⎇1" {
-		t.Errorf("state = %q", got)
+	if got := m.stateText(&r); got != "merging  ✘1 conflicts  ≠remote  ⎇1" {
+		t.Errorf("state = %q; divergence is shown by the red counts and the health symbol", got)
 	}
 	if got := countText(m, &r); got != "2|4|4|3|1|2" {
 		t.Errorf("counts = %q; modified includes deletions", got)
@@ -599,7 +613,7 @@ func TestStashHints(t *testing.T) {
 	if m.filter.Text != "is:stashed" || names(m) != "api" {
 		t.Fatalf("7 must show the repositories with stash entries: %q", names(m))
 	}
-	detail := func() string { return strings.Join(m.detailLines(api, 60).fit(100), "\n") }
+	detail := func() string { return strings.Join(m.detailLines(api).fit(100), "\n") }
 	if v := detail(); !strings.Contains(v, "stash     ≡2 entries") || strings.Contains(v, "shared") {
 		t.Fatalf("detail:\n%s", v)
 	}
@@ -765,6 +779,60 @@ func TestFamilySummaryIsAlignedAndOnlyForCollapsedFamilies(t *testing.T) {
 	}
 }
 
+func TestOnlyErrorsAndCriticalStatesEmphasizeNames(t *testing.T) {
+	m := newModel(t)
+	r := repo("x", "", true)
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Operation = domain.KnownValue(domain.NoOperation)
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	bold := func() bool { return m.rowCells(&r, time.Now())[1][0].style.GetBold() }
+	if bold() {
+		t.Error("a dirty repository must not have a bold name")
+	}
+	r.Worktree.Value.Conflicts = 1
+	if !bold() {
+		t.Error("a critical repository must have a bold name")
+	}
+	r.Availability = domain.Missing
+	if !bold() {
+		t.Error("an unavailable repository must have a bold name")
+	}
+}
+
+func TestFamilyFilterHidesFamilyColumn(t *testing.T) {
+	m := newModel(t)
+	if !strings.Contains(viewLine(m, "Repository"), "Family") {
+		t.Fatal("the flat list must show the family column")
+	}
+	keys(m, "tab")
+	if h := viewLine(m, "Repository"); m.filter.Family == "" || strings.Contains(h, "Family") {
+		t.Errorf("with a family filter, every row has the same family: %q", h)
+	}
+}
+
+func TestStatusShowsLastOperation(t *testing.T) {
+	m := newModel(t)
+	r := m.repo("/r/api")
+	r.Availability = domain.Available
+	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
+	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true})
+	detail := func() string { return ansi.Strip(strings.Join(m.detailLines(r).fit(100), "\n")) }
+	if strings.Contains(detail(), "last op") {
+		t.Fatal("without an operation in this session there is no last operation")
+	}
+	fetchBatch(t, m, r.ID)
+	setRow(m, 0, domain.StatusSucceeded, nil)
+	if v := detail(); !strings.Contains(v, "last op   ✓ fetch succeeded") {
+		t.Errorf("STATUS must show the last operation:\n%s", v)
+	}
+	fetchBatch(t, m, r.ID)
+	setRow(m, 0, domain.StatusFailed, errors.New("offline"))
+	if v := detail(); !strings.Contains(v, "last op   ✗ fetch failed") {
+		t.Errorf("STATUS must show a failed operation:\n%s", v)
+	}
+}
+
 func TestStaleFetchNeedsAttention(t *testing.T) {
 	m := newModel(t)
 	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
@@ -852,7 +920,7 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 	r.LastFetch = domain.KnownValue(&fetched)
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Time: now, Subject: "Ship it"})
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
-	lines := m.detailLines(&r, 60).fit(100)
+	lines := m.detailLines(&r).fit(100)
 	idx := func(prefix string) int {
 		for i, l := range lines {
 			if strings.HasPrefix(ansi.Strip(l), prefix) {
@@ -878,6 +946,14 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 		if i := idx(want); i <= repository {
 			t.Errorf("REPOSITORY must contain the line %q:\n%s", want, v)
 		}
+	}
+	if i := idx("origin    git@a:b.git"); i <= idx("── REMOTES") {
+		t.Errorf("remote names must take the label column:\n%s", v)
+	}
+
+	m.repos[0].StoreID, m.repos[0].Path = r.StoreID, "/home/u/src/svc-wt"
+	if v := ansi.Strip(strings.Join(m.detailLines(&r).fit(100), "\n")); !strings.Contains(v, "\n~/src/svc-wt") {
+		t.Errorf("linked worktrees must be shortened to ~:\n%s", v)
 	}
 
 	box := m.detailsBox(60, 30)
@@ -1047,7 +1123,7 @@ func TestOtherBranchesMarkerAndDetails(t *testing.T) {
 	if len(lines) != 12 || !strings.Contains(lines[0], "↓2") {
 		t.Fatalf("lines = %q", lines)
 	}
-	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
+	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, "wip-8") ||
 		strings.Contains(v, "wip-9") || !strings.Contains(v, "+2 more") {
 		t.Fatalf("the detail panel lists at most %d other branches:\n%s", maxBranchLines, v)
 	}
@@ -1065,48 +1141,40 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
 	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Author: "Sam",
 		Time: now.Add(-5 * time.Hour), Subject: "Show delivery estimate"})
-	lines := m.detailLines(&r, 40).fit(100)
+	lines := m.detailLines(&r).fit(100)
 	v := strings.Join(lines, "\n")
 	if !strings.Contains(v, "c28633b  Nov 22 07:00  Show delivery estimate") || strings.Contains(v, "Sam") {
 		t.Fatalf("the commit must be one line of hash, date, and subject:\n%s", v)
 	}
-	found := false
-	for _, l := range lines {
-		if strings.HasPrefix(l, "── STATUS ─") {
-			found = true
-			if w := lipgloss.Width(l); w != 40 {
-				t.Errorf("a section rule must span the panel: width %d, want 40", w)
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("sections must be titled within a rule:\n%s", v)
+	if !slices.Contains(lines, "── STATUS") {
+		t.Fatalf("a section title must be a short rule prefix without a rule across the panel:\n%s", v)
 	}
 
 	for _, c := range []struct {
-		d           time.Duration
-		long, short string
+		d    time.Duration
+		long string
+		age  string
 	}{
-		{5 * time.Minute, "Nov 22 11:55", "Nov 22"},
-		{20 * 24 * time.Hour, "Nov  2 12:00", "Nov  2"},
-		{400 * 24 * time.Hour, "Oct 18 2025 12:00", "2025"},
+		{10 * time.Second, "Nov 22 11:59", "now"},
+		{45 * time.Minute, "Nov 22 11:15", "45 min"},
+		{15 * time.Hour, "Nov 21 21:00", "15 h"},
+		{21 * 24 * time.Hour, "Nov  1 12:00", "21 d"},
+		{100 * 24 * time.Hour, "Aug 14 12:00", "3 mo"},
+		{800 * 24 * time.Hour, "Sep 13 2024 12:00", "2 y"},
 	} {
-		if got := commitTime(now, now.Add(-c.d), 0); got != c.long {
+		if got := commitTime(now, now.Add(-c.d)); got != c.long {
 			t.Errorf("commitTime(-%v) = %q, want %q", c.d, got, c.long)
 		}
-		if got := commitTime(now, now.Add(-c.d), 6); got != c.short {
-			t.Errorf("commitTime(-%v, 6) = %q, want %q", c.d, got, c.short)
+		if got := commitAge(now, now.Add(-c.d)); got != c.age {
+			t.Errorf("commitAge(-%v) = %q, want %q", c.d, got, c.age)
 		}
 	}
 
-	// A commit column too narrow for the full time shows the date only
-	// instead of a truncated time.
-	m.repos[0].LastCommit = domain.KnownValue(&domain.CommitSummary{Time: now.Add(-400 * 24 * time.Hour)})
-	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 160, 10, true), "\n")); !strings.Contains(v, "Oct 18 2025 12:00") {
-		t.Errorf("a wide table shows the full time:\n%s", v)
-	}
-	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 70, 10, true), "\n")); !strings.Contains(v, " 2025") || strings.Contains(v, "2025…") {
-		t.Errorf("a narrow table shows the date only:\n%s", v)
+	// The table shows the age of the latest commit; the detail panel keeps
+	// the absolute time.
+	m.repos[0].LastCommit = domain.KnownValue(&domain.CommitSummary{Time: now.Add(-21 * 24 * time.Hour)})
+	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 160, 10, true), "\n")); !strings.Contains(v, "21 d") || strings.Contains(v, "Nov  1") {
+		t.Errorf("the table must show the commit age:\n%s", v)
 	}
 }
 
@@ -1218,9 +1286,9 @@ func TestColumnsFollowContent(t *testing.T) {
 	// truncation; the remaining space is not given to the name column. Count
 	// columns are as wide as their full titles.
 	ic := iconSet("unicode")
-	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 1, 2, 1, 12}
+	natural := []int{0, 1, 24, 13, 26, 7, 1, 1, 1, 1, 2, 1, 6}
 	cols := columns(166, natural, ic, false)
-	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 7, 5, 6, 12} {
+	for i, want := range []int{3, 1, 24, 13, 26, 16, 6, 8, 9, 7, 5, 6, 6} {
 		if cols[i].width != want {
 			t.Errorf("%s: width %d, want %d", cols[i].title, cols[i].width, want)
 		}
@@ -1291,7 +1359,7 @@ func TestBranchSymbolOnlyInDetails(t *testing.T) {
 	if got := plain(m.rowCells(&r, time.Now())[colBranch-colHealth]); got != "main" {
 		t.Errorf("branch cell = %q, want the name alone", got)
 	}
-	if v := strings.Join(m.detailLines(&r, 60).fit(100), "\n"); !strings.Contains(v, m.icons.branch+"main") {
+	if v := strings.Join(m.detailLines(&r).fit(100), "\n"); !strings.Contains(v, m.icons.branch+"main") {
 		t.Errorf("the detail panel must keep the branch symbol:\n%s", v)
 	}
 }

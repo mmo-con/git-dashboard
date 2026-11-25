@@ -57,19 +57,20 @@ var colSpecs = []colSpec{
 	colStashed:   {title: "Stashed", min: 1, cap: 9, short: func(ic icons) string { return ic.stash }},
 	colAhead:     {title: "Ahead", min: 1, cap: 9, short: func(ic icons) string { return ic.ahead }},
 	colBehind:    {title: "Behind", min: 1, cap: 9, short: func(ic icons) string { return ic.behind }},
-	colCommit:    {title: "Commit", min: 6, pref: 12, cap: 17},
+	colCommit:    {title: "Commit", min: 6, pref: 6, cap: 6},
 }
 
 // columns sizes the columns of a table of inner width iw to their content.
 // natural holds the widest cell of each column. The family column is hidden
-// in the tree, whose family rows name it. Count columns use their full
+// if hideFamily is set: in the tree, whose family rows name it, and with a
+// family filter, which gives every row the same family. Count columns use their full
 // titles if the other columns stay readable, otherwise their symbols.
-func columns(iw int, natural []int, ic icons, tree bool) []column {
-	cols, comfortable := layoutColumns(iw, natural, ic, tree, false)
+func columns(iw int, natural []int, ic icons, hideFamily bool) []column {
+	cols, comfortable := layoutColumns(iw, natural, ic, hideFamily, false)
 	if comfortable {
 		return cols
 	}
-	cols, _ = layoutColumns(iw, natural, ic, tree, true)
+	cols, _ = layoutColumns(iw, natural, ic, hideFamily, true)
 	return cols
 }
 
@@ -77,7 +78,7 @@ func columns(iw int, natural []int, ic icons, tree bool) []column {
 // over stays empty at the end of a row; if space is short, columns shrink in
 // stages so that the state shrinks last. comfortable reports whether the
 // table fits without shrinking name, branch, state, or family far.
-func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []column, comfortable bool) {
+func layoutColumns(iw int, natural []int, ic icons, hideFamily, short bool) (cols []column, comfortable bool) {
 	cols = make([]column, len(colSpecs))
 	want := make([]int, len(colSpecs))
 	for i, s := range colSpecs {
@@ -88,7 +89,7 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 		want[i] = max(natural[i], runewidth.StringWidth(title), s.pref)
 		cols[i] = column{title: title, width: min(want[i], s.cap), right: s.short != nil}
 	}
-	if tree {
+	if hideFamily {
 		cols[colFamily] = column{hidden: true}
 	}
 	free := iw - tableWidth(cols)
@@ -101,8 +102,8 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 		free -= add
 	}
 	for _, s := range []struct{ col, floor int }{
-		{colCommit, 12}, {colBranch, 20}, {colName, 18}, {colFamily, 10}, {colBranch, 14}, {colName, 12}, {colState, 14},
-		{colFamily, 6}, {colBranch, 8}, {colName, 8}, {colCommit, 6}, {colFamily, 4}, {colBranch, 6},
+		{colBranch, 20}, {colName, 18}, {colFamily, 10}, {colBranch, 14}, {colName, 12}, {colState, 14},
+		{colFamily, 6}, {colBranch, 8}, {colName, 8}, {colFamily, 4}, {colBranch, 6},
 		{colName, 4}, {colState, 8}, {colState, 6},
 	} {
 		for free < 0 && !cols[s.col].hidden && cols[s.col].width > max(s.floor, colSpecs[s.col].min) {
@@ -122,17 +123,17 @@ func layoutColumns(iw int, natural []int, ic icons, tree, short bool) (cols []co
 // rowCells returns the cells of r without the cursor and mark column. The
 // health symbol has its own column at the left edge, so the most important
 // state of every row is in one place and all names start in the same column.
-// The names of healthy repositories are not emphasized, so rows that need
-// attention stand out.
+// Only the names of repositories with errors or critical states are
+// emphasized, so they stand out among rows that merely need attention.
 func (m *Model) rowCells(r *domain.Repository, now time.Time) [][]seg {
 	age := seg{"", m.theme.dim}
 	if r.LastCommit.Valid && r.LastCommit.Value != nil {
-		age.text = commitTime(now, r.LastCommit.Value.Time, 0)
+		age.text = commitAge(now, r.LastCommit.Value.Time)
 	}
-	health, healthy := m.health(r)
-	name := m.theme.bold
-	if healthy {
-		name = m.theme.plain
+	health, _ := m.health(r)
+	name := m.theme.plain
+	if l := m.healthOf(r); l == healthError || l == healthCritical {
+		name = m.theme.bold
 	}
 	return append([][]seg{
 		{health},
@@ -208,7 +209,7 @@ func (m *Model) measureTable() repoTable {
 // tableNeed is the width of a repository panel that shows the table without
 // shrinking or space left over.
 func (m *Model) tableNeed(t repoTable) int {
-	cols := columns(math.MaxInt/2, t.natural, m.icons, m.tree)
+	cols := columns(math.MaxInt/2, t.natural, m.icons, m.hideFamily())
 	return max(tableWidth(cols), t.familyWidth) + 2
 }
 
@@ -216,8 +217,8 @@ func (m *Model) tableNeed(t repoTable) int {
 // selection is highlighted to the right edge of the table, not of the panel.
 func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
 	iw := w - 2
-	now, cells := t.now, t.cells
-	cols := columns(iw, t.natural, m.icons, m.tree)
+	cells := t.cells
+	cols := columns(iw, t.natural, m.icons, m.hideFamily())
 	tw := min(tableWidth(cols), iw)
 	var lines []string
 	rows := h - 3
@@ -256,10 +257,6 @@ func (m *Model) reposBox(t repoTable, w, h int, active bool) []string {
 			w := min(max(tw, runewidth.StringWidth(domain.Printable(plain(ss)))), iw)
 			lines = append(lines, renderCell(ss, w, base))
 			continue
-		}
-		// A narrow commit column shortens the time instead of truncating it.
-		if r := m.repo(entry.id); r.LastCommit.Valid && r.LastCommit.Value != nil {
-			cells[i][colCommit-colHealth][0].text = commitTime(now, r.LastCommit.Value.Time, cols[colCommit].width)
 		}
 		mark := seg{" ", m.theme.plain}
 		if m.marks[entry.id] {
@@ -338,6 +335,10 @@ func colGap(j int) int {
 	}
 	return 3
 }
+
+// hideFamily reports whether the family column is hidden: in the tree and
+// with a family filter.
+func (m *Model) hideFamily() bool { return m.tree || m.filter.Family != "" }
 
 // tableWidth is the width of a table row with its column gaps.
 func tableWidth(cols []column) int {

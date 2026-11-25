@@ -81,6 +81,7 @@ func (m *Model) quickFilters() []quickFilter {
 		{"5", "is:error", "errors", t.err},
 		{"6", "is:branches", "branches", t.warn},
 		{"7", "is:stashed", "stashed", t.warn},
+		{"8", "is:stale", "stale", t.warn},
 	}
 }
 
@@ -96,21 +97,13 @@ func (m *Model) headerLine() string {
 				n++
 			}
 		}
-		// Counters with matches are boxes in their state color; the active
-		// filter is bracketed, so it is recognizable without color.
 		label := fmt.Sprintf("%s %s %d", q.key, q.label, n)
 		open, end := " ", " "
-		if strings.TrimSpace(m.filter.Text) == q.token {
+		active := strings.TrimSpace(m.filter.Text) == q.token
+		if active {
 			open, end = "[", "]"
 		}
-		chip := q.style.Reverse(true)
-		if n == 0 {
-			chip = t.dim
-			if open == "[" {
-				chip = chip.Reverse(true)
-			}
-		}
-		left += " " + chip.Render(open+label+end)
+		left += " " + chipStyle(t, q.style, n, active).Render(open+label+end)
 	}
 
 	var right string
@@ -135,6 +128,17 @@ func (m *Model) headerLine() string {
 		return fitANSI(left, m.width)
 	}
 	return left + strings.Repeat(" ", gap) + right
+}
+
+// chipStyle styles a header counter: colored text if it has matches, dim
+// otherwise. Only the active quick filter has a background; the caller also
+// brackets it, so it is recognizable without color.
+func chipStyle(t theme, style lipgloss.Style, n int, active bool) lipgloss.Style {
+	chip := style
+	if n == 0 {
+		chip = t.dim
+	}
+	return chip.Reverse(active)
 }
 
 func (m *Model) hints(pairs ...string) string {

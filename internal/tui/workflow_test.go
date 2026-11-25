@@ -264,7 +264,7 @@ func TestDetailPanelShowsRecentCommits(t *testing.T) {
 		m.Update(eventsMsg{events: m.app.Scheduler.Events.Next()})
 	}
 	r := m.current()
-	v := strings.Join(m.detailLines(r, 80).fit(100), "\n")
+	v := strings.Join(m.detailLines(r).fit(100), "\n")
 	for _, want := range []string{"RECENT COMMITS", "commit fourth", "commit third", "commit second"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("the detail panel must show %q:\n%s", want, v)
@@ -279,8 +279,8 @@ func TestDetailPanelShowsRecentCommits(t *testing.T) {
 		t.Fatal("a cached history must not be read again while HEAD is unchanged")
 	}
 
-	full := len(m.detailLines(r, 80).fit(100))
-	small := strings.Join(m.detailLines(r, 80).fit(full-1), "\n")
+	full := len(m.detailLines(r).fit(100))
+	small := strings.Join(m.detailLines(r).fit(full-1), "\n")
 	if strings.Contains(small, "commit second") || !strings.Contains(small, "commit third") || !strings.Contains(small, "── STATUS") {
 		t.Fatalf("the oldest commit must be dropped first:\n%s", small)
 	}
@@ -291,7 +291,7 @@ func TestDetailPanelShowsRecentCommits(t *testing.T) {
 	if m.historyPending != nil {
 		t.Fatal("one commit comes from the inspection and needs no Git process")
 	}
-	if v := strings.Join(m.detailLines(r, 80).fit(100), "\n"); !strings.Contains(v, "LAST COMMIT") || !strings.Contains(v, "commit fourth") {
+	if v := strings.Join(m.detailLines(r).fit(100), "\n"); !strings.Contains(v, "LAST COMMIT") || !strings.Contains(v, "commit fourth") {
 		t.Fatalf("one commit is the latest commit:\n%s", v)
 	}
 }

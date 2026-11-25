@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -30,7 +31,7 @@ func (m *Model) detailsBox(w, h int) []string {
 	if r == nil {
 		return m.box("Details", "", nil, w, h, false)
 	}
-	lines := m.detailLines(r, w-4).fit(h - 2)
+	lines := m.detailLines(r).fit(h - 2)
 	for i := range lines {
 		lines[i] = " " + lines[i]
 	}
@@ -83,9 +84,8 @@ type details struct {
 	kinds []detailKind
 	// more renders the line that replaces n hidden other branches.
 	more func(n int) string
-	// width is the width of a section rule, drawn in the rule style.
-	width int
-	rule  lipgloss.Style
+	// rule is the style of the rule before a section title.
+	rule lipgloss.Style
 }
 
 func (d *details) add(l string, k detailKind) {
@@ -95,15 +95,13 @@ func (d *details) add(l string, k detailKind) {
 
 func (d *details) text(ss ...seg) { d.add(line(ss...), detailText) }
 
-// section starts a titled section: the title in its style within a rule
-// across the panel, separated from the previous section by a blank line.
+// section starts a titled section: the title in its style after a short
+// rule, separated from the previous section by a blank line.
 func (d *details) section(title string, style lipgloss.Style) {
 	if len(d.lines) > 0 {
 		d.add("", detailBlank)
 	}
-	title = strings.ToUpper(title)
-	rest := max(d.width-runewidth.StringWidth(title)-4, 0)
-	d.add(d.rule.Render("── ")+style.Render(title)+d.rule.Render(" "+strings.Repeat("─", rest)), detailSection)
+	d.add(d.rule.Render("── ")+style.Render(strings.ToUpper(title)), detailSection)
 }
 
 // fit returns at most n lines if possible. At most maxBranchLines other
@@ -174,15 +172,15 @@ func (m *Model) label(s string) seg {
 	return seg{runewidth.FillRight(s, detailLabelWidth), m.theme.dim}
 }
 
-// detailLines builds the detail panel for a content width of width cells.
+// detailLines builds the detail panel.
 // The status of the branch and the worktree and errors come first, so they
 // stay visible when the panel is cut off at the bottom; the static location
 // of the repository comes last.
-func (m *Model) detailLines(r *domain.Repository, width int) *details {
+func (m *Model) detailLines(r *domain.Repository) *details {
 	t := m.theme
 	now := m.now()
 	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) },
-		width: width, rule: t.inactiveBorder}
+		rule: t.inactiveBorder}
 
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {
@@ -194,6 +192,9 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		b = append(b, seg{"  ", t.plain})
 		d.text(append(b, m.upstreamSegs(r)...)...)
 		d.text(m.label("fetched"), m.fetchAge(now, r))
+		if op := m.lastOpSegs(now, r); op != nil {
+			d.text(append([]seg{m.label("last op")}, op...)...)
+		}
 
 		if r.Worktree.Valid {
 			if r.Operation.Valid && r.Operation.Value != domain.NoOperation {
@@ -234,7 +235,7 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 			}
 			d.section(title, t.title)
 			commitLine := func(c domain.CommitSummary) string {
-				return line(seg{c.ShortID + "  " + commitTime(now, c.Time, 0) + "  ", t.dim}, seg{c.Subject, t.plain})
+				return line(seg{c.ShortID + "  " + commitTime(now, c.Time) + "  ", t.dim}, seg{c.Subject, t.plain})
 			}
 			if c := r.LastCommit.Value; c == nil {
 				d.text(seg{"no commits yet", t.dim})
@@ -253,7 +254,8 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 
 		if r.Remotes.Valid {
 			d.section("remotes", t.title)
-			nameWidth := 0
+			// Remote names take the label column, unless one is longer.
+			nameWidth := detailLabelWidth - 2
 			for _, rem := range r.Remotes.Value {
 				nameWidth = max(nameWidth, runewidth.StringWidth(domain.Printable(rem.Name)))
 			}
@@ -273,7 +275,7 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		if siblings := m.worktreeSiblings(r); len(siblings) > 0 {
 			d.section("linked worktrees", t.title)
 			for _, p := range siblings {
-				d.text(seg{p, t.dim})
+				d.text(seg{shortenHome(p), t.dim})
 			}
 		}
 	}
@@ -317,6 +319,29 @@ func (m *Model) worktreeSegs(w domain.WorktreeState) []seg {
 	}
 	if !w.UntrackedChecked {
 		out = append(out, seg{"   untracked not checked", t.dim})
+	}
+	return out
+}
+
+// lastOpSegs describes the latest fetch or update of r in this session, or
+// returns nil if there was none.
+func (m *Model) lastOpSegs(now time.Time, r *domain.Repository) []seg {
+	last := m.lastOp(r.ID)
+	if last == nil {
+		return nil
+	}
+	t, ic := m.theme, m.icons
+	s := seg{"– ", t.dim}
+	switch last.Status {
+	case domain.StatusSucceeded:
+		s = seg{ic.clean + " ", t.clean}
+	case domain.StatusFailed:
+		s = seg{ic.failed + " ", t.err}
+	}
+	s.text += fmt.Sprintf("%s %s", last.Operation, last.Status)
+	out := []seg{s}
+	if !last.FinishedAt.IsZero() {
+		out = append(out, seg{" · " + ago(now, last.FinishedAt), t.dim})
 	}
 	return out
 }
