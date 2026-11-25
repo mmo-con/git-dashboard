@@ -23,6 +23,14 @@ Please include, where possible:
 The maintainers will review the report and coordinate further investigation
 and disclosure with you. Response and resolution times may vary.
 
+## Dependencies
+
+CI checks the code with govulncheck on every change and daily, using the
+newest stable Go release that also builds the release archives. Dependabot
+proposes dependency updates. A vulnerability that affects headquarters is
+fixed in a patch release; see
+[ADR 0014](docs/adr/0014-dependency-security-and-go-toolchain.md).
+
 ## Security Considerations
 
 headquarters invokes the installed Git CLI and uses your Git configuration,
