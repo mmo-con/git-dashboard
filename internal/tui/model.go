@@ -11,6 +11,7 @@ import (
 
 	"github.com/mmo-con/headquarters/internal/app"
 	"github.com/mmo-con/headquarters/internal/clipboard"
+	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
@@ -163,11 +164,19 @@ func New(a *app.Application) *Model {
 		theme:            newTheme(a.Config.UI.Theme),
 		icons:            iconSet(a.Config.UI.Icons),
 		tree:             a.Config.UI.View == "tree",
+		sortKey:          configuredSort(a.Config.UI),
 		clipboard:        clipboard.System().Copy,
 	}
 	m.ops = app.NewOperations(a, func(js []jobs.Job) uint64 { return m.submit(js, m.applyBatchEvent) },
 		func() time.Time { return m.now() })
 	return m
+}
+
+// configuredSort returns the sort order of [ui].sort; the configuration
+// validates the name.
+func configuredSort(ui config.UI) app.SortKey {
+	k, _ := app.SortKeyNamed(ui.Sort)
+	return k
 }
 
 // Err returns a fatal error that ended the program, if any.
@@ -297,7 +306,7 @@ func (m *Model) recompute() {
 			list = append(list, r)
 		}
 	}
-	app.Sort(list, m.sortKey)
+	app.Sort(list, m.sortKey, m.healthOf)
 	m.rows = m.rows[:0]
 	m.visible = m.visible[:0]
 	addRepo := func(r *domain.Repository) {

@@ -1415,6 +1415,39 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 	}
 }
 
+func TestConfiguredSort(t *testing.T) {
+	repos := func() []domain.Repository {
+		return []domain.Repository{repo("api", "Work", false), repo("dotfiles", "Personal", false)}
+	}
+	cfg := config.Default()
+	cfg.UI.Sort = "family"
+	a := app.New("/none", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.Update(inventoryMsg{result: inventory.Result{Repositories: repos()}})
+	if m.sortKey != app.SortFamily || m.visible[0] != "/r/dotfiles" {
+		t.Fatalf("sort = \"family\" must sort by family at startup: %s %v", m.sortKey, m.visible)
+	}
+
+	// A reload keeps the sort the user chose unless the configured default
+	// changes.
+	m.sortKey = app.SortName
+	reload := func(sort string) {
+		c := config.Default()
+		c.UI.Sort = sort
+		m.Update(inventoryMsg{loaded: &app.Loaded{Config: c, Git: a.Git}, result: inventory.Result{Repositories: repos()}})
+	}
+	reload("family")
+	if m.sortKey != app.SortName {
+		t.Fatal("an unchanged sort setting must not override the user's choice")
+	}
+	reload("health")
+	if m.sortKey != app.SortHealth {
+		t.Fatalf("a changed sort setting must take effect, got %s", m.sortKey)
+	}
+}
+
 func TestHelpExplainsHealthColumn(t *testing.T) {
 	m := newModel(t)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 80})

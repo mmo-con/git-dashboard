@@ -112,6 +112,14 @@ func (o *Operations) LastResult(id domain.RepositoryID) (domain.OperationResult,
 	return r, ok
 }
 
+// Health classifies r with its latest operation result (see HealthOf).
+func (o *Operations) Health(r *domain.Repository, now time.Time) Health {
+	if last, ok := o.last[r.ID]; ok {
+		return HealthOf(r, &last, now)
+	}
+	return HealthOf(r, nil, now)
+}
+
 // ForgetResults drops the latest results of ids, for example after the user
 // fetched them in the terminal.
 func (o *Operations) ForgetResults(ids []domain.RepositoryID) {

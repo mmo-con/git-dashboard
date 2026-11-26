@@ -204,48 +204,22 @@ func (m *Model) branchesMarker(r *domain.Repository) []seg {
 	return []seg{{fmt.Sprintf("%s%d", m.icons.branches, n), style}}
 }
 
-// healthLevel is the most important state of a repository, ordered by
-// priority.
-type healthLevel int
+// healthLevel is the health classification of the application (see
+// app.HealthOf).
+type healthLevel = app.Health
 
 const (
-	healthUnknown healthLevel = iota
-	healthError
-	healthCritical
-	healthDirty
-	healthBehind
-	healthAhead
-	healthAttention
-	healthOK
+	healthUnknown   = app.HealthUnknown
+	healthError     = app.HealthError
+	healthCritical  = app.HealthCritical
+	healthDirty     = app.HealthDirty
+	healthBehind    = app.HealthBehind
+	healthAhead     = app.HealthAhead
+	healthAttention = app.HealthAttention
+	healthOK        = app.HealthOK
 )
 
-// healthOf classifies r: errors and unavailable entries first, then
-// conflicts, operations in progress, and divergence, a dirty worktree,
-// behind, ahead, and other attention such as a remote mismatch, other
-// branches, stash entries, or a stale fetch. Repositories that are not
-// inspected yet are unknown.
-func (m *Model) healthOf(r *domain.Repository) healthLevel {
-	if !r.IsAvailable() || m.firstError(r) != "" {
-		return healthError
-	}
-	if !loaded(r) || !r.Worktree.Valid || !r.Head.Valid || !r.Upstream.Valid {
-		return healthUnknown
-	}
-	w, h, u := r.Worktree.Value, r.Head.Value, r.Upstream.Value
-	switch {
-	case w.Conflicts > 0 || (r.Operation.Valid && r.Operation.Value != domain.NoOperation) || u.Diverged():
-		return healthCritical
-	case !w.Clean():
-		return healthDirty
-	case u.Behind > 0:
-		return healthBehind
-	case u.Ahead > 0:
-		return healthAhead
-	case len(r.Branches.Value) > 0 || r.RemoteMismatch() || h.Detached || u.Gone || stashed(r) || m.fetchFinding(r) != "":
-		return healthAttention
-	}
-	return healthOK
-}
+func (m *Model) healthOf(r *domain.Repository) healthLevel { return m.ops.Health(r, m.now()) }
 
 func stashed(r *domain.Repository) bool { return r.Stashes.Valid && r.Stashes.Value > 0 }
 

@@ -69,7 +69,8 @@ The architecture and the decisions behind it are documented in
   branch with unpushed work, shown as a count with details in the side panel;
   old and ignored branches are filtered out, pinned branches always count.
 - Families as a filter or as a collapsible tree, text and state filters
-  (`is:dirty`, `is:behind`, …), and sorting.
+  (`is:dirty`, `is:behind`, …), and sorting, also by health with the most
+  urgent repositories on top.
 - `Enter` opens the selected repository in lazygit; the dashboard refreshes
   the repository afterward.
 - Concurrent fetch of the selected or visible repositories with progress,
@@ -204,7 +205,7 @@ global Git configuration.
 | `internal/jobs` | bounded scheduler with per-store locks and event queue |
 | `internal/launcher` | lazygit, launchers, and opening remotes in a browser |
 | `internal/clipboard` | copying text through native clipboard tools |
-| `internal/app` | application services: refresh, fetch, update, filter, sort |
+| `internal/app` | application services: refresh, fetch, update, health, filter, sort |
 | `internal/tui` | Bubble Tea user interface |
 | `internal/testutil` | helpers for tests with real Git repositories |
 | `scripts` | development scripts, such as the coverage report used in CI |

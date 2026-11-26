@@ -90,6 +90,22 @@ func TestRejectsInvalidConfiguration(t *testing.T) {
 	}
 }
 
+func TestUISort(t *testing.T) {
+	if cfg, err := Parse([]byte("version = 1\n"), "/x", env(nil)); err != nil || cfg.UI.Sort != "name" {
+		t.Fatalf("default sort = %q, %v; want name", cfg.UI.Sort, err)
+	}
+	for _, name := range SortOrders {
+		cfg, err := Parse([]byte("version = 1\n[ui]\nsort = \""+name+"\"\n"), "/x", env(nil))
+		if err != nil || cfg.UI.Sort != name {
+			t.Errorf("sort = %q: got %q, %v", name, cfg.UI.Sort, err)
+		}
+	}
+	_, err := Parse([]byte("version = 1\n[ui]\nsort = \"size\"\n"), "/x", env(nil))
+	if err == nil || !strings.Contains(err.Error(), "[ui].sort") || !strings.Contains(err.Error(), "size") {
+		t.Fatalf("an unknown sort order must name the key and value: %v", err)
+	}
+}
+
 func TestUnknownFieldIsNamed(t *testing.T) {
 	_, err := Parse([]byte("version = 1\n[git]\nexecutabel = \"git\"\n"), "/x", env(nil))
 	if err == nil || !strings.Contains(err.Error(), "executabel") {

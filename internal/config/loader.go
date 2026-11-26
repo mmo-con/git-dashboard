@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -286,6 +287,13 @@ func (b *builder) ui(u fileUI) {
 			cfg.View = u.View
 		default:
 			b.errorf("[ui].view must be \"list\" or \"tree\", not %q", u.View)
+		}
+	}
+	if u.Sort != "" {
+		if slices.Contains(SortOrders, u.Sort) {
+			cfg.Sort = u.Sort
+		} else {
+			b.errorf("[ui].sort must be one of %s, not %q", strings.Join(SortOrders, ", "), u.Sort)
 		}
 	}
 	if n := u.DetailCommits; n != nil {

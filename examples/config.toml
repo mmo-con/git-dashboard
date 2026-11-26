@@ -76,6 +76,9 @@ max_age = "30d"
 icons = "unicode"
 # Repository view at startup: "list" (default) or "tree" grouped by family.
 view = "list"
+# Sort order at startup: "name" (default), "family", "commit", "worktree",
+# "upstream", or "health" (most urgent first).
+sort = "name"
 # Recent commits of the selected repository in the detail panel (1-20).
 detail_commits = 3
 

@@ -98,6 +98,10 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 		if view := msg.loaded.Config.UI.View; view != m.app.Config.UI.View {
 			m.tree = view == "tree"
 		}
+		// Likewise for the sort order chosen with s.
+		if sort := msg.loaded.Config.UI.Sort; sort != m.app.Config.UI.Sort {
+			m.sortKey = configuredSort(msg.loaded.Config.UI)
+		}
 		m.app.Activate(msg.loaded)
 	}
 	m.theme = newTheme(m.app.Config.UI.Theme)

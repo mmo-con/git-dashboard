@@ -42,7 +42,7 @@ func Default() *Config {
 			MaxAge:  DefaultBranchesMaxAge,
 		},
 		Lazygit: Lazygit{Command: DefaultLazygitCommand, Enabled: true},
-		UI:      UI{Icons: "unicode", View: "list", DetailCommits: DefaultDetailCommits, Theme: DefaultTheme()},
+		UI:      UI{Icons: "unicode", View: "list", Sort: "name", DetailCommits: DefaultDetailCommits, Theme: DefaultTheme()},
 	}
 }
 
