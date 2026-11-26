@@ -123,6 +123,55 @@ func TestRecentCommits(t *testing.T) {
 	}
 }
 
+// TestIncomingCommits lists the upstream commits that HEAD lacks from local
+// refs, for a clone that is behind, up to date, diverged, or truncated.
+func TestIncomingCommits(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	loc := validate(t, c, clone)
+	incoming := func(n int) []string {
+		t.Helper()
+		in := inspect(t, c, loc)
+		commits, err := c.IncomingCommits(context.Background(), loc, in.Head.Value.CommitID, in.Upstream.Value.CommitID, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var subjects []string
+		for _, cm := range commits {
+			if len(cm.ID) < 40 || cm.ShortID == "" || cm.Author != "Test" || cm.Time.IsZero() {
+				t.Fatalf("incomplete commit: %+v", cm)
+			}
+			subjects = append(subjects, cm.Subject)
+		}
+		return subjects
+	}
+
+	if got := incoming(10); len(got) != 0 {
+		t.Fatalf("an up-to-date branch has no incoming commits: %q", got)
+	}
+	for _, s := range []string{"one", "two", "three"} {
+		tu.Commit(t, origin, s+".txt", s+"\n", "upstream "+s)
+	}
+	if got := incoming(10); len(got) != 0 {
+		t.Fatalf("commits that were not fetched must not be listed: %q", got)
+	}
+	tu.Git(t, clone, "fetch", "-q")
+	if got := strings.Join(incoming(10), "|"); got != "upstream three|upstream two|upstream one" {
+		t.Fatalf("behind: %q, want every incoming commit, newest first", got)
+	}
+	if got := strings.Join(incoming(2), "|"); got != "upstream three|upstream two" {
+		t.Fatalf("truncated: %q, want the newest two", got)
+	}
+	tu.Commit(t, clone, "local.txt", "local\n", "local work")
+	if got := strings.Join(incoming(10), "|"); got != "upstream three|upstream two|upstream one" {
+		t.Fatalf("diverged: %q, want only the upstream commits", got)
+	}
+}
+
 func TestInspectStashes(t *testing.T) {
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())
