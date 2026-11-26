@@ -27,9 +27,11 @@ test-race:
 	go test -race ./...
 
 # Runs the tests with the race detector, writes coverage.out, and prints a
-# Markdown report.
+# Markdown report. -count=1 bypasses the test cache: with -coverpkg, a cached
+# profile is not invalidated when a covered package outside the test's imports
+# changes, and its stale blocks would inflate the statement total.
 coverage:
-	go test -race -covermode=atomic -coverpkg=$(COVERPKG) -coverprofile=coverage.out ./...
+	go test -count=1 -race -covermode=atomic -coverpkg=$(COVERPKG) -coverprofile=coverage.out ./...
 	@sh scripts/coverage-summary.sh coverage.out
 
 perf:
