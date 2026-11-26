@@ -81,10 +81,15 @@ type Lazygit struct {
 type UI struct {
 	Icons string // "unicode", "nerd", or "ascii"
 	View  string // initial repository view: "list" or "tree"
+	Sort  string // initial sort order, one of SortOrders
 	// DetailCommits is the number of recent commits in the detail panel.
 	DetailCommits int
 	Theme         Theme
 }
+
+// SortOrders names the sort orders of [ui].sort, in the order of the sort
+// overlay.
+var SortOrders = []string{"name", "family", "commit", "worktree", "upstream", "health"}
 
 // Theme holds colors: ANSI names, numbers 0-255, or #rrggbb.
 type Theme struct {
@@ -168,6 +173,7 @@ type file struct {
 type fileUI struct {
 	Icons         string    `toml:"icons"`
 	View          string    `toml:"view"`
+	Sort          string    `toml:"sort"`
 	DetailCommits *int      `toml:"detail_commits"`
 	Theme         fileTheme `toml:"theme"`
 }

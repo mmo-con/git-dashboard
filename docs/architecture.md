@@ -15,7 +15,7 @@ decisions, their rationale, and their constraints.
 | `internal/initconfig` | one-time scan and generation of a starting configuration, atomic file writing |
 | `internal/git` | isolated Git command runner, parsers, inspection, fetch, update |
 | `internal/jobs` | scheduler, timeouts, store locks, event queue |
-| `internal/app` | application services, operations, handover, filters, sorting |
+| `internal/app` | application services, operations, handover, health classification, filters, sorting |
 | `internal/launcher` | lazygit, custom launchers, browser |
 | `internal/clipboard` | native clipboard tools, value checks |
 | `internal/domain` | repository and operation models |

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 )
 
@@ -84,9 +85,21 @@ const (
 	SortCommitTime
 	SortWorktree
 	SortUpstream
+	SortHealth
 )
 
-var SortKeys = []SortKey{SortName, SortFamily, SortCommitTime, SortWorktree, SortUpstream}
+var SortKeys = []SortKey{SortName, SortFamily, SortCommitTime, SortWorktree, SortUpstream, SortHealth}
+
+// SortKeyNamed returns the sort order with the name used in [ui].sort;
+// config.SortOrders lists the names in the order of SortKeys.
+func SortKeyNamed(name string) (SortKey, bool) {
+	for i, n := range config.SortOrders {
+		if n == name {
+			return SortKey(i), true
+		}
+	}
+	return SortName, false
+}
 
 func (k SortKey) String() string {
 	switch k {
@@ -98,16 +111,34 @@ func (k SortKey) String() string {
 		return "worktree state"
 	case SortUpstream:
 		return "upstream state"
+	case SortHealth:
+		return "health"
 	}
 	return "name"
 }
 
-// Sort orders repositories in place. Name and path break ties so that the
-// order is stable.
-func Sort(repos []*domain.Repository, key SortKey) {
+// Sort orders repositories in place. health classifies a repository for
+// SortHealth; nil classifies it without operation results. Name and path
+// break ties so that the order is stable.
+func Sort(repos []*domain.Repository, key SortKey, health func(*domain.Repository) Health) {
+	var ranks map[*domain.Repository]int
+	if key == SortHealth {
+		if health == nil {
+			now := time.Now()
+			health = func(r *domain.Repository) Health { return HealthOf(r, nil, now) }
+		}
+		ranks = make(map[*domain.Repository]int, len(repos))
+		for _, r := range repos {
+			ranks[r] = healthRank(health(r))
+		}
+	}
 	sort.SliceStable(repos, func(i, j int) bool {
 		a, b := repos[i], repos[j]
 		switch key {
+		case SortHealth:
+			if ranks[a] != ranks[b] {
+				return ranks[a] < ranks[b]
+			}
 		case SortFamily:
 			if a.Family != b.Family {
 				return a.Family < b.Family

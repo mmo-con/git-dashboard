@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
 	"github.com/mmo-con/headquarters/internal/jobs"
@@ -289,7 +290,7 @@ func TestFilterAndSort(t *testing.T) {
 
 	order := func(k SortKey) string {
 		list := append([]*domain.Repository{}, repos...)
-		Sort(list, k)
+		Sort(list, k, nil)
 		s := ""
 		for _, r := range list {
 			s += r.Name + " "
@@ -306,5 +307,58 @@ func TestFilterAndSort(t *testing.T) {
 		if got := order(k); got != want {
 			t.Errorf("sort %s: got %q, want %q", k, got, want)
 		}
+	}
+}
+
+func TestSortByHealth(t *testing.T) {
+	now := time.Now()
+	healthy := func(name, path string, mutate func(r *domain.Repository)) *domain.Repository {
+		r := behindRepo()
+		r.ID, r.Name, r.Path = domain.RepositoryID(path), name, path
+		r.Worktree.Value, r.Upstream.Value.Behind = domain.WorktreeState{UntrackedChecked: true}, 0
+		if mutate != nil {
+			mutate(&r)
+		}
+		return &r
+	}
+	fetchFailed := healthy("fetchfailed", "/f", nil)
+	repos := []*domain.Repository{
+		healthy("ok", "/ok", nil),
+		healthy("attention", "/at", func(r *domain.Repository) { r.Stashes = domain.KnownValue(1) }),
+		healthy("unknown", "/u", func(r *domain.Repository) { r.Upstream = domain.Known[domain.UpstreamState]{} }),
+		healthy("pending", "/p", func(r *domain.Repository) { r.Inspected = domain.InspectionInfo{} }),
+		healthy("ahead", "/a", func(r *domain.Repository) { r.Upstream.Value.Ahead = 1 }),
+		healthy("behind", "/b", func(r *domain.Repository) { r.Upstream.Value.Behind = 1 }),
+		healthy("dirty", "/d2", func(r *domain.Repository) { r.Worktree.Value.Modified = 1 }),
+		healthy("Dirty", "/d1", func(r *domain.Repository) { r.Worktree.Value.Modified = 1 }),
+		healthy("critical", "/c", func(r *domain.Repository) { r.Upstream.Value.Ahead, r.Upstream.Value.Behind = 1, 1 }),
+		fetchFailed,
+		healthy("missing", "/m", func(r *domain.Repository) { r.Availability = domain.Missing }),
+	}
+	last := map[domain.RepositoryID]*domain.OperationResult{
+		fetchFailed.ID: {Operation: domain.OperationFetch, Status: domain.StatusFailed, Error: errors.New("x")},
+	}
+	Sort(repos, SortHealth, func(r *domain.Repository) Health { return HealthOf(r, last[r.ID], now) })
+	var got []string
+	for _, r := range repos {
+		got = append(got, r.Path)
+	}
+	want := "/f /m /c /d1 /d2 /b /a /at /p /u /ok"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("got %v, want %s", got, want)
+	}
+}
+
+func TestSortKeyNames(t *testing.T) {
+	if len(config.SortOrders) != len(SortKeys) {
+		t.Fatalf("config.SortOrders %v and SortKeys differ", config.SortOrders)
+	}
+	for i, name := range config.SortOrders {
+		if k, ok := SortKeyNamed(name); !ok || k != SortKeys[i] {
+			t.Errorf("%q must name %s", name, SortKeys[i])
+		}
+	}
+	if _, ok := SortKeyNamed("size"); ok {
+		t.Error("an unknown name must be rejected")
 	}
 }

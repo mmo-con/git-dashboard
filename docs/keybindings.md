@@ -30,7 +30,7 @@ cursor moves within the current view before the list scrolls again.
 | `t` | search and choose a family |
 | `v` | switch between the flat list and the family tree |
 | `z` | in the tree: collapse all families if any is expanded, otherwise expand all |
-| `s` | choose sorting |
+| `s` | choose sorting: name, family, latest commit, worktree state, upstream state, or health; name and path break ties |
 | `r` | refresh visible repository state |
 | `R` | reload configuration, rebuild inventory, refresh all; a new Git executable, parallelism limits, lazygit, and launchers take effect at once. When started with a path, the same path is scanned again |
 | `e` | show error details and warnings |
@@ -81,7 +81,8 @@ reports an error; the terminal clipboard (OSC 52) is not used.
 
 A fetch starts at once. An update asks for confirmation first.
 
-The view at startup is set with `[ui].view` in the configuration. In the
+The view at startup is set with `[ui].view` in the configuration, the sort
+order with `[ui].sort`. In the
 tree, families are listed alphabetically, with the current sort order
 applied within each family. Filters still apply. Families start collapsed and
 retain their expansion state when you switch between views. While a text or
@@ -211,6 +212,10 @@ the rest.
 | `!` | `~` | other attention: other branches, stash entries, a remote mismatch, a detached HEAD, a gone upstream, or a stale fetch; the State column names it |
 | `✓` | `ok` | healthy |
 | empty | empty | not inspected yet |
+
+Sorting by health uses the same priority, most urgent first. Repositories
+whose state is unknown, including those not inspected yet, come after other
+attention and before healthy repositories.
 
 ## Filter syntax
 
