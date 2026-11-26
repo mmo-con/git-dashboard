@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 
+	"github.com/mmo-con/headquarters/internal/app"
 	"github.com/mmo-con/headquarters/internal/domain"
 )
 
@@ -75,6 +76,9 @@ const (
 	// detailOlderCommit is a recent commit other than the latest one; these
 	// lines are dropped first, oldest first.
 	detailOlderCommit
+	// detailIncoming is an incoming commit; after the older commits, these
+	// lines are dropped down to the newest, oldest first.
+	detailIncoming
 )
 
 // details collects the lines of the detail panel, grouped into sections.
@@ -83,6 +87,10 @@ type details struct {
 	kinds []detailKind
 	// more renders the line that replaces n hidden other branches.
 	more func(n int) string
+	// incomingMore renders the line that stands for n incoming commits that
+	// are not listed; incomingOmitted of them were not read.
+	incomingMore    func(n int) string
+	incomingOmitted int
 	// width is the width of a section rule, drawn in the rule style.
 	width int
 	rule  lipgloss.Style
@@ -108,45 +116,71 @@ func (d *details) section(title string, style lipgloss.Style) {
 
 // fit returns at most n lines if possible. At most maxBranchLines other
 // branches are listed. If the panel is too small, older commits are dropped
-// first, oldest first, then blank lines, then the other branches list is
-// shortened, then the section titles are dropped.
+// first, oldest first, then incoming commits down to the newest, then blank
+// lines, then the other branches list is shortened, then the section titles
+// are dropped.
 func (d *details) fit(n int) []string {
-	total, commits := 0, 0
+	total, commits, incoming := 0, 0, 0
 	for _, k := range d.kinds {
 		switch k {
 		case detailBranch:
 			total++
 		case detailOlderCommit:
 			commits++
+		case detailIncoming:
+			incoming++
 		}
 	}
 	shown := min(total, maxBranchLines)
 	for c := commits; c >= 0; c-- {
-		if out := d.render(c, shown, total); len(out) <= n {
+		if out := d.render(c, incoming, shown, total); len(out) <= n {
+			return out
+		}
+	}
+	newest := min(incoming, 1)
+	for in := incoming - 1; in >= newest; in-- {
+		if out := d.render(0, in, shown, total); len(out) <= n {
 			return out
 		}
 	}
 	for _, drop := range [][]detailKind{{detailBlank}, {detailBlank, detailSection}} {
 		for b := shown; b >= 0; b-- {
-			if out := d.render(0, b, total, drop...); len(out) <= n {
+			if out := d.render(0, newest, b, total, drop...); len(out) <= n {
 				return out
 			}
 		}
 	}
-	return d.render(0, 0, total, detailBlank, detailSection)
+	return d.render(0, newest, 0, total, detailBlank, detailSection)
 }
 
-// render returns the lines with at most commits older commits and branches
-// other branches, of total, without the kinds in drop.
-func (d *details) render(commits, branches, total int, drop ...detailKind) []string {
+// render returns the lines with at most commits older commits, incoming
+// incoming commits, and branches other branches, of total, without the kinds
+// in drop.
+func (d *details) render(commits, incoming, branches, total int, drop ...detailKind) []string {
 	var out []string
-	seen, older := 0, 0
+	seen, older, in := 0, 0, 0
+	inTotal := 0
+	for _, k := range d.kinds {
+		if k == detailIncoming {
+			inTotal++
+		}
+	}
 	for i, l := range d.lines {
 		k := d.kinds[i]
 		if k == detailOlderCommit {
 			older++
 			if older <= commits {
 				out = append(out, l)
+			}
+			continue
+		}
+		if k == detailIncoming {
+			in++
+			if in <= incoming {
+				out = append(out, l)
+			}
+			if hidden := inTotal - min(incoming, inTotal) + d.incomingOmitted; in == inTotal && hidden > 0 {
+				out = append(out, d.incomingMore(hidden))
 			}
 			continue
 		}
@@ -182,7 +216,7 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	t := m.theme
 	now := m.now()
 	d := &details{more: func(n int) string { return line(seg{fmt.Sprintf("  +%d more", n), t.dim}) },
-		width: width, rule: t.inactiveBorder}
+		incomingMore: m.incomingMore, width: width, rule: t.inactiveBorder}
 
 	inspected := r.IsAvailable() && loaded(r)
 	if inspected {
@@ -248,6 +282,18 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 				if ok && e.err != nil {
 					d.add(line(seg{"older commits unavailable: " + firstLine(e.err.Error()), t.dim}), detailOlderCommit)
 				}
+			}
+		}
+
+		if rng, ok := app.IncomingOf(r); ok && rng.Behind > 0 && m.incomingCount() > 0 {
+			d.section("incoming commits", t.title)
+			if status, commits := m.incomingStatus(r.ID, rng); status != "" {
+				d.add(status, detailText)
+			} else {
+				for _, c := range commits {
+					d.add(m.incomingCommitLine(now, c), detailIncoming)
+				}
+				d.incomingOmitted = max(rng.Behind-len(commits), 0)
 			}
 		}
 

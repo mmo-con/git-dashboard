@@ -56,6 +56,27 @@ type historyRequest struct {
 	n     int
 }
 
+// incomingKey identifies the incoming commits of a repository by the
+// commits of its range, so a cached list stays valid while they do.
+type incomingKey struct {
+	repo domain.RepositoryID
+	rng  app.IncomingRange
+}
+
+// incomingEntry holds up to n incoming commits of a range.
+type incomingEntry struct {
+	n       int
+	commits []domain.CommitSummary
+	err     error
+}
+
+// incomingRequest is the incoming job for the selected item.
+type incomingRequest struct {
+	batch uint64
+	key   incomingKey
+	n     int
+}
+
 // updatePreview is the update confirmation. It exists while the confirmation
 // is open, also behind the quit confirmation, and holds the plan with the
 // state the user confirms.
@@ -135,6 +156,10 @@ type Model struct {
 	// repository is ever requested, one at a time.
 	history        map[domain.RepositoryID]historyEntry
 	historyPending *historyRequest
+	// incoming caches the incoming commits of the selected repository, the
+	// selected confirmation row, or the selected batch row; one at a time.
+	incoming        map[incomingKey]incomingEntry
+	incomingPending *incomingRequest
 
 	fatal error
 	now   func() time.Time
@@ -155,6 +180,7 @@ func New(a *app.Application) *Model {
 		marks:            map[domain.RepositoryID]bool{},
 		expanded:         map[domain.FamilyID]bool{},
 		history:          map[domain.RepositoryID]historyEntry{},
+		incoming:         map[incomingKey]incomingEntry{},
 		inspecting:       map[uint64]int{},
 		routes:           map[uint64]route{},
 		loadingInventory: true,
@@ -504,6 +530,11 @@ func (m *Model) refresh(ids []domain.RepositoryID) uint64 {
 		if r := m.repo(id); r != nil && !seen[id] {
 			seen[id] = true
 			repos = append(repos, *r)
+		}
+	}
+	for k, e := range m.incoming {
+		if seen[k.repo] && e.err != nil {
+			delete(m.incoming, k)
 		}
 	}
 	gen := m.app.NextGeneration()

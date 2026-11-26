@@ -303,6 +303,13 @@ func (b *builder) ui(u fileUI) {
 			cfg.DetailCommits = *n
 		}
 	}
+	if n := u.IncomingCommits; n != nil {
+		if *n < 0 || *n > MaxIncomingCommits {
+			b.errorf("[ui].incoming_commits must be between 0 and %d, not %d", MaxIncomingCommits, *n)
+		} else {
+			cfg.IncomingCommits = *n
+		}
+	}
 	b.theme(u.Theme)
 }
 

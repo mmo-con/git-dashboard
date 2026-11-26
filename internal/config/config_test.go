@@ -73,6 +73,8 @@ func TestRejectsInvalidConfiguration(t *testing.T) {
 		"bad view":            "version = 1\n[ui]\nview = \"grid\"\n",
 		"no detail commits":   "version = 1\n[ui]\ndetail_commits = 0\n",
 		"many detail commits": "version = 1\n[ui]\ndetail_commits = 21\n",
+		"negative incoming":   "version = 1\n[ui]\nincoming_commits = -1\n",
+		"many incoming":       "version = 1\n[ui]\nincoming_commits = 51\n",
 		"bad color":           "version = 1\n[ui.theme]\nactive_border = \"greenish\"\n",
 		"color out of range":  "version = 1\n[ui.theme]\ndim = \"256\"\n",
 		"unknown preset":      "version = 1\n[ui.theme]\npreset = \"solarized\"\n",
@@ -164,12 +166,12 @@ func TestLoadMissingFile(t *testing.T) {
 }
 
 func TestUISettings(t *testing.T) {
-	cfg, err := Parse([]byte("version = 1\n[ui]\nicons = \"nerd\"\nview = \"tree\"\ndetail_commits = 5\n[ui.theme]\nactive_border = \"#ff8800\"\nselected_background = \"236\"\nselected_accent = \"#ff8800\"\nbranch = \"bright-blue\"\nheader_background = \"magenta\"\nheader_foreground = \"black\"\n"), "/x", env(nil))
+	cfg, err := Parse([]byte("version = 1\n[ui]\nicons = \"nerd\"\nview = \"tree\"\ndetail_commits = 5\nincoming_commits = 0\n[ui.theme]\nactive_border = \"#ff8800\"\nselected_background = \"236\"\nselected_accent = \"#ff8800\"\nbranch = \"bright-blue\"\nheader_background = \"magenta\"\nheader_foreground = \"black\"\n"), "/x", env(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	th := cfg.UI.Theme
-	if cfg.UI.Icons != "nerd" || cfg.UI.View != "tree" || cfg.UI.DetailCommits != 5 || th.ActiveBorder != "#ff8800" || th.SelectedBackground != "236" || th.SelectedAccent != "#ff8800" || th.Branch != "bright-blue" ||
+	if cfg.UI.Icons != "nerd" || cfg.UI.View != "tree" || cfg.UI.DetailCommits != 5 || cfg.UI.IncomingCommits != 0 || th.ActiveBorder != "#ff8800" || th.SelectedBackground != "236" || th.SelectedAccent != "#ff8800" || th.Branch != "bright-blue" ||
 		th.HeaderBackground != "magenta" || th.HeaderForeground != "black" {
 		t.Fatalf("%+v", cfg.UI)
 	}

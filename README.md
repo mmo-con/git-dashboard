@@ -60,7 +60,8 @@ The architecture and the decisions behind it are documented in
 - Status per repository: branch, detached or unborn HEAD, operations in
   progress, staged/modified/deleted/renamed/conflicting/untracked entries,
   upstream state, stash entries, remotes, latest commit, and last fetch time;
-  the detail panel lists the most recent commits (three by default). A
+  the detail panel lists the most recent commits (three by default) and the
+  incoming upstream commits as of the last fetch. A
   repository that was never fetched or not within seven days is flagged in
   the table and has a quick filter.
   Stash entries are only reported, as a count and with a quick filter;
@@ -76,10 +77,10 @@ The architecture and the decisions behind it are documented in
 - Concurrent fetch of the selected or visible repositories with progress,
   cancellation, retry, and an interactive retry in the terminal for
   repositories that need a passphrase.
-- Safe update after one confirmation: the dashboard fetches first, then
-  fast-forwards only branches that can be updated safely, without merge
-  commits, rebases, or stashes, and lists every skipped repository with the
-  reason. The operations view then serves as a worklist: open blocked
+- Safe update after one confirmation that lists the incoming commits of each
+  repository: the dashboard fetches first, then fast-forwards only branches
+  that can be updated safely, without merge commits, rebases, or stashes, and
+  lists every skipped repository with the reason. The operations view then serves as a worklist: open blocked
   repositories in lazygit, see which blockers are resolved, and continue.
 - Configurable launchers for a shell, an editor, or a file manager.
 - `y` copies the worktree path, branch name, primary remote URL, or its web

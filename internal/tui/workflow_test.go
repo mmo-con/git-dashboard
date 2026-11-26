@@ -2,12 +2,14 @@ package tui
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/mmo-con/headquarters/internal/app"
 	"github.com/mmo-con/headquarters/internal/config"
@@ -293,5 +295,146 @@ func TestDetailPanelShowsRecentCommits(t *testing.T) {
 	}
 	if v := strings.Join(m.detailLines(r, 80).fit(100), "\n"); !strings.Contains(v, "LAST COMMIT") || !strings.Contains(v, "commit fourth") {
 		t.Fatalf("one commit is the latest commit:\n%s", v)
+	}
+}
+
+// drainIncoming applies events until the pending incoming request is done.
+func drainIncoming(t *testing.T, m *Model) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for m.incomingPending != nil {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for incoming commits")
+		}
+		m.Update(eventsMsg{events: m.app.Scheduler.Events.Next()})
+	}
+}
+
+// selectRepo moves the cursor to the repository and loads what its detail
+// panel needs.
+func selectRepo(t *testing.T, m *Model, id domain.RepositoryID) {
+	t.Helper()
+	for i, r := range m.rows {
+		if r.id == id {
+			m.moveRepoCursor(i)
+			m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+			drainIncoming(t, m)
+			return
+		}
+	}
+	t.Fatalf("%s is not shown", id)
+}
+
+func modTime(t *testing.T, path string) time.Time {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.ModTime()
+}
+
+// panelSection returns the lines of a titled section of the detail panel.
+func panelSection(m *Model, title string) string {
+	var out []string
+	in := false
+	for _, l := range strings.Split(ansi.Strip(strings.Join(m.detailLines(m.current(), 100).fit(100), "\n")), "\n") {
+		if strings.HasPrefix(l, "── ") {
+			in = strings.HasPrefix(l, "── "+title+" ")
+		}
+		if in {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// TestIncomingCommitsWithRealRepositories checks the incoming commits in the
+// detail panel, the update confirmation, and the operations view, read from
+// local refs without fetching.
+func TestIncomingCommitsWithRealRepositories(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	for _, name := range []string{"behind", "current", "diverged"} {
+		tu.Git(t, base, "clone", "-q", origin, name)
+	}
+	standalone := tu.InitRepo(t, filepath.Join(base, "standalone"))
+	for _, n := range []string{"1", "2", "3", "4", "5"} {
+		tu.Commit(t, origin, n+".txt", n+"\n", "upstream "+n)
+	}
+	behind, diverged := filepath.Join(base, "behind"), filepath.Join(base, "diverged")
+	tu.Git(t, behind, "fetch", "-q")
+	tu.Git(t, diverged, "fetch", "-q")
+	tu.Commit(t, diverged, "local.txt", "local\n", "local work")
+	tu.Commit(t, origin, "6.txt", "6\n", "upstream 6 unfetched")
+	fetchHead := filepath.Join(behind, ".git", "FETCH_HEAD")
+	fetchedAt := modTime(t, fetchHead)
+	tracking := tu.Git(t, behind, "rev-parse", "origin/main")
+
+	cfg := config.Default()
+	cfg.UI.IncomingCommits = 3
+	for _, p := range []string{behind, filepath.Join(base, "current"), diverged, standalone} {
+		cfg.Repositories = append(cfg.Repositories, config.Repository{Path: p, Enabled: true})
+	}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+	ids := map[string]domain.RepositoryID{}
+	for _, r := range m.repos {
+		ids[filepath.Base(r.Path)] = r.ID
+	}
+
+	selectRepo(t, m, ids["behind"])
+	s := panelSection(m, "INCOMING COMMITS")
+	for _, want := range []string{"upstream 5", "upstream 4", "upstream 3", "Test", "… and 2 more"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("a repository behind its upstream must list %q:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "upstream 2") || strings.Contains(s, "unfetched") {
+		t.Fatalf("the list must be truncated and contain only fetched commits:\n%s", s)
+	}
+	if modTime(t, fetchHead) != fetchedAt || tu.Git(t, behind, "rev-parse", "origin/main") != tracking {
+		t.Fatal("loading incoming commits must not fetch")
+	}
+
+	selectRepo(t, m, ids["diverged"])
+	if s := panelSection(m, "INCOMING COMMITS"); !strings.Contains(s, "upstream 5") || !strings.Contains(s, "… and 2 more") || strings.Contains(s, "local work") {
+		t.Fatalf("a diverged repository must list only the upstream commits:\n%s", s)
+	}
+	for _, name := range []string{"current", "standalone"} {
+		selectRepo(t, m, ids[name])
+		if s := panelSection(m, "INCOMING COMMITS"); s != "" || m.incomingPending != nil {
+			t.Fatalf("%s has no incoming commits and needs no Git process:\n%s", name, s)
+		}
+	}
+
+	m.repo(ids["standalone"]).Upstream = domain.Known[domain.UpstreamState]{}
+	selectRepo(t, m, ids["behind"])
+	keys(m, "U")
+	drainIncoming(t, m)
+	v := ansi.Strip(m.View())
+	if !strings.Contains(v, m.icons.behind+"5 · fetched") || !strings.Contains(v, m.icons.behind+"5 · diverged from upstream") ||
+		!strings.Contains(v, m.icons.behind+"? · state is unknown") {
+		t.Fatalf("the confirmation must show the incoming count per repository and an unknown state as unknown:\n%s", v)
+	}
+	if !strings.Contains(v, "upstream 5") || !strings.Contains(v, "… and 2 more") {
+		t.Fatalf("the confirmation must list the incoming commits of the selected repository:\n%s", v)
+	}
+
+	keys(m, "y")
+	pump(t, m)
+	if tu.Git(t, behind, "rev-parse", "HEAD") != tu.Git(t, origin, "rev-parse", "HEAD") {
+		t.Fatal("behind was not fast-forwarded")
+	}
+	m.opSelected, _ = row(t, m, ids["behind"])
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	drainIncoming(t, m)
+	if v := ansi.Strip(m.View()); !strings.Contains(v, "upstream 6 unfetched") || !strings.Contains(v, "… and 3 more") {
+		t.Fatalf("the operations view must list the commits the update applied:\n%s", v)
 	}
 }

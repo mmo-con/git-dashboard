@@ -1,6 +1,6 @@
 # ADR 0003: Git CLI and process isolation
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0015](0015-showing-incoming-commits.md)
 
 ## Context
 
@@ -125,7 +125,9 @@ git log --max-count=<n> --no-color --no-show-signature --format=%H%x00%h%x00%an%
 
 Cache the result by repository and HEAD; reload after HEAD moves or after
 failure and refresh. Cancel a request when selection moves on, so scrolling
-runs at most one such process at a time.
+runs at most one such process at a time. Incoming upstream commits are read
+the same way; [ADR 0015](0015-showing-incoming-commits.md) specifies their
+command.
 
 ### Parsing
 

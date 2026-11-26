@@ -50,6 +50,40 @@ func TestConfirmedUpdateWaitsForFetchAndInspections(t *testing.T) {
 	}
 }
 
+// TestUpdateRowsKeepTheirPlannedIncomingRange checks that every update row,
+// also a blocked one, keeps the range planned from the fetched state, so the
+// operations view can list it after HEAD has moved.
+func TestUpdateRowsKeepTheirPlannedIncomingRange(t *testing.T) {
+	o := offlineOperations(t)
+	dirty := behindRepo()
+	dirty.ID, dirty.StoreID = "d", "d"
+	dirty.Worktree.Value.Modified = 1
+	repos := []domain.Repository{behindRepo(), dirty}
+	o.ConfirmUpdate(repos, []domain.RepositoryID{"r", "d"})
+	finish(o, 0, domain.StatusSucceeded, nil)
+	finish(o, 1, domain.StatusSucceeded, nil)
+	repos[0].Upstream.Value.CommitID, repos[0].Upstream.Value.Behind = "up2", 3
+	if _, ok := o.Advance(repos, func(uint64) bool { return false }); !ok {
+		t.Fatal("the update must start")
+	}
+	want := map[domain.RepositoryID]IncomingRange{
+		"r": {Head: "abc", Upstream: "up2", Behind: 3},
+		"d": {Head: "abc", Upstream: "up1", Behind: 2},
+	}
+	for _, row := range o.Batch().Rows {
+		if got := row.Incoming; got != want[row.Job.RepositoryID] {
+			t.Errorf("%s: incoming = %+v, want %+v", row.Job.RepositoryID, got, want[row.Job.RepositoryID])
+		}
+	}
+	finish(o, 0, domain.StatusFailed, errors.New("merge failed"))
+	if _, ok := o.Retry(); !ok {
+		t.Fatal("the failed update must be retried")
+	}
+	if rows := o.Batch().Rows; len(rows) != 1 || rows[0].Incoming != want["r"] {
+		t.Fatalf("a retried update row must keep its planned range: %+v", rows)
+	}
+}
+
 func TestFetchOutcomeDecidesUpdate(t *testing.T) {
 	upToDate := behindRepo()
 	upToDate.Upstream.Value.Behind = 0
