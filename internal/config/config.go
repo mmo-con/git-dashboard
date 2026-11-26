@@ -84,7 +84,10 @@ type UI struct {
 	Sort  string // initial sort order, one of SortOrders
 	// DetailCommits is the number of recent commits in the detail panel.
 	DetailCommits int
-	Theme         Theme
+	// IncomingCommits is the number of incoming upstream commits listed in
+	// the detail panel, the update confirmation, and the operations view.
+	IncomingCommits int
+	Theme           Theme
 }
 
 // SortOrders names the sort orders of [ui].sort, in the order of the sort
@@ -171,11 +174,12 @@ type file struct {
 }
 
 type fileUI struct {
-	Icons         string    `toml:"icons"`
-	View          string    `toml:"view"`
-	Sort          string    `toml:"sort"`
-	DetailCommits *int      `toml:"detail_commits"`
-	Theme         fileTheme `toml:"theme"`
+	Icons           string    `toml:"icons"`
+	View            string    `toml:"view"`
+	Sort            string    `toml:"sort"`
+	DetailCommits   *int      `toml:"detail_commits"`
+	IncomingCommits *int      `toml:"incoming_commits"`
+	Theme           fileTheme `toml:"theme"`
 }
 
 type fileTheme struct {

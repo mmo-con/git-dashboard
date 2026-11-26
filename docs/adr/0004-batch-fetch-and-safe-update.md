@@ -1,6 +1,7 @@
 # ADR 0004: Batch fetch and safe update
 
-Status: Accepted, amended by [ADR 0011](0011-families-in-the-tree.md)
+Status: Accepted, amended by [ADR 0011](0011-families-in-the-tree.md) and
+[ADR 0015](0015-showing-incoming-commits.md)
 
 ## Context
 
@@ -32,6 +33,8 @@ Require a preview and confirmation for operations that change local
 branches. `u` and `U` show targets and their pre-fetch state and describe
 the action in plain language. The confirmation is for the intent to fetch,
 then fast-forward what is safe; the commit list is not yet known.
+[ADR 0015](0015-showing-incoming-commits.md) shows the incoming commits as
+of the last fetch in the confirmation and the operations view.
 
 After confirmation, fetch every target store, then plan the update from the
 fetched state. A failed fetch is the skip reason for every target in that

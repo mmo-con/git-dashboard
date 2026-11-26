@@ -339,7 +339,30 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 	if !m.ops.Running() {
 		state = "finished"
 	}
-	body := append(head, operationWindow(list, group, selLine, rows-len(head)-len(detail))...)
+	var incoming []string
+	id, rng, known := m.opIncoming()
+	if known && rng.Behind > 0 && m.incomingCount() > 0 {
+		title := "Incoming commits as of the last fetch"
+		if b.Op == domain.OperationUpdate {
+			title = "Commits of this update"
+		}
+		incoming = []string{"", t.panelTitle.Render(title)}
+	}
+	avail := rows - len(head) - len(detail)
+	if len(incoming) > 0 {
+		// The list keeps a few rows; the incoming commits take the rest up to
+		// the configured count and the line of omitted commits.
+		want := len(incoming) + min(m.incomingCount(), rng.Behind) + 1
+		listRows := min(len(list), max(avail-want, min(len(list), 4)))
+		if lines := m.incomingLines(m.now(), id, rng, avail-listRows-len(incoming)); len(lines) > 0 {
+			incoming = append(incoming, lines...)
+			avail = listRows
+		} else {
+			incoming = nil
+		}
+	}
+	body := append(head, operationWindow(list, group, selLine, avail)...)
+	body = append(body, incoming...)
 	return fmt.Sprintf("%s ─ %d repositories ─ %s", op, total, state), append(body, detail...)
 }
 
@@ -399,7 +422,11 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 	}
 	for _, c := range p.skip {
 		r := c.Repository
-		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), c.Verdict)
+		reason := c.Verdict.String()
+		if count := m.incomingCountText(&r); count != "" {
+			reason = count + " · " + reason
+		}
+		text := fmt.Sprintf("– blocked  %-24s %s", ansi.Truncate(r.Name, 24, "…"), reason)
 		style := t.warn
 		if c.Verdict.UpToDate() {
 			text = fmt.Sprintf("%s current  %-24s %s", m.icons.upToDate, ansi.Truncate(r.Name, 24, "…"), m.fetchSeg(now, &r).text)
@@ -419,7 +446,42 @@ func (m *Model) viewUpdatePreview(iw, rows int) (string, []string) {
 		head = append(head, t.warn.Render(m.hiddenMarksNotice(p.hidden)))
 	}
 	head = append(head, "", t.panelTitle.Render("State before the fetch"))
-	return "Confirm update", append(head, window(list, m.overlayIdx, rows-len(head))...)
+	// While any row has incoming commits, the list leaves room for them, so
+	// its height does not change while the selection moves.
+	reserve := 0
+	if m.incomingCount() > 0 {
+		for _, c := range append(append([]app.UpdateCandidate{}, p.ok...), p.skip...) {
+			if rng, ok := app.IncomingOf(&c.Repository); ok && rng.Behind > 0 {
+				reserve = 6
+				break
+			}
+		}
+	}
+	body := append(head, window(list, m.overlayIdx, min(len(list), max(rows-len(head)-reserve, 3)))...)
+	if c := m.previewSelected(); c != nil && reserve > 0 {
+		r := c.Repository
+		if rng, ok := app.IncomingOf(&r); ok && rng.Behind > 0 {
+			title := []string{"", t.panelTitle.Render("Incoming to " + r.Name + " as of the last fetch")}
+			if lines := m.incomingLines(now, r.ID, rng, rows-len(body)-len(title)); len(lines) > 0 {
+				body = append(append(body, title...), lines...)
+			}
+		}
+	}
+	return "Confirm update", body
+}
+
+// incomingCountText is the number of incoming commits of r for the update
+// confirmation: "" without incoming commits, "?" if the upstream state is
+// unknown.
+func (m *Model) incomingCountText(r *domain.Repository) string {
+	rng, ok := app.IncomingOf(r)
+	switch {
+	case !ok:
+		return m.icons.behind + "?"
+	case rng.Behind > 0:
+		return fmt.Sprintf("%s%d", m.icons.behind, rng.Behind)
+	}
+	return ""
 }
 
 func (m *Model) hiddenMarksNotice(hidden int) string {

@@ -26,6 +26,9 @@ type BatchRow struct {
 	// RevisitedAt is the time the user returned from lazygit after opening
 	// the repository from this row.
 	RevisitedAt time.Time
+	// Incoming is the range an update row was planned with, read after the
+	// fetch; it stays fixed when the fast-forward moves HEAD.
+	Incoming IncomingRange
 }
 
 // Done reports whether every row has a final status.
@@ -297,15 +300,21 @@ func (o *Operations) Retry() (Notice, bool) {
 		return Notice{}, false
 	}
 	var js []jobs.Job
+	planned := map[domain.RepositoryID]IncomingRange{}
 	for _, r := range o.batch.Rows {
 		if r.Result.Status == domain.StatusFailed || r.Result.Status == domain.StatusCancelled {
 			js = append(js, r.Job)
+			planned[r.Job.RepositoryID] = r.Incoming
 		}
 	}
 	if len(js) == 0 {
 		return info("nothing to retry"), false
 	}
-	return o.start(o.batch.Op, js, nil), true
+	n := o.start(o.batch.Op, js, nil)
+	for i := range o.batch.Rows {
+		o.batch.Rows[i].Incoming = planned[o.batch.Rows[i].Job.RepositoryID]
+	}
+	return n, true
 }
 
 // NotUpdated returns every repository of the finished update batch that has
@@ -353,7 +362,15 @@ func (o *Operations) runUpdate(repos []domain.Repository, failed map[domain.Stor
 		return info("all %d repositories are up to date", len(targets)), false
 	}
 	js := UpdateJobs(o.app.Git, repos, eligible, o.app.Config.Git.FetchTimeout)
-	return o.start(domain.OperationUpdate, js, blocked), true
+	n := o.start(domain.OperationUpdate, js, blocked)
+	planned := map[domain.RepositoryID]IncomingRange{}
+	for _, c := range append(eligible, blocked...) {
+		planned[c.Repository.ID], _ = IncomingOf(&c.Repository)
+	}
+	for i := range o.batch.Rows {
+		o.batch.Rows[i].Incoming = planned[o.batch.Rows[i].Job.RepositoryID]
+	}
+	return n, true
 }
 
 // start makes js the current batch. skipped lists repositories that the

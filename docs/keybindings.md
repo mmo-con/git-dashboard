@@ -111,8 +111,12 @@ whenever any marks are set, including when all marked rows are hidden.
 | `Enter` / `y` | fetch, then update |
 | `Esc` / `n` | cancel |
 
-The confirmation lists the repositories with their state before the fetch.
-After confirming, the operations view shows the fetch; once it and the
+The confirmation lists the repositories with their state before the fetch,
+including the number of incoming upstream commits as of the last fetch
+(`↓3`, or `↓?` if the upstream state is unknown). Below the list, it shows
+the incoming commits of the selected repository, up to
+`[ui].incoming_commits`. The update fetches again, so it can bring more
+commits than listed. After confirming, the operations view shows the fetch; once it and the
 following inspection are finished, the update starts on its own with the
 fetched state. Repositories whose fetch failed are skipped with the fetch
 error, even if they looked eligible before. Closing the operations view does
@@ -127,13 +131,17 @@ another tool fetched new upstream commits, is skipped with
 
 | Key | Action |
 |---|---|
-| `j` / `k` | select a row; failed rows show their stderr |
+| `j` / `k` | select a row; failed rows show their stderr, rows with incoming commits list them |
 | `Enter` | open the repository of the selected row in lazygit; the view stays open |
 | `c` | cancel the running batch, or the update that waits for its fetch |
 | `x` | retry failed and cancelled operations |
 | `u` | update batch: confirm a new update of every repository that was not updated |
 | `t` | retry the selected failed fetch in the terminal |
 | `Esc` / `b` | close the view; the batch continues |
+
+An update row lists the commits its fast-forward applies, as planned after
+the fetch, also once the update is finished. A fetch row lists the incoming
+commits of its repository after the fetch.
 
 An update batch also lists the repositories that the update skipped, except
 those that were already up to date, so that every blocked repository can be

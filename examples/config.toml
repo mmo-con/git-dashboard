@@ -81,6 +81,9 @@ view = "list"
 sort = "name"
 # Recent commits of the selected repository in the detail panel (1-20).
 detail_commits = 3
+# Incoming upstream commits listed as of the last fetch (0-50); 0 shows only
+# the counts.
+incoming_commits = 10
 
 # Colors: ANSI names (green, bright-blue, gray, …), numbers 0-255, or #rrggbb.
 # Unset keys keep their defaults. NO_COLOR disables all colors.

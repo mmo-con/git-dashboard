@@ -205,6 +205,7 @@ lazygit starts in the worktree root of the selected repository.
 | `view` | `"list"` or `"tree"` | `"list"` | repository view at startup; `v` switches at runtime. After `R`, a changed value takes effect, otherwise the current view is kept |
 | `sort` | `"name"`, `"family"`, `"commit"`, `"worktree"`, `"upstream"`, or `"health"` | `"name"` | sort order at startup; `health` puts the most urgent repositories on top. `s` chooses at runtime. After `R`, a changed value takes effect, otherwise the current sort order is kept |
 | `detail_commits` | integer, 1–20 | `3` | recent commits of the selected repository in the detail panel; with `1`, only the latest commit is shown and no extra Git process runs |
+| `incoming_commits` | integer, 0–50 | `10` | incoming upstream commits listed as of the last fetch in the detail panel, the update confirmation, and the operations view; more are summarized as `… and n more`. With `0`, only the counts are shown and no extra Git process runs |
 
 ## `[ui.theme]`
 

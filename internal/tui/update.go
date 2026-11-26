@@ -26,6 +26,7 @@ const (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
 	m.requestHistory()
+	m.requestIncoming()
 	return m, tea.Batch(cmd, m.housekeeping())
 }
 
@@ -129,6 +130,7 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 		m.historyPending = nil
 	}
 	m.history = map[domain.RepositoryID]historyEntry{}
+	m.dropIncoming()
 	m.refresh(m.allIDs())
 	if len(m.warnings) > 0 {
 		m.setError(fmt.Sprintf("%d configuration warning(s); press e for details", len(m.warnings)))
