@@ -1,7 +1,11 @@
 name: CI
 
 on:
+  # Pull requests test feature branches; push runs only for main and
+  # version tags, so a branch with an open pull request is not tested twice.
   push:
+    branches: [main]
+    tags: ["v*"]
   pull_request:
   # New advisories appear without code changes.
   schedule:

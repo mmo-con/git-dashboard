@@ -28,9 +28,9 @@ runs reaches the release binaries and new Go versions add no cache entries.
 
 `make vuln` runs the latest govulncheck in source mode, which reports only
 vulnerabilities the code reaches, in modules and in the standard library of
-the Go on `PATH`. CI runs it with the release toolchain on every push and
-pull request, daily on a schedule, and before a release draft. A finding
-fails the job and blocks the release draft.
+the Go on `PATH`. CI runs it with the release toolchain on pushes to `main`,
+version tags, and pull requests, daily on a schedule, and before a release
+draft. A finding fails the job and blocks the release draft.
 
 Dependabot proposes updates for Go modules and GitHub Actions weekly,
 grouping minor and patch updates; Dependabot security updates stay enabled.
