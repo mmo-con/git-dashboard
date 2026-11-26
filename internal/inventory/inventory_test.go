@@ -329,3 +329,28 @@ func TestWorkspace(t *testing.T) {
 		}
 	}
 }
+
+// TestFailedValidationIsListed checks that a discovered candidate stays in the
+// inventory when Git did not finish its validation.
+func TestFailedValidationIsListed(t *testing.T) {
+	base := tu.Canonical(t, t.TempDir())
+	for _, d := range []string{"crashed", "broken"} {
+		if err := os.MkdirAll(filepath.Join(base, d, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exe := filepath.Join(t.TempDir(), "git")
+	script := "#!/bin/sh\ncase \"$2\" in *crashed) kill -KILL $$ ;; esac\nexit 128\n"
+	if err := os.WriteFile(exe, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Discovery = []config.Discovery{{Root: base, MaxDepth: 1, Include: []string{"**"}}}
+	got := paths(base, inventory.Build(context.Background(), cfg, git.New(exe)))
+	if k := keys(got); len(k) != 1 || k[0] != "crashed" {
+		t.Fatalf("inventory = %v, want only crashed", k)
+	}
+	if r := got["crashed"]; r.Availability != domain.ValidationFailed || r.EntryError == nil {
+		t.Errorf("crashed: %v %v", r.Availability, r.EntryError)
+	}
+}

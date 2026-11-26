@@ -171,7 +171,7 @@ func resolve(ctx context.Context, cfg *config.Config, c *candidate, v Validator)
 		r.StoreID = domain.StoreID(val.Location.CommonDir)
 		return r
 	}
-	if c.explicit == nil && val.Availability != domain.UntrustedOwner {
+	if c.explicit == nil && val.Availability != domain.UntrustedOwner && val.Availability != domain.ValidationFailed {
 		return nil // discovered non-repositories are ignored
 	}
 	return r

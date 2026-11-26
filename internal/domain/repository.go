@@ -43,6 +43,9 @@ const (
 	NotWorktreeRoot
 	BareRepository
 	UntrustedOwner
+	// ValidationFailed means that Git did not finish the validation, for
+	// example because it crashed or timed out.
+	ValidationFailed
 )
 
 func (a Availability) String() string {
@@ -59,6 +62,8 @@ func (a Availability) String() string {
 		return "unsupported: bare repository"
 	case UntrustedOwner:
 		return "untrusted owner"
+	case ValidationFailed:
+		return "validation failed"
 	}
 	return "unknown"
 }

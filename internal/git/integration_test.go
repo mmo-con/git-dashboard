@@ -377,6 +377,40 @@ func TestValidateClassification(t *testing.T) {
 	}
 }
 
+// TestValidateWithoutGitResult checks that a Git process that does not finish
+// is a failed validation, not proof that the path is no repository.
+func TestValidateWithoutGitResult(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name, script string
+		timeout      time.Duration
+		want         domain.Availability
+	}{
+		{"exit status", "exit 128", 0, domain.NotARepository},
+		{"signal", "kill -KILL $$", 0, domain.ValidationFailed},
+		{"timeout", "exec sleep 30", 200 * time.Millisecond, domain.ValidationFailed},
+	}
+	for _, tc := range tests {
+		exe := filepath.Join(t.TempDir(), "git")
+		if err := os.WriteFile(exe, []byte("#!/bin/sh\n"+tc.script+"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		ctx := context.Background()
+		if tc.timeout > 0 {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, tc.timeout)
+			defer cancel()
+		}
+		v := git.New(exe).Validate(ctx, dir)
+		if v.Availability != tc.want || v.Err == nil {
+			t.Errorf("%s: got %v (%v), want %v", tc.name, v.Availability, v.Err, tc.want)
+		}
+	}
+}
+
 func TestLinkedWorktreesShareStore(t *testing.T) {
 	tu.IsolateGit(t)
 	c := git.New("git")

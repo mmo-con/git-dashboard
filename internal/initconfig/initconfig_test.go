@@ -433,3 +433,22 @@ func TestFileSystemRootOverlapsEveryRoot(t *testing.T) {
 		t.Fatalf("warnings = %q\n%s", res.Warnings, res.Config)
 	}
 }
+
+func TestFailedValidationIsReported(t *testing.T) {
+	root := newRoot(t)
+	repo := filepath.Join(root, "work", "api")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(t.TempDir(), "git")
+	if err := os.WriteFile(exe, []byte("#!/bin/sh\nkill -KILL $$\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	res, err := initconfig.Generate(context.Background(), initconfig.Options{Roots: []string{root}, MaxDepth: 3}, git.New(exe))
+	if !errors.Is(err, initconfig.ErrNoRepositories) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(res.Warnings) != 1 || !strings.Contains(res.Warnings[0], repo) || !strings.Contains(res.Warnings[0], "validation failed") {
+		t.Fatalf("warnings = %q", res.Warnings)
+	}
+}

@@ -58,6 +58,11 @@ func (c *Client) Validate(ctx context.Context, path string) Validation {
 			return Validation{Availability: domain.UntrustedOwner,
 				Err: fmt.Errorf("repository belongs to another user; see git config safe.directory: %w", err)}
 		}
+		if ExitCode(err) == nil {
+			// Git crashed, timed out, or did not start; the path may still be
+			// a repository.
+			return Validation{Availability: domain.ValidationFailed, Err: err}
+		}
 		return Validation{Availability: domain.NotARepository, Err: err}
 	}
 	lines := strings.Split(strings.TrimSuffix(string(res.stdout), "\n"), "\n")
