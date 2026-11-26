@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mmo-con/headquarters/internal/config"
 )
@@ -104,5 +105,39 @@ func TestCustomLauncher(t *testing.T) {
 	data, _ := os.ReadFile(out)
 	if !strings.HasSuffix(strings.TrimSpace(string(data)), repo) {
 		t.Fatalf("output: %q", data)
+	}
+}
+
+func TestOpenBrowser(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "out")
+	script := "#!/bin/sh\necho \"$@\" > " + out + ".tmp && mv " + out + ".tmp " + out + "\n"
+	for _, name := range []string{"xdg-open", "open"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := OpenBrowser("https://example.com/x/y"); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		data, err := os.ReadFile(out)
+		if err == nil {
+			if got := strings.TrimSpace(string(data)); got != "https://example.com/x/y" {
+				t.Fatalf("opener arguments: %q", got)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the opener did not run")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Setenv("PATH", t.TempDir())
+	if err := OpenBrowser("https://example.com"); err == nil || !strings.HasPrefix(err.Error(), "cannot open browser: ") {
+		t.Fatalf("missing opener: %v", err)
 	}
 }
