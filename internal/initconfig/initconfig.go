@@ -114,6 +114,9 @@ func scanRoot(ctx context.Context, root string, maxDepth int, v inventory.Valida
 	groups := map[string]bool{}
 	for _, p := range paths {
 		val, ok := validate(ctx, v, p)
+		if val.Availability == domain.ValidationFailed {
+			warnings = append(warnings, fmt.Sprintf("repository %s: %s: %v; skipped", p, val.Availability, val.Err))
+		}
 		if !ok {
 			continue
 		}

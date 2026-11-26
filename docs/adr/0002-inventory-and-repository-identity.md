@@ -69,3 +69,9 @@ Validation outcomes:
 | Not a repository | `not a repository` | ignored |
 | Missing path | `missing` | not applicable |
 | Untrusted owner | `untrusted owner`, hint to `safe.directory` | listed as `untrusted owner` |
+| Git crashed, timed out, or did not start | `validation failed` | listed as `validation failed` |
+
+Only a Git exit status classifies a candidate as not a repository. Without
+one, the outcome is unknown, and a discovered candidate must not disappear
+silently (see [ADR 0006](0006-domain-state-and-errors.md)). The starting
+configuration generator reports such candidates as warnings.
