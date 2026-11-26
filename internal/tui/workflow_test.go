@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
+	"github.com/mmo-con/headquarters/internal/launcher"
 	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
@@ -436,5 +438,109 @@ func TestIncomingCommitsWithRealRepositories(t *testing.T) {
 	drainIncoming(t, m)
 	if v := ansi.Strip(m.View()); !strings.Contains(v, "upstream 6 unfetched") || !strings.Contains(v, "… and 3 more") {
 		t.Fatalf("the operations view must list the commits the update applied:\n%s", v)
+	}
+}
+
+// TestInteractiveFetchRetry checks that t hands a failed fetch over to the
+// terminal and that the failure is forgotten once the user fetched there.
+func TestInteractiveFetchRetry(t *testing.T) {
+	tu.IsolateGit(t)
+	path := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "api"))
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{{Path: path, Enabled: true}}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+	r := m.repos[0]
+
+	offline(m)
+	if n, ok := m.ops.Fetch(m.repos, []domain.Repository{r}); !ok {
+		t.Fatal(n.Text)
+	}
+	m.mode, m.opSelected = modeOperations, 0
+	keys(m, "t")
+	if m.message != "select a failed fetch to retry it in the terminal" || m.ops.StoreActivity(r.StoreID) != "fetch" {
+		t.Fatalf("a running fetch must not be retried: message = %q", m.message)
+	}
+
+	setRow(m, 0, domain.StatusFailed, errors.New("authentication failed"))
+	if _, ok := m.ops.LastResult(r.ID); !ok {
+		t.Fatal("the failed fetch must be remembered")
+	}
+	keys(m, "t")
+	if m.ops.StoreActivity(r.StoreID) != "an interactive session" {
+		t.Fatalf("t must hand the failed fetch over to the terminal: message = %q", m.message)
+	}
+	m.Update(handoverDoneMsg{label: "git fetch", repo: r.ID, store: r.StoreID})
+	pump(t, m)
+	if m.message != "git fetch finished" || m.ops.StoreBusy(r.StoreID) {
+		t.Fatalf("message = %q, busy = %v", m.message, m.ops.StoreBusy(r.StoreID))
+	}
+	if _, ok := m.ops.LastResult(r.ID); ok {
+		t.Fatal("a fetch in the terminal must replace the failed result")
+	}
+}
+
+func TestLauncherMenu(t *testing.T) {
+	m := newModel(t)
+	api := m.current()
+	api.Availability = domain.Available
+	m.app.Launchers = launcher.NewCustom([]config.Launcher{
+		{Name: "shell", Command: []string{"true"}}, {Name: "broken", Command: []string{"nope-xyz"}},
+	})
+	choose := func(item int) {
+		m.message, m.messageErr = "", false
+		keys(m, "o")
+		for range item {
+			keys(m, "j")
+		}
+		keys(m, "enter")
+	}
+
+	choose(1)
+	if !m.messageErr || !strings.HasPrefix(m.message, "launcher broken: ") {
+		t.Errorf("broken launcher: message = %q", m.message)
+	}
+	choose(2)
+	if m.message != "no remote configured" {
+		t.Errorf("browser without remote: message = %q", m.message)
+	}
+	api.PrimaryRemote = &domain.Remote{Name: "origin", URL: "/srv/git/api.git"}
+	choose(2)
+	if m.message != "cannot derive an HTTPS URL from /srv/git/api.git" {
+		t.Errorf("browser with local remote: message = %q", m.message)
+	}
+
+	offline(m)
+	if n, ok := m.ops.Fetch(m.repos, []domain.Repository{*api}); !ok {
+		t.Fatal(n.Text)
+	}
+	choose(0)
+	if m.message != "fetch in progress for api" || m.ops.StoreActivity(api.StoreID) != "fetch" {
+		t.Errorf("a busy store must refuse the handover: message = %q", m.message)
+	}
+	setRow(m, 0, domain.StatusSucceeded, nil)
+	choose(0)
+	if m.messageErr || m.ops.StoreActivity(api.StoreID) != "an interactive session" {
+		t.Errorf("the launcher must get the terminal: message = %q", m.message)
+	}
+}
+
+func TestFailedTerminalRestoreQuits(t *testing.T) {
+	m := newModel(t)
+	store := m.current().StoreID
+	m.ops.BeginHandover(store)
+	_, cmd := m.Update(handoverDoneMsg{label: "lazygit", store: store, err: errors.New("tty lost"), fatal: true})
+	if err := m.Err(); err == nil || err.Error() != "restoring the terminal after lazygit failed: tty lost" {
+		t.Fatalf("Err() = %v", err)
+	}
+	if cmd == nil {
+		t.Fatal("the program must quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok || m.ops.StoreBusy(store) {
+		t.Fatal("the program must quit and release the store")
 	}
 }
