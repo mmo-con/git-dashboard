@@ -20,15 +20,16 @@ func (m *Model) modal(h int) []string {
 		build func(iw, rows int) (string, []string)
 	}
 	specs := map[mode]spec{
-		modeHelp:          {96, m.viewHelp},
-		modeError:         {100, m.viewError},
-		modeSort:          {40, m.viewSort},
-		modeFamily:        {50, m.viewFamily},
-		modeOperations:    {100, m.viewOperations},
-		modeUpdatePreview: {100, m.viewUpdatePreview},
-		modeLaunchers:     {50, m.viewLaunchers},
-		modeCopy:          {70, m.viewCopy},
-		modeConfirmQuit:   {72, m.viewConfirmQuit},
+		modeHelp:           {96, m.viewHelp},
+		modeError:          {100, m.viewError},
+		modeSort:           {40, m.viewSort},
+		modeFamily:         {50, m.viewFamily},
+		modeOperations:     {100, m.viewOperations},
+		modeUpdatePreview:  {100, m.viewUpdatePreview},
+		modeCleanupPreview: {100, m.viewCleanupPreview},
+		modeLaunchers:      {50, m.viewLaunchers},
+		modeCopy:           {70, m.viewCopy},
+		modeConfirmQuit:    {72, m.viewConfirmQuit},
 	}
 	s, ok := specs[m.mode]
 	if !ok {
@@ -304,6 +305,9 @@ func (m *Model) viewOperations(iw, rows int) (string, []string) {
 				name = r.Name
 			}
 			text := fmt.Sprintf(" %s %s", icon, runewidth.FillRight(runewidth.Truncate(domain.Printable(name), 24, "…"), 24))
+			if b.Op == domain.OperationCleanup {
+				text += " " + runewidth.FillRight(runewidth.Truncate(domain.Printable(row.Branch), 24, "…"), 24)
+			}
 			if row.Result.Status.Final() && row.Result.Error != nil {
 				text += " " + firstLine(row.Result.Error.Error())
 			}

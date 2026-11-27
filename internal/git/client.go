@@ -44,6 +44,8 @@ type Interface interface {
 	MergeFastForwardOnly(ctx context.Context, loc domain.Location, target string) error
 	RecentCommits(ctx context.Context, loc domain.Location, n int) ([]domain.CommitSummary, error)
 	IncomingCommits(ctx context.Context, loc domain.Location, head, upstream string, n int) ([]domain.CommitSummary, error)
+	ReadBranchCleanup(ctx context.Context, loc domain.Location, remote string) (BranchCleanup, error)
+	DeleteBranch(ctx context.Context, loc domain.Location, name string) error
 }
 
 var _ Interface = (*Client)(nil)

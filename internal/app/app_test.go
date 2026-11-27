@@ -74,6 +74,23 @@ type fakeGit struct {
 	merged     int
 	target     string
 	fetched    []string
+	cleanup    git.BranchCleanup
+	deleted    []string
+	deleteErr  error
+}
+
+func (f *fakeGit) ReadBranchCleanup(context.Context, domain.Location, string) (git.BranchCleanup, error) {
+	return f.cleanup, nil
+}
+
+func (f *fakeGit) DeleteBranch(_ context.Context, _ domain.Location, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, name)
+	return nil
 }
 
 func (f *fakeGit) Inspect(context.Context, domain.Location, git.InspectOptions) (domain.Inspection, error) {

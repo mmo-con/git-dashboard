@@ -268,6 +268,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return m.keyOperations(key)
 	case modeUpdatePreview:
 		return m.keyUpdatePreview(key)
+	case modeCleanupPreview:
+		return m.keyCleanupPreview(key)
 	case modeLaunchers:
 		return m.keyLaunchers(key)
 	case modeCopy:
@@ -417,6 +419,9 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 	case "u", "U":
 		targets, hidden := m.targets(key == "U")
 		m.openUpdatePreview(targets, hidden, modeNormal)
+	case "d", "D":
+		targets, hidden := m.targets(key == "D")
+		m.openCleanupPreview(targets, hidden)
 	}
 	return nil
 }

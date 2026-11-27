@@ -206,3 +206,41 @@ func TestHandoverLocksStore(t *testing.T) {
 		t.Fatal("the end of a handover must release the store")
 	}
 }
+
+func TestConfirmCleanupListsEveryBranch(t *testing.T) {
+	o := offlineOperations(t)
+	r := cleanupRepo()
+	plan := []CleanupCandidate{
+		{Repository: r, Branch: "a", CommitID: "c1"},
+		{Repository: r, Branch: "b", CommitID: "c2"},
+		{Repository: r, Branch: "p", CommitID: "c3", Reason: "pinned"},
+	}
+	n, ok := o.ConfirmCleanup([]domain.Repository{r}, plan)
+	if !ok || n.Error {
+		t.Fatalf("cleanup must start: %+v", n)
+	}
+	b := o.Batch()
+	if b.Op != domain.OperationCleanup || len(b.Rows) != 3 {
+		t.Fatalf("batch = %+v", b)
+	}
+	for i, want := range []struct {
+		branch string
+		status domain.OperationStatus
+	}{{"a", domain.StatusQueued}, {"b", domain.StatusQueued}, {"p", domain.StatusSkipped}} {
+		if row := b.Rows[i]; row.Branch != want.branch || row.Result.Status != want.status {
+			t.Fatalf("row %d = %q %v", i, row.Branch, row.Result.Status)
+		}
+	}
+	if _, ok := o.ConfirmCleanup([]domain.Repository{r}, plan); ok {
+		t.Fatal("a second batch must not start while one is running")
+	}
+	finish(o, 0, domain.StatusFailed, errors.New("not fully merged"))
+	if _, ok := o.LastResult(r.ID); ok {
+		t.Fatal("a branch deletion must not change the latest result of the repository")
+	}
+
+	o = offlineOperations(t)
+	if n, ok := o.ConfirmCleanup([]domain.Repository{r}, plan[2:]); ok || n.Text == "" {
+		t.Fatalf("without deletable branches nothing starts: %+v", n)
+	}
+}

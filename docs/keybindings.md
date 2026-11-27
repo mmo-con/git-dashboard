@@ -78,8 +78,11 @@ reports an error; the terminal clipboard (OSC 52) is not used.
 | `F` | fetch visible repositories |
 | `u` | safe update of marked repositories, or the repository or family under the cursor if none are marked |
 | `U` | safe update of visible repositories |
+| `d` | delete merged branches of marked repositories, or of the repository or family under the cursor if none are marked |
+| `D` | delete merged branches of visible repositories |
 
-A fetch starts at once. An update asks for confirmation first.
+A fetch starts at once. An update and deleting branches ask for
+confirmation first.
 
 The view at startup is set with `[ui].view` in the configuration, the sort
 order with `[ui].sort`. When the first inventory is loaded and inspected,
@@ -96,11 +99,11 @@ the State column, for example `✗1 error  ●2 dirty`, or shows `✓` if all ar
 healthy; an expanded family row has no summary.
 `h`, `l`, `z`, `[`, and `]` act only in the tree.
 
-`a`, `F`, and `U` act only on matching repositories in expanded families,
+`a`, `F`, `U`, and `D` act only on matching repositories in expanded families,
 regardless of marks. Rows outside the viewport still count. Marks persist
 when filters change or families collapse. A batch on marked repositories
 includes all of them; the update confirmation and the fetch message state
-how many are hidden. Without marks, `f` and `u` on a family row act on all
+how many are hidden. Without marks, `f`, `u`, and `d` on a family row act on all
 its matching repositories, also when the family is collapsed.
 The repository panel shows the total number of marks and the `A` shortcut
 whenever any marks are set, including when all marked rows are hidden.
@@ -128,6 +131,39 @@ cancels the fetch and with it the update.
 A repository that changed after the update was planned, for example because
 another tool fetched new upstream commits, is skipped with
 `… since the update was planned; press u to try again`.
+
+## Branch cleanup confirmation
+
+| Key | Action |
+|---|---|
+| `j` / `k` | move |
+| `Enter` / `y` | delete the listed merged branches |
+| `Esc` / `n` | cancel; nothing is deleted |
+
+The confirmation opens at once and reads the local branches of every
+target without network access; it can be confirmed once they are read. It
+lists the branches that are fully merged into the default branch, the
+target of `refs/remotes/<remote>/HEAD` of the primary remote, and deletes
+them with `git branch -d`, never `-D`. Remote branches are not changed.
+Branches that are merged or whose upstream is gone, but are kept, are listed
+with the reason:
+
+| Reason | Meaning |
+|---|---|
+| `checked out` | checked out in this or another worktree |
+| `pinned` | a pinned branch of `[branches]` or of any entry of the repository store |
+| `upstream gone, not merged into …` | for example after a squash merge; check it in lazygit |
+| `has commits not pushed to …` | ahead of its upstream |
+| `… update <branch> first` | merged into the default branch, but not yet into HEAD, which `git branch -d` requires for branches without an upstream; a safe update fixes it |
+| `no commits of its own` | without upstream and at the commit of the default branch, for example just created |
+
+The default branch itself and branches that are not merged are not listed.
+A repository without a remote or without `refs/remotes/<remote>/HEAD` is
+listed with the hint `git remote set-head <remote> --auto`.
+
+After confirming, the operations view lists one row per branch, including
+the kept ones. Each branch is checked again just before its deletion; a
+branch that changed since the preview is skipped.
 
 ## Operations view
 

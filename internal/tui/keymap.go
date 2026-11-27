@@ -56,9 +56,14 @@ var Bindings = []BindingGroup{
 		{"F", "fetch visible repositories"},
 		{"u", "update marked, else row/family"},
 		{"U", "update visible repositories"},
+		{"d", "delete merged branches: marked, else row/family"},
+		{"D", "delete merged branches of visible repositories"},
 	}},
 	{Title: "Update confirmation", Right: true, Bindings: []Binding{
 		{"Enter / y", "fetch, then update"},
+	}},
+	{Title: "Branch cleanup confirmation", Right: true, Bindings: []Binding{
+		{"Enter / y", "delete the listed merged branches"},
 	}},
 	{Title: "Operations view", Right: true, Bindings: []Binding{
 		{"Enter", "open row in lazygit"},
