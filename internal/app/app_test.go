@@ -393,3 +393,25 @@ func TestSortKeyNames(t *testing.T) {
 		t.Error("an unknown name must be rejected")
 	}
 }
+
+func TestStatusDriverCancelsBatchesStartedAfterCancellation(t *testing.T) {
+	s := jobs.NewScheduler(map[jobs.Kind]int{jobs.KindInspect: 1})
+	defer s.CancelAll()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d := newDriver(ctx, s)
+	var status domain.OperationStatus
+	d.submit(func(ev jobs.Event) { status = ev.Result.Status })([]jobs.Job{{Kind: jobs.KindInspect,
+		Run: func(ctx context.Context) (any, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(5 * time.Second):
+				return nil, nil
+			}
+		}}})
+	d.wait(func() bool { return status.Final() })
+	if status != domain.StatusCancelled {
+		t.Fatalf("status = %s, want cancelled", status)
+	}
+}

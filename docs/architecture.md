@@ -9,18 +9,23 @@ decisions, their rationale, and their constraints.
 
 | Package | Responsibility |
 |---|---|
-| `cmd/headquarters` | flags, configuration lookup, version check, `--check`, `init` |
+| `cmd/headquarters` | flags, configuration lookup, version check, `--check`, `init`, `status` |
 | `internal/config` | TOML decoding, defaults, paths, validation, themes |
 | `internal/inventory` | discovery, patterns, identity, precedence, validation states |
 | `internal/initconfig` | one-time scan and generation of a starting configuration, atomic file writing |
 | `internal/git` | isolated Git command runner, parsers, inspection, fetch, update |
 | `internal/jobs` | scheduler, timeouts, store locks, event queue |
-| `internal/app` | application services, operations, handover, health classification, filters, sorting |
+| `internal/app` | application services, inspections, operations, handover, health classification, filters, sorting, status collection and report |
 | `internal/launcher` | lazygit, custom launchers, browser |
 | `internal/clipboard` | native clipboard tools, value checks |
 | `internal/domain` | repository and operation models |
 | `internal/tui` | Bubble Tea model, views, layout, theme, icons, key map |
 | `internal/testutil` | real Git repositories for tests |
+
+The TUI and the `status` command are frontends of the same services in
+`internal/app`. The `status` command is read-only: it inspects the
+repositories once and fetches only with `--fetch`; it never updates or
+changes a repository ([ADR 0016](adr/0016-non-interactive-status-command.md)).
 
 ## Architecture decision records
 

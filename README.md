@@ -82,6 +82,10 @@ The architecture and the decisions behind it are documented in
   that can be updated safely, without merge commits, rebases, or stashes, and
   lists every skipped repository with the reason. The operations view then serves as a worklist: open blocked
   repositories in lazygit, see which blockers are resolved, and continue.
+- `headquarters status` prints the same status, filter results, and health as
+  JSON for scripts and status bars, with an exit status for checks such as
+  "nothing uncommitted before shutdown". It only reads, unless `--fetch` is
+  given.
 - Configurable launchers for a shell, an editor, or a file manager.
 - `y` copies the worktree path, branch name, primary remote URL, or its web
   URL (HTTPS, also for SSH remotes) of the selected repository to the
@@ -150,6 +154,7 @@ headquarters ~/src                # repositories below ~/src, no inventory confi
 headquarters --config path.toml   # explicit configuration file
 headquarters --check              # validate the configuration and print the inventory
 headquarters --version
+headquarters status --json        # print the status as JSON and exit, see below
 headquarters init ~/src ~/work    # print a starting configuration for these directories
 headquarters init -o config.toml ~/src   # write it to a file; --force replaces an existing file
 ```
@@ -164,6 +169,93 @@ configuration with `[[discovery]]` entries, using each first-level
 directory that contains repositories as a family. It never changes
 repositories or overwrites a file without `--force`. See
 [Generating a configuration](docs/configuration.md#generating-a-configuration).
+
+### Status for scripts
+
+`headquarters status` inspects the repositories and prints their status
+without starting the user interface. It never changes a repository and
+accesses the network only with `--fetch`.
+
+```sh
+headquarters status --json                                # one JSON document
+headquarters status --filter "is:dirty family:work"       # dashboard filter syntax
+headquarters status --format ndjson                       # one repository per line
+headquarters status --fail-on dirty,ahead,unpublished     # exit 3 if any repository matches
+headquarters status --fetch --fail-on behind              # fetch the matching repositories first
+```
+
+`--filter` accepts the text filter of the dashboard
+([filter syntax](docs/keybindings.md#filter-syntax)) except `is:marked`.
+`--fetch` works like `F` in the dashboard: it fetches the repositories that
+match the filter, with the configured fetch parallelism and timeout, then
+inspects them again and applies the filter to the new state. `--fail-on`
+takes the states of the filter language without `is:`, such as `dirty`,
+`behind`, `ahead`, `diverged`, `unpublished`, `stashed`, `stale`, or `error`,
+plus `unknown`; `error` also matches a failed fetch. A path argument replaces
+the configured repositories as in the dashboard. The report follows the
+configured sort order.
+
+| Exit status | Meaning |
+|---|---|
+| 0 | report written, no `--fail-on` state found |
+| 1 | runtime error, such as an unusable Git executable or an interrupt |
+| 2 | usage error, invalid filter, or invalid configuration |
+| 3 | report written, and a repository matches a `--fail-on` state |
+
+Only the report is written to standard output; warnings go to standard
+error. The document has a `schema` version, which increases only when a
+field is renamed, removed, or changes its meaning:
+
+```json
+{
+  "schema": 1,
+  "generated_at": "2026-11-23T17:00:00Z",
+  "summary": { "total": 42, "dirty": 5, "behind": 3, "unknown": 1, "…": 0,
+               "health": { "error": 0, "critical": 1, "dirty": 5, "…": 0 } },
+  "repositories": [
+    {
+      "name": "headquarters",
+      "path": "/home/me/src/headquarters",
+      "family": "mmo-con",
+      "availability": "available",
+      "known": true,
+      "health": "dirty",
+      "branch": "main",
+      "head": "attached",
+      "operation": "none",
+      "counts": { "staged": 0, "modified": 2, "deleted": 0, "renamed": 0,
+                  "conflicts": 0, "untracked": 1, "stashed": 1 },
+      "upstream": { "name": "origin/main", "configured": true, "gone": false,
+                    "ahead": 0, "behind": 3 },
+      "attention_branches": 1,
+      "remote": { "name": "origin", "url": "git@github.com:mmo-con/headquarters.git" },
+      "last_fetch": "2026-11-23T08:12:00Z",
+      "last_commit": { "hash": "abc1234…", "short_hash": "abc1234",
+                       "subject": "tui: group the operations view by status",
+                       "time": "2026-11-22T20:41:00Z" },
+      "fetch": null,
+      "error": null
+    }
+  ]
+}
+```
+
+- `summary` counts the reported repositories in total, per `--fail-on`
+  state, and per `health` level.
+- `health` is the level of the dashboard's health column: `error`,
+  `critical`, `dirty`, `behind`, `ahead`, `attention`, `ok`, or `unknown`.
+- `head` is `attached`, `detached`, or `unborn`; `operation` is `none` or the
+  operation in progress, such as `merging` or `rebasing`.
+- Unknown state is `null`, and `known` is `false` if any part of the state
+  could not be determined; an unknown repository is never reported as clean
+  or up to date. `counts.untracked` is `null` when untracked files are not
+  checked, `last_fetch` when the repository was never fetched or the time is
+  unknown, and `upstream.name` when no upstream is configured.
+- `fetch` is `null` without `--fetch`, otherwise the `status` (`succeeded`,
+  `failed`, `skipped`, or `cancelled`) and `error` of the fetch.
+- `error` collects configuration, inspection, and fetch errors.
+- Text from repositories is stripped of control characters, and user
+  information in URLs is redacted.
 
 The configuration file is looked up in this order: `--config`, the
 `HEADQUARTERS_CONFIG` environment variable, and
@@ -197,7 +289,7 @@ global Git configuration.
 
 | Path | Responsibility |
 |---|---|
-| `cmd/headquarters` | command-line entry point |
+| `cmd/headquarters` | command-line entry point, `status` and `init` commands |
 | `internal/config` | configuration lookup, parsing, path expansion, validation |
 | `internal/domain` | domain models without dependencies on UI or Git output |
 | `internal/inventory` | discovery, identity, and precedence rules |
@@ -206,7 +298,7 @@ global Git configuration.
 | `internal/jobs` | bounded scheduler with per-store locks and event queue |
 | `internal/launcher` | lazygit, launchers, and opening remotes in a browser |
 | `internal/clipboard` | copying text through native clipboard tools |
-| `internal/app` | application services: refresh, fetch, update, health, filter, sort |
+| `internal/app` | application services: refresh, fetch, update, health, filter, sort, status report |
 | `internal/tui` | Bubble Tea user interface |
 | `internal/testutil` | helpers for tests with real Git repositories |
 | `scripts` | development scripts, such as the coverage report used in CI |
