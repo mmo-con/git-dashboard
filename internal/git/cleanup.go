@@ -19,7 +19,10 @@ type BranchCleanup struct {
 	// commit.
 	Default   string
 	DefaultID string
-	Branches  []CleanupBranch
+	// ContainmentChecked reports whether Contained was determined; it needs
+	// git merge-tree --write-tree of Git 2.38.
+	ContainmentChecked bool
+	Branches           []CleanupBranch
 }
 
 // CleanupBranch is one local branch.
@@ -35,6 +38,10 @@ type CleanupBranch struct {
 	// from the default branch and from HEAD of the worktree that was read.
 	MergedDefault bool
 	MergedHead    bool
+	// Contained is set for a branch with a gone upstream that is not merged
+	// into the default branch, if merging it into the default branch would
+	// change nothing, for example after a squash or rebase merge.
+	Contained bool
 }
 
 // ReadBranchCleanup reads the local branches of the store of loc and whether
@@ -66,18 +73,19 @@ func (c *Client) ReadBranchCleanup(ctx context.Context, loc domain.Location, rem
 		return BranchCleanup{}, fmt.Errorf("reading branches failed: %w", err)
 	}
 	attached := false
+	var defaultTree string
 	for _, line := range strings.Split(string(res.stdout), "\n") {
 		if line == "" {
 			continue
 		}
 		f := strings.Split(line, "\x00")
-		if len(f) != 6 {
+		if len(f) != 7 {
 			return BranchCleanup{}, fmt.Errorf("unexpected git for-each-ref output %q", line)
 		}
 		name, local := strings.CutPrefix(f[1], "refs/heads/")
 		if !local {
 			if f[1] == st.Default {
-				st.DefaultID = f[2]
+				st.DefaultID, defaultTree = f[2], f[6]
 			}
 			continue
 		}
@@ -107,11 +115,46 @@ func (c *Client) ReadBranchCleanup(ctx context.Context, loc domain.Location, rem
 			return BranchCleanup{}, err
 		}
 	}
+	if st.Default != "" && c.mergeTree {
+		st.ContainmentChecked = true
+		for i := range st.Branches {
+			b := &st.Branches[i]
+			if !b.Gone || b.MergedDefault {
+				continue
+			}
+			contained, err := c.contained(ctx, dir, st.DefaultID, b.CommitID, defaultTree)
+			if err != nil {
+				return BranchCleanup{}, err
+			}
+			b.Contained = contained
+		}
+	}
 	return st, nil
 }
 
+// contained reports whether merging commit into base would change nothing:
+// the merge is free of conflicts and its tree is the tree of base. The merge
+// writes the objects of its result to the object database; if the result is
+// base's tree, they already exist.
+func (c *Client) contained(ctx context.Context, dir, base, commit, baseTree string) (bool, error) {
+	res, err := c.run.run(ctx, dir, true, "merge-tree", "--write-tree", "--no-messages", base, commit)
+	var ce *CommandError
+	switch {
+	case err == nil:
+		tree, _, _ := strings.Cut(string(res.stdout), "\n")
+		return baseTree != "" && tree == baseTree, nil
+	case ctx.Err() != nil:
+		return false, err
+	case errors.As(err, &ce) && ce.ExitCode > 0:
+		// Conflicts (status 1) or a merge Git refuses, such as one of
+		// unrelated histories.
+		return false, nil
+	}
+	return false, fmt.Errorf("checking merged changes failed: %w", err)
+}
+
 // cleanupFormat lists one ref per line with NUL-separated fields.
-const cleanupFormat = "%(HEAD)%00%(refname)%00%(objectname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(worktreepath)"
+const cleanupFormat = "%(HEAD)%00%(refname)%00%(objectname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(worktreepath)%00%(tree)"
 
 // markMerged calls mark for every branch reachable from rev.
 func (c *Client) markMerged(ctx context.Context, dir, rev string, branches []CleanupBranch, mark func(*CleanupBranch)) error {
@@ -131,6 +174,20 @@ func (c *Client) markMerged(ctx context.Context, dir, rev string, branches []Cle
 		}
 	}
 	return nil
+}
+
+// DeleteBranchRef deletes the branch name only if it still points to commit.
+// Unlike git branch -d, it does not check whether the branch is merged; the
+// caller must have verified that.
+func (c *Client) DeleteBranchRef(ctx context.Context, loc domain.Location, name, commit string) error {
+	if name == "" || strings.HasPrefix(name, "-") {
+		return fmt.Errorf("invalid branch name %q", name)
+	}
+	if !isObjectName(commit) {
+		return fmt.Errorf("invalid commit %q", commit)
+	}
+	_, err := c.run.run(ctx, loc.WorktreeRoot, false, "update-ref", "-d", "refs/heads/"+name, commit)
+	return err
 }
 
 // DeleteBranch deletes a merged local branch with git branch -d, which

@@ -15,6 +15,9 @@ var MinimumVersion = Version{Major: 2, Minor: 34}
 // --show-stash" reports the number of stash entries.
 var stashHeaderVersion = Version{Major: 2, Minor: 35}
 
+// mergeTreeVersion is the first release with "merge-tree --write-tree".
+var mergeTreeVersion = Version{Major: 2, Minor: 38}
+
 type Version struct {
 	Major, Minor, Patch int
 	Raw                 string
@@ -97,5 +100,6 @@ func (c *Client) CheckVersion(ctx context.Context) (Version, error) {
 		return v, fmt.Errorf("git %s is too old; headquarters requires git %d.%d or newer", v.Raw, MinimumVersion.Major, MinimumVersion.Minor)
 	}
 	c.stashHeader = v.AtLeast(stashHeaderVersion)
+	c.mergeTree = v.AtLeast(mergeTreeVersion)
 	return v, nil
 }

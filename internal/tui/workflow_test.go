@@ -549,8 +549,9 @@ func TestFailedTerminalRestoreQuits(t *testing.T) {
 }
 
 // TestDeleteMergedBranchesWithRealRepositories drives the preview and the
-// deletion of merged branches: only the merged branch is deleted, and a
-// branch whose upstream is gone without a merge is listed with its reason.
+// deletion of merged branches: a merged and a rebase-merged branch are
+// deleted, and a branch whose upstream was deleted without a merge is listed
+// with its reason.
 func TestDeleteMergedBranchesWithRealRepositories(t *testing.T) {
 	tu.IsolateGit(t)
 	base := tu.Canonical(t, t.TempDir())
@@ -561,19 +562,29 @@ func TestDeleteMergedBranchesWithRealRepositories(t *testing.T) {
 	tu.Commit(t, clone, "a", "a\n", "init")
 	tu.Git(t, clone, "push", "-q", "origin", "main")
 	tu.Git(t, clone, "remote", "set-head", "origin", "--auto")
-	for _, b := range []string{"done", "squashed"} {
+	for _, b := range []string{"done", "rebased", "dropped"} {
 		tu.Git(t, clone, "switch", "-q", "-c", b, "main")
 		tu.Commit(t, clone, b, b+"\n", b+" work")
 		tu.Git(t, clone, "push", "-q", "-u", "origin", b)
 	}
 	tu.Git(t, clone, "switch", "-q", "main")
 	tu.Git(t, clone, "merge", "-q", "--no-ff", "-m", "merge done", "done")
-	tu.Git(t, clone, "push", "-q", "origin", "main", ":done", ":squashed")
+	tu.Git(t, clone, "push", "-q", "origin", "main")
+	srv := filepath.Join(base, "server")
+	tu.Git(t, "", "clone", "-q", up, srv)
+	tu.Git(t, srv, "cherry-pick", "origin/rebased")
+	tu.Git(t, srv, "push", "-q", "origin", "main", ":done", ":rebased", ":dropped")
 	tu.Git(t, clone, "fetch", "-q", "--prune")
 
 	cfg := config.Default()
 	cfg.Repositories = []config.Repository{{Path: clone, Enabled: true, Family: "Work"}}
-	a := app.New("", cfg, git.New("git"))
+	client, version, err := git.Open(context.Background(), "git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Older Git keeps the rebase-merged branch, with a reason naming 2.38.
+	mergeTree := version.AtLeast(git.Version{Major: 2, Minor: 38})
+	a := app.New("", cfg, client)
 	t.Cleanup(a.Close)
 	m := New(a)
 	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
@@ -597,8 +608,12 @@ func TestDeleteMergedBranchesWithRealRepositories(t *testing.T) {
 	}
 	pump(t, m)
 	v := ansi.Strip(m.View())
-	if !strings.Contains(v, "Delete 1 merged branch") || !strings.Contains(v, "done") ||
-		!strings.Contains(v, "squashed") || !strings.Contains(v, "upstream gone, not merged into origin/main") {
+	head, dropped := "Delete 2 merged branches", "upstream gone, changes not in origin/main"
+	if !mergeTree {
+		head, dropped = "Delete 1 merged branch", "needs Git 2.38"
+	}
+	if !strings.Contains(v, head) || !strings.Contains(v, "done") || !strings.Contains(v, "rebased") ||
+		!strings.Contains(v, "dropped") || !strings.Contains(v, dropped) {
 		t.Fatalf("preview:\n%s", v)
 	}
 
@@ -607,16 +622,25 @@ func TestDeleteMergedBranchesWithRealRepositories(t *testing.T) {
 		t.Fatalf("a confirmed preview must start the deletion: mode=%v", m.mode)
 	}
 	pump(t, m)
-	rows := m.ops.Batch().Rows
-	if len(rows) != 2 || rows[0].Branch != "done" || rows[0].Result.Status != domain.StatusSucceeded ||
-		rows[1].Branch != "squashed" || rows[1].Result.Status != domain.StatusSkipped {
-		t.Fatalf("rows = %+v", rows)
+	status := map[string]domain.OperationStatus{}
+	for _, r := range m.ops.Batch().Rows {
+		status[r.Branch] = r.Result.Status
 	}
-	if out, _ := tu.TryGit(clone, "rev-parse", "--verify", "-q", "refs/heads/done"); out != "" {
-		t.Fatal("done must be deleted")
+	rebased, deleted := domain.StatusSucceeded, []string{"done", "rebased"}
+	if !mergeTree {
+		rebased, deleted = domain.StatusSkipped, []string{"done"}
 	}
-	tu.Git(t, clone, "rev-parse", "--verify", "-q", "refs/heads/squashed")
-	if v := ansi.Strip(m.View()); !strings.Contains(v, "done") || !strings.Contains(v, "squashed") {
+	if len(status) != 3 || status["done"] != domain.StatusSucceeded || status["rebased"] != rebased ||
+		status["dropped"] != domain.StatusSkipped {
+		t.Fatalf("rows = %v", status)
+	}
+	for _, b := range deleted {
+		if out, _ := tu.TryGit(clone, "rev-parse", "--verify", "-q", "refs/heads/"+b); out != "" {
+			t.Fatalf("%s must be deleted", b)
+		}
+	}
+	tu.Git(t, clone, "rev-parse", "--verify", "-q", "refs/heads/dropped")
+	if v := ansi.Strip(m.View()); !strings.Contains(v, "rebased") || !strings.Contains(v, "dropped") {
 		t.Fatalf("the operations view must name the branches:\n%s", v)
 	}
 }

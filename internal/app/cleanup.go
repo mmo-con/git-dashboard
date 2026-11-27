@@ -21,6 +21,9 @@ type CleanupCandidate struct {
 	Branch   string
 	CommitID string
 	Reason   string
+	// RefDelete deletes the branch with update-ref at CommitID instead of
+	// git branch -d, whose merge check would refuse it.
+	RefDelete bool
 }
 
 // Deletable reports whether the branch is deleted.
@@ -74,7 +77,6 @@ func PlanCleanup(r domain.Repository, st git.BranchCleanup) []CleanupCandidate {
 	}
 	var deletable, skipped []CleanupCandidate
 	for _, b := range st.Branches {
-		usable := b.Upstream != "" && !b.Gone
 		if b.Name == local || !(b.MergedDefault || (b.Upstream != "" && b.Gone)) {
 			continue
 		}
@@ -86,13 +88,21 @@ func PlanCleanup(r domain.Repository, st git.BranchCleanup) []CleanupCandidate {
 			c.Reason = "checked out in " + b.Worktree
 		case slices.Contains(r.BranchPolicy.Pinned, b.Name):
 			c.Reason = "pinned"
-		case !b.MergedDefault:
-			c.Reason = "upstream gone, not merged into " + def + " (squash merge?)"
-		case usable && b.Ahead > 0:
+		case !b.MergedDefault && !st.ContainmentChecked:
+			c.Reason = "upstream gone; squash check needs Git 2.38"
+		case !b.MergedDefault && !b.Contained:
+			c.Reason = "upstream gone, changes not in " + def
+		case b.Gone:
+			// Everything is in the default branch: by ancestry, or because a
+			// squash or rebase merge left nothing to merge. git branch -d
+			// checks HEAD or would refuse a squash-merged branch, so the
+			// checked ref is deleted instead.
+			c.RefDelete = !b.MergedDefault || !b.MergedHead
+		case b.Upstream != "" && b.Ahead > 0:
 			c.Reason = "has commits not pushed to " + b.Upstream
 		case b.Upstream == "" && b.CommitID == st.DefaultID:
 			c.Reason = "no commits of its own"
-		case !usable && !b.MergedHead:
+		case b.Upstream == "" && !b.MergedHead:
 			c.Reason = "merged into " + def + " but not into " + head + "; update " + head + " first"
 		}
 		if c.Reason == "" {
@@ -159,6 +169,9 @@ func CleanupJobs(client git.Interface, all []domain.Repository, deletable []Clea
 					return nil, &jobs.SkipError{Reason: "skipped: branch is no longer merged"}
 				case !fresh[j].Deletable():
 					return nil, &jobs.SkipError{Reason: "skipped: " + fresh[j].Reason}
+				}
+				if fresh[j].RefDelete {
+					return nil, client.DeleteBranchRef(ctx, r.Location, name, commit)
 				}
 				return nil, client.DeleteBranch(ctx, r.Location, name)
 			},

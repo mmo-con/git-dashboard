@@ -142,9 +142,13 @@ another tool fetched new upstream commits, is skipped with
 
 The confirmation opens at once and reads the local branches of every
 target without network access; it can be confirmed once they are read. It
-lists the branches that are fully merged into the default branch, the
-target of `refs/remotes/<remote>/HEAD` of the primary remote, and deletes
-them with `git branch -d`, never `-D`. Remote branches are not changed.
+lists the branches whose changes are all in the default branch, the target
+of `refs/remotes/<remote>/HEAD` of the primary remote. Merged branches are
+deleted with `git branch -d`, never `-D`. Branches whose upstream is gone
+are also deleted after a squash or rebase merge, if merging them into the
+default branch would change nothing (Git 2.38 or newer); they are deleted
+only if they still point to the checked commit. Remote branches are not
+changed.
 Branches that are merged or whose upstream is gone, but are kept, are listed
 with the reason:
 
@@ -152,9 +156,10 @@ with the reason:
 |---|---|
 | `checked out` | checked out in this or another worktree |
 | `pinned` | a pinned branch of `[branches]` or of any entry of the repository store |
-| `upstream gone, not merged into …` | for example after a squash merge; check it in lazygit |
+| `upstream gone, changes not in …` | merging it would still change the default branch, for example after a squash merge whose lines were changed again; check it in lazygit |
+| `upstream gone; squash check needs Git 2.38` | not merged by ancestry; detecting squash and rebase merges needs Git 2.38 |
 | `has commits not pushed to …` | ahead of its upstream |
-| `… update <branch> first` | merged into the default branch, but not yet into HEAD, which `git branch -d` requires for branches without an upstream; a safe update fixes it |
+| `… update <branch> first` | without upstream, merged into the default branch, but not yet into HEAD, which `git branch -d` requires; a safe update fixes it |
 | `no commits of its own` | without upstream and at the commit of the default branch, for example just created |
 
 The default branch itself and branches that are not merged are not listed.

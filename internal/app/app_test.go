@@ -83,6 +83,16 @@ func (f *fakeGit) ReadBranchCleanup(context.Context, domain.Location, string) (g
 	return f.cleanup, nil
 }
 
+func (f *fakeGit) DeleteBranchRef(_ context.Context, _ domain.Location, name, commit string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	f.deleted = append(f.deleted, name+"@"+commit)
+	return nil
+}
+
 func (f *fakeGit) DeleteBranch(_ context.Context, _ domain.Location, name string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
