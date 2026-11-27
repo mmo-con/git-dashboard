@@ -69,9 +69,9 @@ The architecture and the decisions behind it are documented in
 - Other local branches that need attention, such as a stale `main` or a
   branch with unpushed work, shown as a count with details in the side panel;
   old and ignored branches are filtered out, pinned branches always count.
-- Families as a filter or as a collapsible tree, text and state filters
-  (`is:dirty`, `is:behind`, …), and sorting, also by health with the most
-  urgent repositories on top.
+- Families as a filter or as a collapsible tree, text, family, and state
+  filters (`family:work`, `is:dirty`, `is:behind`, …), and sorting, also by
+  health with the most urgent repositories on top.
 - `Enter` opens the selected repository in lazygit; the dashboard refreshes
   the repository afterward.
 - Concurrent fetch of the selected or visible repositories with progress,
