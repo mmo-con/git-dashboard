@@ -26,6 +26,7 @@ const (
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, cmd := m.update(msg)
+	m.reportStartup()
 	m.requestHistory()
 	m.requestIncoming()
 	return m, tea.Batch(cmd, m.housekeeping())
@@ -48,6 +49,31 @@ func (m *Model) housekeeping() tea.Cmd {
 		cmds = append(cmds, tea.Tick(d, func(time.Time) tea.Msg { return toastExpiredMsg{seq: seq} }))
 	}
 	return tea.Batch(cmds...)
+}
+
+// reportStartup shows once how long loading and inspecting the first
+// inventory took, unless a message such as a configuration warning is shown.
+func (m *Model) reportStartup() {
+	if m.startupReported || m.loadingInventory || m.pendingInspect() > 0 {
+		return
+	}
+	m.startupReported = true
+	if m.message == "" {
+		noun := "repositories"
+		if len(m.repos) == 1 {
+			noun = "repository"
+		}
+		m.setMessage(fmt.Sprintf("loaded %d %s in %s", len(m.repos), noun, shortDuration(m.now().Sub(m.started))))
+	}
+}
+
+// shortDuration formats d as milliseconds below one second, else as seconds
+// with one decimal.
+func shortDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%d ms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1f s", d.Seconds())
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {

@@ -131,6 +131,10 @@ type Model struct {
 	height     int
 
 	loadingInventory bool
+	// started is the start of the model; the time until the first inventory
+	// is inspected is reported once.
+	started         time.Time
+	startupReported bool
 	// routes holds the handler of every batch whose events the model still
 	// needs. Events of other batches, such as inspections of an earlier
 	// inventory or a superseded history request, are ignored.
@@ -182,6 +186,7 @@ func New(a *app.Application) *Model {
 		incoming:         map[incomingKey]incomingEntry{},
 		routes:           map[uint64]route{},
 		loadingInventory: true,
+		started:          time.Now(),
 		width:            100,
 		height:           30,
 		now:              time.Now,

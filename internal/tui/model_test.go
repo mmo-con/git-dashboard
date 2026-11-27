@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1412,6 +1413,46 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 	reload("tree")
 	if !m.tree || !strings.Contains(m.View(), "▾ Work (1)") {
 		t.Fatal("a changed view setting must take effect; the family stays expanded")
+	}
+}
+
+func TestStartupTimeIsReportedOnce(t *testing.T) {
+	start := time.Date(2026, 11, 27, 12, 0, 0, 0, time.UTC)
+	newStarted := func() *Model {
+		a := app.New("/none", config.Default(), git.New("git"))
+		t.Cleanup(a.Close)
+		m := New(a)
+		m.started = start
+		m.now = func() time.Time { return start.Add(1500 * time.Millisecond) }
+		return m
+	}
+	missing := repo("missing", "Work", false)
+	missing.Availability, missing.Path = domain.Available, filepath.Join(t.TempDir(), "missing")
+	inv := inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{repo("api", "Work", false), missing}}}
+
+	m := newStarted()
+	m.Update(inv)
+	if m.message != "" {
+		t.Fatalf("the startup time must wait for the inspections, got %q", m.message)
+	}
+	pump(t, m)
+	if m.message != "loaded 2 repositories in 1.5 s" || m.messageErr {
+		t.Fatalf("the startup time must be reported after the inspections, got %q", m.message)
+	}
+	keys(m, "R")
+	m.message = ""
+	m.Update(inv)
+	pump(t, m)
+	if m.message != "" {
+		t.Fatalf("the startup time must be reported only once, got %q after a reload", m.message)
+	}
+
+	m = newStarted()
+	inv.result.Warnings = []string{"unknown key"}
+	m.Update(inv)
+	pump(t, m)
+	if !m.messageErr || !strings.Contains(m.message, "configuration warning") {
+		t.Fatalf("the startup time must not replace a configuration warning, got %q", m.message)
 	}
 }
 
