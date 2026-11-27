@@ -25,7 +25,7 @@ import (
 func pump(t *testing.T, m *Model) {
 	t.Helper()
 	deadline := time.Now().Add(30 * time.Second)
-	for m.pendingInspect() > 0 || m.ops.Running() {
+	for m.pendingInspect() > 0 || m.ops.Running() || m.cleanupLoading() {
 		if time.Now().After(deadline) {
 			t.Fatal("timed out waiting for jobs")
 		}
@@ -545,5 +545,78 @@ func TestFailedTerminalRestoreQuits(t *testing.T) {
 	}
 	if _, ok := cmd().(tea.QuitMsg); !ok || m.ops.StoreBusy(store) {
 		t.Fatal("the program must quit and release the store")
+	}
+}
+
+// TestDeleteMergedBranchesWithRealRepositories drives the preview and the
+// deletion of merged branches: only the merged branch is deleted, and a
+// branch whose upstream is gone without a merge is listed with its reason.
+func TestDeleteMergedBranchesWithRealRepositories(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	up := filepath.Join(base, "up.git")
+	tu.Git(t, "", "init", "-q", "--bare", up)
+	clone := filepath.Join(base, "clone")
+	tu.Git(t, "", "clone", "-q", up, clone)
+	tu.Commit(t, clone, "a", "a\n", "init")
+	tu.Git(t, clone, "push", "-q", "origin", "main")
+	tu.Git(t, clone, "remote", "set-head", "origin", "--auto")
+	for _, b := range []string{"done", "squashed"} {
+		tu.Git(t, clone, "switch", "-q", "-c", b, "main")
+		tu.Commit(t, clone, b, b+"\n", b+" work")
+		tu.Git(t, clone, "push", "-q", "-u", "origin", b)
+	}
+	tu.Git(t, clone, "switch", "-q", "main")
+	tu.Git(t, clone, "merge", "-q", "--no-ff", "-m", "merge done", "done")
+	tu.Git(t, clone, "push", "-q", "origin", "main", ":done", ":squashed")
+	tu.Git(t, clone, "fetch", "-q", "--prune")
+
+	cfg := config.Default()
+	cfg.Repositories = []config.Repository{{Path: clone, Enabled: true, Family: "Work"}}
+	a := app.New("", cfg, git.New("git"))
+	t.Cleanup(a.Close)
+	m := New(a)
+	m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
+	m.Update(inventoryMsg{result: a.LoadInventory(context.Background())})
+	pump(t, m)
+
+	keys(m, "d")
+	batch := m.cleanup.batch
+	keys(m, "esc")
+	if m.mode != modeNormal || m.cleanup != nil || m.routes[batch] != nil || m.ops.Batch() != nil {
+		t.Fatal("Esc must close the preview, stop reading, and delete nothing")
+	}
+
+	keys(m, "d")
+	if m.mode != modeCleanupPreview || !m.cleanupLoading() {
+		t.Fatalf("d must open the preview and read the branches: mode=%v", m.mode)
+	}
+	keys(m, "enter")
+	if m.mode != modeCleanupPreview || m.ops.Batch() != nil {
+		t.Fatal("the preview must not be confirmed before the branches are read")
+	}
+	pump(t, m)
+	v := ansi.Strip(m.View())
+	if !strings.Contains(v, "Delete 1 merged branch") || !strings.Contains(v, "done") ||
+		!strings.Contains(v, "squashed") || !strings.Contains(v, "upstream gone, not merged into origin/main") {
+		t.Fatalf("preview:\n%s", v)
+	}
+
+	keys(m, "y")
+	if m.mode != modeOperations || m.ops.Batch() == nil || m.ops.Batch().Op != domain.OperationCleanup {
+		t.Fatalf("a confirmed preview must start the deletion: mode=%v", m.mode)
+	}
+	pump(t, m)
+	rows := m.ops.Batch().Rows
+	if len(rows) != 2 || rows[0].Branch != "done" || rows[0].Result.Status != domain.StatusSucceeded ||
+		rows[1].Branch != "squashed" || rows[1].Result.Status != domain.StatusSkipped {
+		t.Fatalf("rows = %+v", rows)
+	}
+	if out, _ := tu.TryGit(clone, "rev-parse", "--verify", "-q", "refs/heads/done"); out != "" {
+		t.Fatal("done must be deleted")
+	}
+	tu.Git(t, clone, "rev-parse", "--verify", "-q", "refs/heads/squashed")
+	if v := ansi.Strip(m.View()); !strings.Contains(v, "done") || !strings.Contains(v, "squashed") {
+		t.Fatalf("the operations view must name the branches:\n%s", v)
 	}
 }

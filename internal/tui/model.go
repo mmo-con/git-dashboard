@@ -27,6 +27,7 @@ const (
 	modeSort
 	modeOperations
 	modeUpdatePreview
+	modeCleanupPreview
 	modeLaunchers
 	modeCopy
 	modeConfirmQuit
@@ -152,6 +153,7 @@ type Model struct {
 	clipboard func(ctx context.Context, text string) (string, error)
 
 	preview    *updatePreview
+	cleanup    *cleanupPreview
 	quitReturn mode
 	visit      *visit
 
@@ -306,7 +308,7 @@ func (m *Model) notify(n app.Notice) {
 
 // busy reports whether a spinner should be animated.
 func (m *Model) busy() bool {
-	return m.loadingInventory || m.pendingInspect() > 0 || m.ops.Running()
+	return m.loadingInventory || m.pendingInspect() > 0 || m.ops.Running() || m.cleanupLoading()
 }
 
 // pendingInspect returns the number of unfinished inspections.

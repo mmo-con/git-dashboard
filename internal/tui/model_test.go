@@ -1062,7 +1062,7 @@ func TestViewRendersAllModes(t *testing.T) {
 	m := newModel(t)
 	for _, width := range []int{80, 120, 160} {
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
-		for _, k := range []string{"", "?", "e", "s", "u", "o", "y"} {
+		for _, k := range []string{"", "?", "e", "s", "u", "d", "o", "y"} {
 			if k != "" {
 				keys(m, k)
 			}

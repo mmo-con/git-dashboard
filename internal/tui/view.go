@@ -161,6 +161,8 @@ func (m *Model) footerLine() string {
 		left = " " + m.hints(m.operationHints()...)
 	case modeUpdatePreview:
 		left = " " + m.hints("Enter/y", "fetch and update", "j/k", "move", "Esc/n", "cancel")
+	case modeCleanupPreview:
+		left = " " + m.hints("Enter/y", "delete", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
 	case modeSort:

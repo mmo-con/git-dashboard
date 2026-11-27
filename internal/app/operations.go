@@ -29,6 +29,8 @@ type BatchRow struct {
 	// Incoming is the range an update row was planned with, read after the
 	// fetch; it stays fixed when the fast-forward moves HEAD.
 	Incoming IncomingRange
+	// Branch is the branch a cleanup row deletes or skips.
+	Branch string
 }
 
 // Done reports whether every row has a final status.
@@ -205,6 +207,34 @@ func (o *Operations) ConfirmUpdate(repos []domain.Repository, targets []domain.R
 	return info("fetching %d repository stores before the update", len(js)), true
 }
 
+// ConfirmCleanup starts the deletion of the deletable branches of plan; the
+// other rows of plan are listed as skipped. It reports whether a batch
+// started.
+func (o *Operations) ConfirmCleanup(repos []domain.Repository, plan []CleanupCandidate) (Notice, bool) {
+	if o.Running() {
+		return failure("another batch is still running"), false
+	}
+	var deletable []CleanupCandidate
+	var branches []string
+	var skipped []skippedRow
+	for _, c := range plan {
+		if c.Deletable() {
+			deletable = append(deletable, c)
+			branches = append(branches, c.Branch)
+		} else {
+			skipped = append(skipped, skippedRow{repo: c.Repository, branch: c.Branch, reason: c.Reason})
+		}
+	}
+	if len(deletable) == 0 {
+		return info("no merged branches to delete"), false
+	}
+	o.start(domain.OperationCleanup, CleanupJobs(o.app.Git, repos, deletable, o.app.Config.Git.FetchTimeout), skipped)
+	for i, name := range branches {
+		o.batch.Rows[i].Branch = name
+	}
+	return info("deleting %d merged branches", len(deletable)), true
+}
+
 // Handle records an event of the current batch. It returns the repositories
 // that a finished job changed, which must be inspected again, and a summary
 // once the batch is finished.
@@ -218,8 +248,11 @@ func (o *Operations) Handle(ev jobs.Event) (reinspect []domain.RepositoryID, sum
 	if !res.Status.Final() {
 		return nil, Notice{}
 	}
-	for _, id := range ev.Repositories {
-		o.last[id] = res
+	// A branch deletion does not describe the state of the repository.
+	if b.Op != domain.OperationCleanup {
+		for _, id := range ev.Repositories {
+			o.last[id] = res
+		}
 	}
 	if b.Done() {
 		summary = b.summary()
@@ -300,10 +333,12 @@ func (o *Operations) Retry() (Notice, bool) {
 		return Notice{}, false
 	}
 	var js []jobs.Job
+	var branches []string
 	planned := map[domain.RepositoryID]IncomingRange{}
 	for _, r := range o.batch.Rows {
 		if r.Result.Status == domain.StatusFailed || r.Result.Status == domain.StatusCancelled {
 			js = append(js, r.Job)
+			branches = append(branches, r.Branch)
 			planned[r.Job.RepositoryID] = r.Incoming
 		}
 	}
@@ -313,6 +348,7 @@ func (o *Operations) Retry() (Notice, bool) {
 	n := o.start(o.batch.Op, js, nil)
 	for i := range o.batch.Rows {
 		o.batch.Rows[i].Incoming = planned[o.batch.Rows[i].Job.RepositoryID]
+		o.batch.Rows[i].Branch = branches[i]
 	}
 	return n, true
 }
@@ -362,7 +398,11 @@ func (o *Operations) runUpdate(repos []domain.Repository, failed map[domain.Stor
 		return info("all %d repositories are up to date", len(targets)), false
 	}
 	js := UpdateJobs(o.app.Git, repos, eligible, o.app.Config.Git.FetchTimeout)
-	n := o.start(domain.OperationUpdate, js, blocked)
+	skipped := make([]skippedRow, len(blocked))
+	for i, c := range blocked {
+		skipped[i] = skippedRow{repo: c.Repository, reason: c.Verdict.String()}
+	}
+	n := o.start(domain.OperationUpdate, js, skipped)
 	planned := map[domain.RepositoryID]IncomingRange{}
 	for _, c := range append(eligible, blocked...) {
 		planned[c.Repository.ID], _ = IncomingOf(&c.Repository)
@@ -373,9 +413,16 @@ func (o *Operations) runUpdate(repos []domain.Repository, failed map[domain.Stor
 	return n, true
 }
 
-// start makes js the current batch. skipped lists repositories that the
-// update excluded; they are added as skipped rows.
-func (o *Operations) start(op domain.OperationType, js []jobs.Job, skipped []UpdateCandidate) Notice {
+// skippedRow is a repository or branch that a batch excluded with a reason.
+type skippedRow struct {
+	repo   domain.Repository
+	branch string
+	reason string
+}
+
+// start makes js the current batch. skipped lists repositories or branches
+// that the batch excluded; they are added as skipped rows.
+func (o *Operations) start(op domain.OperationType, js []jobs.Job, skipped []skippedRow) Notice {
 	b := &Batch{Op: op, Rows: make([]BatchRow, len(js), len(js)+len(skipped))}
 	for i, j := range js {
 		b.Rows[i] = BatchRow{Job: j, Result: domain.OperationResult{
@@ -384,13 +431,14 @@ func (o *Operations) start(op domain.OperationType, js []jobs.Job, skipped []Upd
 	}
 	now := o.now()
 	for _, c := range skipped {
-		r := c.Repository
+		r := c.repo
 		b.Rows = append(b.Rows, BatchRow{
 			Job: jobs.Job{RepositoryID: r.ID, StoreID: r.StoreID, Operation: op},
 			Result: domain.OperationResult{
 				RepositoryID: r.ID, StoreID: r.StoreID, Operation: op, Status: domain.StatusSkipped,
-				FinishedAt: now, Error: errors.New(c.Verdict.String()),
+				FinishedAt: now, Error: errors.New(c.reason),
 			},
+			Branch: c.branch,
 		})
 	}
 	o.batch = b

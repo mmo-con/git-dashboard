@@ -85,6 +85,9 @@ The architecture and the decisions behind it are documented in
   that can be updated safely, without merge commits, rebases, or stashes, and
   lists every skipped repository with the reason. The operations view then serves as a worklist: open blocked
   repositories in lazygit, see which blockers are resolved, and continue.
+- Delete merged local branches across repositories after a preview: only
+  branches fully merged into the default branch, only with `git branch -d`,
+  and every kept branch is listed with the reason.
 - `headquarters status` prints the same status, filter results, and health as
   JSON for scripts and status bars, with an exit status for checks such as
   "nothing uncommitted before shutdown". It only reads, unless `--fetch` is
@@ -306,7 +309,7 @@ global Git configuration.
 | `internal/jobs` | bounded scheduler with per-store locks and event queue |
 | `internal/launcher` | lazygit, launchers, and opening remotes in a browser |
 | `internal/clipboard` | copying text through native clipboard tools |
-| `internal/app` | application services: refresh, fetch, update, health, filter, sort, status report |
+| `internal/app` | application services: refresh, fetch, update, branch cleanup, health, filter, sort, status report |
 | `internal/tui` | Bubble Tea user interface |
 | `internal/testutil` | helpers for tests with real Git repositories |
 | `scripts` | development scripts, such as the coverage report used in CI |

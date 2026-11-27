@@ -10,8 +10,9 @@ import (
 type OperationType string
 
 const (
-	OperationFetch  OperationType = "fetch"
-	OperationUpdate OperationType = "update"
+	OperationFetch   OperationType = "fetch"
+	OperationUpdate  OperationType = "update"
+	OperationCleanup OperationType = "branch cleanup"
 )
 
 type OperationStatus string
