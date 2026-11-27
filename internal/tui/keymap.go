@@ -35,7 +35,7 @@ var Bindings = []BindingGroup{
 		{"t", "search and choose a family"},
 		{"v", "switch between list and family tree"},
 		{"z", "tree: expand/collapse all"},
-		{"s", "choose sorting, e.g. by health"},
+		{"s", "choose sorting; then h: by health"},
 		{"r", "refresh visible repositories"},
 		{"R", "reload config and inventory"},
 		{"e", "errors and warnings"},

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/jobs"
 	"github.com/mmo-con/headquarters/internal/launcher"
@@ -492,9 +493,13 @@ func (m *Model) moveOpRow(key string) bool {
 func (m *Model) moveOverlay(key string, n int) bool {
 	switch key {
 	case "j", "down":
-		m.overlayIdx = min(m.overlayIdx+1, max(n-1, 0))
+		if m.overlayIdx++; m.overlayIdx >= n {
+			m.overlayIdx = 0
+		}
 	case "k", "up":
-		m.overlayIdx = max(m.overlayIdx-1, 0)
+		if m.overlayIdx--; m.overlayIdx < 0 {
+			m.overlayIdx = max(n-1, 0)
+		}
 	default:
 		return false
 	}
@@ -504,6 +509,9 @@ func (m *Model) moveOverlay(key string, n int) bool {
 func (m *Model) keySort(key string) tea.Cmd {
 	if m.moveOverlay(key, len(app.SortKeys)) {
 		return nil
+	}
+	if i := slices.IndexFunc(config.SortOrders, func(name string) bool { return name[:1] == key }); i >= 0 {
+		m.overlayIdx, key = i, "enter"
 	}
 	switch key {
 	case "enter":
