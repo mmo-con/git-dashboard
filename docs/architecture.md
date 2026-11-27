@@ -13,9 +13,9 @@ decisions, their rationale, and their constraints.
 | `internal/config` | TOML decoding, defaults, paths, validation, themes |
 | `internal/inventory` | discovery, patterns, identity, precedence, validation states |
 | `internal/initconfig` | one-time scan and generation of a starting configuration, atomic file writing |
-| `internal/git` | isolated Git command runner, parsers, inspection, fetch, update |
+| `internal/git` | isolated Git command runner, parsers, inspection, fetch, update, branch deletion |
 | `internal/jobs` | scheduler, timeouts, store locks, event queue |
-| `internal/app` | application services, inspections, operations, handover, health classification, filters, sorting, status collection and report |
+| `internal/app` | application services, inspections, operations, branch cleanup, handover, health classification, filters, sorting, status collection and report |
 | `internal/launcher` | lazygit, custom launchers, browser |
 | `internal/clipboard` | native clipboard tools, value checks |
 | `internal/domain` | repository and operation models |
@@ -50,6 +50,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Showing incoming commits | [ADR 0015](adr/0015-showing-incoming-commits.md) |
 | Non-interactive status command | [ADR 0016](adr/0016-non-interactive-status-command.md) |
 | Detail panel order and commit lines | [ADR 0017](adr/0017-detail-panel-order-and-commit-lines.md) |
+| Deleting merged branches | [ADR 0018](adr/0018-deleting-merged-branches.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
