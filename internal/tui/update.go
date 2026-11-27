@@ -120,10 +120,9 @@ func (m *Model) applyInventory(msg inventoryMsg) {
 	}
 	m.rebuildFamilies()
 	m.recompute()
-	for id := range m.inspecting {
+	for _, id := range m.inspections.Forget() {
 		delete(m.routes, id)
 	}
-	m.inspecting = map[uint64]int{}
 	m.ops.DropUpdate()
 	if p := m.historyPending; p != nil {
 		m.forget(p.batch)
@@ -174,7 +173,7 @@ func (m *Model) applyBatchEvent(ev jobs.Event, reinspect map[domain.RepositoryID
 // the current view would then confirm it; an open operations view shows the
 // new batch.
 func (m *Model) advanceUpdate() {
-	n, started := m.ops.Advance(m.repos, func(id uint64) bool { _, ok := m.inspecting[id]; return ok })
+	n, started := m.ops.Advance(m.repos, m.inspections.Running)
 	m.notify(n)
 	if started {
 		m.showBatch(false)

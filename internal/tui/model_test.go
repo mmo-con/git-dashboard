@@ -77,7 +77,6 @@ func keys(m *Model, ks ...string) {
 // the current inventory.
 func inspectionEvent(m *Model, id domain.RepositoryID, p app.InspectionPayload) eventsMsg {
 	const batchID = 999
-	m.inspecting[batchID]++
 	m.routes[batchID] = m.applyInspection
 	return eventsMsg{events: []jobs.Event{{BatchID: batchID,
 		Result: domain.OperationResult{RepositoryID: id, Status: domain.StatusSucceeded}, Payload: p}}}

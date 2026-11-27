@@ -135,12 +135,11 @@ type Model struct {
 	// needs. Events of other batches, such as inspections of an earlier
 	// inventory or a superseded history request, are ignored.
 	routes map[uint64]route
-	// inspecting counts the unfinished jobs of each inspection batch of the
-	// current inventory.
-	inspecting map[uint64]int
-	warnings   []string
-	message    string
-	messageErr bool
+	// inspections runs the inspection batches of the current inventory.
+	inspections *app.Inspections
+	warnings    []string
+	message     string
+	messageErr  bool
 
 	// ops runs the fetch and update batches.
 	ops *app.Operations
@@ -181,7 +180,6 @@ func New(a *app.Application) *Model {
 		expanded:         map[domain.FamilyID]bool{},
 		history:          map[domain.RepositoryID]historyEntry{},
 		incoming:         map[incomingKey]incomingEntry{},
-		inspecting:       map[uint64]int{},
 		routes:           map[uint64]route{},
 		loadingInventory: true,
 		width:            100,
@@ -195,6 +193,7 @@ func New(a *app.Application) *Model {
 	}
 	m.ops = app.NewOperations(a, func(js []jobs.Job) uint64 { return m.submit(js, m.applyBatchEvent) },
 		func() time.Time { return m.now() })
+	m.inspections = app.NewInspections(a, func(js []jobs.Job) uint64 { return m.submit(js, m.applyInspection) })
 	return m
 }
 
@@ -306,13 +305,7 @@ func (m *Model) busy() bool {
 }
 
 // pendingInspect returns the number of unfinished inspections.
-func (m *Model) pendingInspect() int {
-	n := 0
-	for _, c := range m.inspecting {
-		n += c
-	}
-	return n
-}
+func (m *Model) pendingInspect() int { return m.inspections.Pending() }
 
 // recompute applies filter and sorting while keeping the cursor on the same
 // repository where possible.
@@ -537,14 +530,7 @@ func (m *Model) refresh(ids []domain.RepositoryID) uint64 {
 			delete(m.incoming, k)
 		}
 	}
-	gen := m.app.NextGeneration()
-	js := app.InspectJobs(m.app.Git, repos, gen, m.app.Config.Git.InspectionTimeout)
-	if len(js) == 0 {
-		return 0
-	}
-	id := m.submit(js, m.applyInspection)
-	m.inspecting[id] = len(js)
-	return id
+	return m.inspections.Start(repos)
 }
 
 // route handles an event of a batch started by the model. Repositories
@@ -567,17 +553,8 @@ func (m *Model) forget(id uint64) {
 // applyInspection applies a finished inspection. A failed inspection still
 // carries the state it could determine.
 func (m *Model) applyInspection(ev jobs.Event, _ map[domain.RepositoryID]bool) {
-	if !ev.Result.Status.Final() {
-		return
-	}
-	if m.inspecting[ev.BatchID]--; m.inspecting[ev.BatchID] <= 0 {
-		delete(m.inspecting, ev.BatchID)
+	if m.inspections.Handle(ev, m.repo, m.now()) {
 		delete(m.routes, ev.BatchID)
-	}
-	if p, ok := ev.Payload.(app.InspectionPayload); ok {
-		if r := m.repo(ev.Result.RepositoryID); r != nil {
-			r.ApplyInspection(p.Generation, p.Inspection, ev.Result.Error, m.now())
-		}
 	}
 }
 
