@@ -24,7 +24,7 @@ var iconSets = map[string]icons{
 	"nerd": {
 		clean: "\uf00c", staged: "\uf067", modified: "\uf111", deleted: "\uf068", conflict: "\uf071", untracked: "\uf128",
 		ahead: "\uf062", behind: "\uf063", upToDate: "\uf00c", detached: "\uf417", noUpstream: "\uf127",
-		unavailable: "\uf00d", failed: "\uf00d", mark: "\uf005", mismatch: "\uf0ec", branch: "\ue725 ", queued: "\uf252", branches: "\uf126", attention: "\uf06a", stash: "\uf187",
+		unavailable: "\uf00d", failed: "\uf00d", mark: "\uf005", mismatch: "\uf0ec", branch: "\ue725 ", queued: "\uf252", branches: "\uf126", attention: "\uf12a", stash: "\uf187",
 		cursor: "▌", collapsed: "\uf105", expanded: "\uf107", treeItem: "├─ ", treeLast: "└─ ",
 		spinner: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		barFull: "█", barEmpty: "░",
