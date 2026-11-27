@@ -1,6 +1,6 @@
 # ADR 0018: Deleting merged branches
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0019](0019-deleting-squash-and-rebase-merged-branches.md)
 
 ## Context
 
@@ -47,14 +47,17 @@ The inspection itself does not change and keeps its cost.
 **Candidates.** A branch is deleted only if it is merged into the default
 branch and Git's own rule of `git branch -d` allows it: merged into its
 upstream if that exists, otherwise into HEAD of the worktree that runs the
-deletion. The preview lists, with a reason, branches that are merged or
+deletion. [ADR 0019](0019-deleting-squash-and-rebase-merged-branches.md)
+also deletes branches with a gone upstream whose changes are all in the
+default branch, after a squash or rebase merge, or by ancestry but not in
+HEAD. The preview lists, with a reason, branches that are merged or
 whose upstream is gone but are not deleted:
 
 | Reason | Condition |
 |---|---|
 | checked out | in this or another worktree of the store |
 | pinned | named in the pinned branches of any entry of the store |
-| not merged | upstream gone but not merged into the default branch, for example after a squash merge; it stays with lazygit |
+| not merged | upstream gone but changes not in the default branch ([ADR 0019](0019-deleting-squash-and-rebase-merged-branches.md)) |
 | unpushed commits | ahead of its existing upstream |
 | update first | without a usable upstream and not merged into HEAD |
 | no commits of its own | without upstream and at the commit of the default branch, for example just created |
@@ -72,7 +75,8 @@ git branch -d -- <branch>
 ```
 
 Never `-D`: if anything changed after the recheck, Git refuses the
-deletion, and the row fails with Git's message. Branch deletion uses the
+deletion, and the row fails with Git's message. ADR 0019 deletes branches
+that `-d` would refuse with a compare-and-delete of the checked commit. Branch deletion uses the
 operations view of ADR 0004 with one row per branch; a failure does not
 stop the batch. Its results do not change the health of the repository,
 which describes its state, not the latest deletion. The stores are
@@ -84,8 +88,11 @@ inspected again afterward.
   repository. `git branch -d` also removes the branch's reflog; the commits
   stay reachable from the default branch and from the upstream or HEAD, as
   the candidate rules require.
-- Squash- and rebase-merged branches cannot be detected from Git alone and
-  stay with lazygit; the preview lists them when their upstream is gone.
+- Squash- and rebase-merged branches cannot be detected from the ancestry;
+  [ADR 0019](0019-deleting-squash-and-rebase-merged-branches.md) detects
+  them by their content.
 - Opening the preview starts up to four Git processes per store.
-- A branch merged on the server but not yet into local HEAD needs a safe
-  update first, because `git branch -d` checks HEAD.
+- A branch without an upstream that is merged into the default branch but
+  not yet into local HEAD needs a safe update first, because
+  `git branch -d` checks HEAD; ADR 0019 removes this step for branches
+  with a gone upstream.

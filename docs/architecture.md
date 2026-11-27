@@ -51,6 +51,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Non-interactive status command | [ADR 0016](adr/0016-non-interactive-status-command.md) |
 | Detail panel order and commit lines | [ADR 0017](adr/0017-detail-panel-order-and-commit-lines.md) |
 | Deleting merged branches | [ADR 0018](adr/0018-deleting-merged-branches.md) |
+| Deleting squash- and rebase-merged branches | [ADR 0019](adr/0019-deleting-squash-and-rebase-merged-branches.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
