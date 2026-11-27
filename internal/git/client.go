@@ -12,6 +12,9 @@ type Client struct {
 	// stashHeader is set by CheckVersion if status reports the stash count in
 	// porcelain v2 (Git 2.35); otherwise a separate process counts it.
 	stashHeader bool
+	// mergeTree is set by CheckVersion if merge-tree --write-tree (Git 2.38)
+	// is available.
+	mergeTree bool
 }
 
 // New returns a client that runs the given Git executable without checking
@@ -46,6 +49,7 @@ type Interface interface {
 	IncomingCommits(ctx context.Context, loc domain.Location, head, upstream string, n int) ([]domain.CommitSummary, error)
 	ReadBranchCleanup(ctx context.Context, loc domain.Location, remote string) (BranchCleanup, error)
 	DeleteBranch(ctx context.Context, loc domain.Location, name string) error
+	DeleteBranchRef(ctx context.Context, loc domain.Location, name, commit string) error
 }
 
 var _ Interface = (*Client)(nil)

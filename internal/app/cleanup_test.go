@@ -24,16 +24,20 @@ func cleanupRepo() domain.Repository {
 func cleanupState(branches ...git.CleanupBranch) git.BranchCleanup {
 	main := git.CleanupBranch{Name: "main", CommitID: "d0", Upstream: "origin/main", Worktree: "/w/r", MergedDefault: true, MergedHead: true}
 	return git.BranchCleanup{Remote: "origin", Default: "refs/remotes/origin/main", DefaultID: "d0",
-		Branches: append([]git.CleanupBranch{main}, branches...)}
+		ContainmentChecked: true, Branches: append([]git.CleanupBranch{main}, branches...)}
 }
 
-// planned returns branch: reason for every row; "delete" marks deletable rows.
+// planned returns branch: reason for every row; "delete" marks rows deleted
+// with git branch -d, "delete-ref" rows deleted with the checked update-ref.
 func planned(rows []CleanupCandidate) map[string]string {
 	out := map[string]string{}
 	for _, c := range rows {
-		if c.Deletable() {
+		switch {
+		case c.Deletable() && c.RefDelete:
+			out[c.Branch] = "delete-ref"
+		case c.Deletable():
 			out[c.Branch] = "delete"
-		} else {
+		default:
 			out[c.Branch] = c.Reason
 		}
 	}
@@ -47,7 +51,7 @@ func TestPlanCleanup(t *testing.T) {
 	tests := []struct {
 		name   string
 		branch git.CleanupBranch
-		want   string // "delete", a reason substring, or "" for not listed
+		want   string // "delete", "delete-ref", a reason substring, or "" for not listed
 	}{
 		{"merged without upstream", merged("a"), "delete"},
 		{"merged with gone upstream", func() git.CleanupBranch {
@@ -63,10 +67,18 @@ func TestPlanCleanup(t *testing.T) {
 		{"checked out here", func() git.CleanupBranch { b := merged("a"); b.Worktree = "/w/r"; return b }(), "checked out"},
 		{"checked out in another worktree", func() git.CleanupBranch { b := merged("a"); b.Worktree = "/w/other"; return b }(), "checked out in /w/other"},
 		{"pinned", merged("release"), "pinned"},
-		{"gone but not merged", git.CleanupBranch{Name: "a", CommitID: "x", Upstream: "origin/a", Gone: true}, "not merged into origin/main"},
-		{"merged but not into HEAD", func() git.CleanupBranch {
+		{"gone, changes not in the default branch", git.CleanupBranch{Name: "a", CommitID: "x", Upstream: "origin/a", Gone: true},
+			"upstream gone, changes not in origin/main"},
+		{"gone, squash- or rebase-merged", git.CleanupBranch{Name: "a", CommitID: "x", Upstream: "origin/a", Gone: true, Contained: true},
+			"delete-ref"},
+		{"gone, merged into the default branch but not into HEAD", func() git.CleanupBranch {
 			b := merged("a")
 			b.Upstream, b.Gone, b.MergedHead = "origin/a", true, false
+			return b
+		}(), "delete-ref"},
+		{"no upstream, merged into the default branch but not into HEAD", func() git.CleanupBranch {
+			b := merged("a")
+			b.MergedHead = false
 			return b
 		}(), "update main first"},
 		{"merged but ahead of its upstream", func() git.CleanupBranch {
@@ -92,6 +104,14 @@ func TestPlanCleanup(t *testing.T) {
 				t.Fatalf("got %q, want %q", reason, tc.want)
 			}
 		})
+	}
+}
+
+func TestPlanCleanupWithoutContainmentCheck(t *testing.T) {
+	st := cleanupState(git.CleanupBranch{Name: "a", CommitID: "x", Upstream: "origin/a", Gone: true})
+	st.ContainmentChecked = false
+	if got := planned(PlanCleanup(cleanupRepo(), st))["a"]; !strings.Contains(got, "Git 2.38") {
+		t.Fatalf("a = %q", got)
 	}
 }
 
@@ -151,6 +171,11 @@ func TestCleanupJobRechecksBeforeDeleting(t *testing.T) {
 		{"moved", cleanupState(func() git.CleanupBranch { b := a; b.CommitID = "c2"; return b }()), nil, domain.StatusSkipped, "moved since the preview"},
 		{"checked out meanwhile", cleanupState(func() git.CleanupBranch { b := a; b.Worktree = "/w/other"; return b }()), nil, domain.StatusSkipped, "checked out in /w/other"},
 		{"refused by Git", cleanupState(a), errors.New("not fully merged"), domain.StatusFailed, "not fully merged"},
+		{"squash-merged", cleanupState(func() git.CleanupBranch {
+			b := a
+			b.Upstream, b.Gone, b.MergedDefault, b.MergedHead, b.Contained = "origin/a", true, false, false, true
+			return b
+		}()), nil, domain.StatusSucceeded, ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,7 +188,11 @@ func TestCleanupJobRechecksBeforeDeleting(t *testing.T) {
 			if ev.Status != tc.status || (tc.reason != "" && (ev.Error == nil || !strings.Contains(ev.Error.Error(), tc.reason))) {
 				t.Fatalf("result = %v %v", ev.Status, ev.Error)
 			}
-			if deleted := len(f.deleted) == 1 && f.deleted[0] == "a"; deleted != (tc.status == domain.StatusSucceeded) {
+			want := "a"
+			if tc.name == "squash-merged" {
+				want = "a@c1"
+			}
+			if deleted := len(f.deleted) == 1 && f.deleted[0] == want; deleted != (tc.status == domain.StatusSucceeded) {
 				t.Fatalf("deleted = %v", f.deleted)
 			}
 		})

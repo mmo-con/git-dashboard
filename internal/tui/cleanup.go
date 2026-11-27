@@ -158,8 +158,8 @@ func (m *Model) viewCleanupPreview(iw, rows int) (string, []string) {
 			deletable, plural(deletable, "branch", "branches"), len(repos), plural(len(repos), "repository", "repositories"))))
 	}
 	head = append(head,
-		t.dim.Render("Deletes local branches that are fully merged into the default branch."),
-		t.dim.Render("Git refuses anything not merged; remote branches stay untouched."),
+		t.dim.Render("Deletes local branches whose changes are all in the default branch,"),
+		t.dim.Render("also after squash and rebase merges; remote branches stay untouched."),
 		t.dim.Render("Branches that are kept are listed with the reason."),
 	)
 	if p.hidden > 0 {

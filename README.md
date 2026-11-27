@@ -86,8 +86,8 @@ The architecture and the decisions behind it are documented in
   lists every skipped repository with the reason. The operations view then serves as a worklist: open blocked
   repositories in lazygit, see which blockers are resolved, and continue.
 - Delete merged local branches across repositories after a preview: only
-  branches fully merged into the default branch, only with `git branch -d`,
-  and every kept branch is listed with the reason.
+  branches whose changes are all in the default branch, also after squash
+  and rebase merges, and every kept branch is listed with the reason.
 - `headquarters status` prints the same status, filter results, and health as
   JSON for scripts and status bars, with an exit status for checks such as
   "nothing uncommitted before shutdown". It only reads, unless `--fetch` is
