@@ -1,6 +1,6 @@
 # ADR 0015: Showing incoming commits
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0017](0017-detail-panel-order-and-commit-lines.md)
 
 ## Context
 
@@ -37,7 +37,8 @@ refresh.
 
 They are shown:
 
-- in the detail panel, below the recent commits, for a branch behind its
+- in the detail panel, below the recent commits ([ADR 0017](0017-detail-panel-order-and-commit-lines.md) moves them
+  above), for a branch behind its
   upstream, also when diverged; not when up to date, without upstream, or
   with the upstream gone. When the panel is small, older recent commits are
   dropped first, then incoming commits down to the newest;

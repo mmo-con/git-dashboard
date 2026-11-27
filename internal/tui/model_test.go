@@ -894,8 +894,10 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 	r.Head = domain.KnownValue(domain.HeadState{Branch: "main"})
 	r.Upstream = domain.KnownValue(domain.UpstreamState{Configured: true, Ref: "origin/main"})
 	r.LastFetch = domain.KnownValue(&fetched)
-	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Time: now, Subject: "Ship it"})
+	r.LastCommit = domain.KnownValue(&domain.CommitSummary{ShortID: "c28633b", Author: "Ada", Time: now.Add(-15 * time.Hour), Subject: "Ship it"})
 	r.Remotes = domain.KnownValue([]domain.Remote{{Name: "origin", URL: "git@a:b.git"}})
+	r.ExpectedRemote = &domain.ExpectedRemote{URL: "git@a:c.git"}
+	r.Branches = domain.KnownValue([]domain.BranchState{{Name: "wip", CommitTime: now}})
 	lines := m.detailLines(&r, 60).fit(100)
 	idx := func(prefix string) int {
 		for i, l := range lines {
@@ -906,30 +908,34 @@ func TestDetailPanelGroupsStatusAndRepository(t *testing.T) {
 		return -1
 	}
 	v := ansi.Strip(strings.Join(lines, "\n"))
-	status, commits, repository := idx("── STATUS"), idx("── RECENT COMMITS"), idx("── REPOSITORY")
+	status, commits, branches, repository := idx("── STATUS"), idx("── RECENT COMMITS"), idx("── OTHER BRANCHES"), idx("── REPOSITORY")
 	if status != 0 || strings.Contains(v, "── BRANCH") || strings.Contains(v, "── WORKTREE") {
 		t.Fatalf("branch and worktree must form the first section, STATUS:\n%s", v)
 	}
-	for _, want := range []string{"branch    main → origin/main  ✓", "fetched   2 h ago", "worktree  ✓ clean"} {
+	for _, want := range []string{"branch    main → origin/main  ✓", "fetched   2 h ago", "worktree  ✓ clean", "remote    ≠ expected origin: git@a:c.git"} {
 		if i := idx(want); i <= status || i >= commits {
 			t.Errorf("STATUS must contain the line %q:\n%s", want, v)
 		}
 	}
-	if repository < commits || repository < idx("── REMOTES") {
-		t.Fatalf("REPOSITORY must be the last section:\n%s", v)
+	if !(status < commits && commits < branches && branches < repository) {
+		t.Fatalf("the sections must be STATUS, RECENT COMMITS, OTHER BRANCHES, REPOSITORY:\n%s", v)
 	}
-	for _, want := range []string{"path      ~/src/svc", "family    Work", "source    configured"} {
+	if i := idx("c28633b    15 h  Ada           Ship it"); i <= commits {
+		t.Errorf("a recent commit must show its age and author like an incoming commit:\n%s", v)
+	}
+	if strings.Contains(v, "── REMOTES") || strings.Contains(v, "── LINKED WORKTREES") {
+		t.Fatalf("remotes and linked worktrees belong to REPOSITORY:\n%s", v)
+	}
+	for _, want := range []string{"path      ~/src/svc", "family    Work", "source    configured", "origin    git@a:b.git"} {
 		if i := idx(want); i <= repository {
 			t.Errorf("REPOSITORY must contain the line %q:\n%s", want, v)
 		}
 	}
-	if i := idx("origin    git@a:b.git"); i <= idx("── REMOTES") {
-		t.Errorf("remote names must take the label column:\n%s", v)
-	}
 
 	m.repos[0].StoreID, m.repos[0].Path = r.StoreID, "/home/u/src/svc-wt"
-	if v := ansi.Strip(strings.Join(m.detailLines(&r, 60).fit(100), "\n")); !strings.Contains(v, "\n~/src/svc-wt") {
-		t.Errorf("linked worktrees must be shortened to ~:\n%s", v)
+	lines = m.detailLines(&r, 60).fit(100)
+	if i := idx("linked    ~/src/svc-wt"); i <= idx("── REPOSITORY") {
+		t.Errorf("linked worktrees belong to REPOSITORY and are shortened to ~:\n%s", ansi.Strip(strings.Join(lines, "\n")))
 	}
 
 	box := m.detailsBox(60, 30)
@@ -1119,8 +1125,8 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 		Time: now.Add(-5 * time.Hour), Subject: "Show delivery estimate"})
 	lines := m.detailLines(&r, 40).fit(100)
 	v := strings.Join(lines, "\n")
-	if !strings.Contains(v, "c28633b  Nov 22 07:00  Show delivery estimate") || strings.Contains(v, "Sam") {
-		t.Fatalf("the commit must be one line of hash, date, and subject:\n%s", v)
+	if !strings.Contains(v, "c28633b     5 h  Sam           Show delivery estimate") {
+		t.Fatalf("the commit must be one line of hash, age, author, and subject:\n%s", v)
 	}
 	found := false
 	for _, l := range lines {
@@ -1136,27 +1142,22 @@ func TestDetailSectionsAndCommitLine(t *testing.T) {
 	}
 
 	for _, c := range []struct {
-		d    time.Duration
-		long string
-		age  string
+		d   time.Duration
+		age string
 	}{
-		{10 * time.Second, "Nov 22 11:59", "now"},
-		{45 * time.Minute, "Nov 22 11:15", "45 min"},
-		{15 * time.Hour, "Nov 21 21:00", "15 h"},
-		{21 * 24 * time.Hour, "Nov  1 12:00", "21 d"},
-		{100 * 24 * time.Hour, "Aug 14 12:00", "3 mo"},
-		{800 * 24 * time.Hour, "Sep 13 2024 12:00", "2 y"},
+		{10 * time.Second, "now"},
+		{45 * time.Minute, "45 min"},
+		{15 * time.Hour, "15 h"},
+		{21 * 24 * time.Hour, "21 d"},
+		{100 * 24 * time.Hour, "3 mo"},
+		{800 * 24 * time.Hour, "2 y"},
 	} {
-		if got := commitTime(now, now.Add(-c.d)); got != c.long {
-			t.Errorf("commitTime(-%v) = %q, want %q", c.d, got, c.long)
-		}
 		if got := commitAge(now, now.Add(-c.d)); got != c.age {
 			t.Errorf("commitAge(-%v) = %q, want %q", c.d, got, c.age)
 		}
 	}
 
-	// The table shows the age of the latest commit; the detail panel keeps
-	// the absolute time.
+	// The table shows the age of the latest commit.
 	m.repos[0].LastCommit = domain.KnownValue(&domain.CommitSummary{Time: now.Add(-21 * 24 * time.Hour)})
 	if v := ansi.Strip(strings.Join(m.reposBox(m.measureTable(), 160, 10, true), "\n")); !strings.Contains(v, "21 d") || strings.Contains(v, "Nov  1") {
 		t.Errorf("the table must show the commit age:\n%s", v)

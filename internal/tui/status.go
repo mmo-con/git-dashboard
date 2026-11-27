@@ -380,17 +380,7 @@ func ago(now, t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// commitTime is the time of a commit in the detail panel: month, day, and
-// time, with the year for an earlier year. The day is padded, so the times
-// line up.
-func commitTime(now, t time.Time) string {
-	if t.Year() != now.Year() {
-		return t.Format("Jan _2 2006 15:04")
-	}
-	return t.Format("Jan _2 15:04")
-}
-
-// commitAge is the age of a commit in the table: "now", minutes, hours up to
+// commitAge is the age of a commit in the table and commit lists: "now", minutes, hours up to
 // two days, days up to two months, then months and years.
 func commitAge(now, t time.Time) string {
 	d := now.Sub(t)

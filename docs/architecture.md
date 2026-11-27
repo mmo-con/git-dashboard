@@ -49,6 +49,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Dependency security and Go toolchain | [ADR 0014](adr/0014-dependency-security-and-go-toolchain.md) |
 | Showing incoming commits | [ADR 0015](adr/0015-showing-incoming-commits.md) |
 | Non-interactive status command | [ADR 0016](adr/0016-non-interactive-status-command.md) |
+| Detail panel order and commit lines | [ADR 0017](adr/0017-detail-panel-order-and-commit-lines.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).

@@ -177,7 +177,7 @@ is updated until the new update is confirmed.
 | Untracked | untracked entries |
 | Stashed | number of stash entries of the repository; linked worktrees share them |
 | Ahead / Behind | commits ahead of / behind the upstream as of the last fetch; both in the error color if the branch diverged |
-| Commit | age of the latest commit: `now`, minutes, hours up to two days, days up to two months, then months and years, such as `15 h` or `21 d`; the detail panel shows the absolute time |
+| Commit | age of the latest commit: `now`, minutes, hours up to two days, days up to two months, then months and years, such as `15 h` or `21 d`; the commit lists of the detail panel show the same age |
 
 In the count columns, `–` is a known zero and `?` an unknown value. A cell
 is empty while the repository loads and where the count does not apply,
