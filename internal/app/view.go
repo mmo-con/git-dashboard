@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -21,9 +23,11 @@ var StateKeywords = []string{
 	"is:error", "is:unavailable", "is:mismatch", "is:marked", "is:branches", "is:unpublished", "is:stashed", "is:stale",
 }
 
+const familyPrefix = "family:"
+
 // Matches reports whether r passes the filter. Text tokens are combined with
-// AND; "is:" tokens filter by state, other tokens match name or path
-// case-insensitively.
+// AND; "is:" tokens filter by state, "family:" tokens match the family name,
+// and other tokens match name or path, all case-insensitively.
 func (f Filter) Matches(r *domain.Repository, marked bool) bool {
 	if f.Family != "" && r.Family != f.Family {
 		return false
@@ -31,6 +35,12 @@ func (f Filter) Matches(r *domain.Repository, marked bool) bool {
 	for _, tok := range strings.Fields(strings.ToLower(f.Text)) {
 		if strings.HasPrefix(tok, "is:") {
 			if !matchState(tok, r, marked) {
+				return false
+			}
+			continue
+		}
+		if name, ok := strings.CutPrefix(tok, familyPrefix); ok {
+			if name == "" || !strings.EqualFold(string(r.Family), name) {
 				return false
 			}
 			continue
@@ -209,4 +219,21 @@ func upstreamRank(r *domain.Repository) int {
 		return 4
 	}
 	return 5
+}
+
+// ValidateFilter reports the first token of text that cannot match: an
+// unknown "is:" token, "family:" without a name, or "is:marked" in a
+// frontend without marks.
+func ValidateFilter(text string, marks bool) error {
+	for _, tok := range strings.Fields(strings.ToLower(text)) {
+		switch {
+		case tok == "is:marked" && !marks:
+			return fmt.Errorf("%s: repositories cannot be marked here", tok)
+		case strings.HasPrefix(tok, "is:") && !slices.Contains(StateKeywords, tok):
+			return fmt.Errorf("unknown state %q; use one of %s", tok, strings.Join(StateKeywords, ", "))
+		case tok == familyPrefix:
+			return fmt.Errorf("%s needs a family name", tok)
+		}
+	}
+	return nil
 }

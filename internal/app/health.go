@@ -62,3 +62,24 @@ func healthRank(h Health) int {
 	}
 	return int(h)
 }
+
+// String returns the stable name of h, as used in the status report.
+func (h Health) String() string {
+	switch h {
+	case HealthError:
+		return "error"
+	case HealthCritical:
+		return "critical"
+	case HealthDirty:
+		return "dirty"
+	case HealthBehind:
+		return "behind"
+	case HealthAhead:
+		return "ahead"
+	case HealthAttention:
+		return "attention"
+	case HealthOK:
+		return "ok"
+	}
+	return "unknown"
+}

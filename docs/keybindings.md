@@ -233,7 +233,10 @@ to remove the family filter. The `/` text filter and quick filters still
 apply to the selected family.
 
 The text filter consists of space-separated tokens that must all match.
-Plain tokens match the name or the path case-insensitively. State tokens:
+Plain tokens match the name or the path case-insensitively. `family:<name>`
+matches the family name exactly, ignoring case, for example `family:work`;
+family names with spaces cannot be written as a token yet. It combines with
+the family picker. State tokens:
 
 | Token | Matches |
 |---|---|

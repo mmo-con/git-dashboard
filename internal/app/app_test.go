@@ -243,6 +243,33 @@ func TestStateTokens(t *testing.T) {
 	}
 }
 
+func TestValidateFilter(t *testing.T) {
+	for _, text := range []string{"", "api is:dirty", "family:Work is:stale", "is:marked"} {
+		if err := ValidateFilter(text, true); err != nil {
+			t.Errorf("%q: %v", text, err)
+		}
+	}
+	for _, text := range []string{"is:dirt", "family:", "api family: is:dirty"} {
+		if err := ValidateFilter(text, true); err == nil {
+			t.Errorf("%q must be rejected", text)
+		}
+	}
+	if err := ValidateFilter("is:marked", false); err == nil {
+		t.Error("is:marked must be rejected without marks")
+	}
+}
+
+func TestHealthNames(t *testing.T) {
+	want := "unknown error critical dirty behind ahead attention ok"
+	var got []string
+	for h := HealthUnknown; h <= HealthOK; h++ {
+		got = append(got, h.String())
+	}
+	if strings.Join(got, " ") != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
 func TestFilterAndSort(t *testing.T) {
 	now := time.Now()
 	older := now.Add(-time.Hour)
@@ -281,6 +308,10 @@ func TestFilterAndSort(t *testing.T) {
 		{Filter{Text: "/w/ is:dirty"}, "beta"},
 		{Filter{Text: "is:marked"}, "gamma"},
 		{Filter{Text: "is:clean is:dirty"}, ""},
+		{Filter{Text: "family:work"}, "beta gamma"},
+		{Filter{Text: "family:WORK is:dirty"}, "beta"},
+		{Filter{Text: "family:wor"}, ""},
+		{Filter{Text: "family:"}, ""},
 	}
 	for _, tc := range cases {
 		if got := strings.Join(match(tc.filter), " "); got != tc.want {

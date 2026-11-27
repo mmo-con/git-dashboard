@@ -28,7 +28,7 @@ var Bindings = []BindingGroup{
 		{"[ / ]", "tree: previous / next family"},
 	}},
 	{Title: "View", Bindings: []Binding{
-		{"/", "text filter, e.g. is:dirty"},
+		{"/", "text filter, e.g. is:dirty family:work"},
 		{"1 … 8", "quick filter (see header)"},
 		{"Esc", "clear filter / close dialog"},
 		{"Tab / S-Tab", "next / previous family"},
