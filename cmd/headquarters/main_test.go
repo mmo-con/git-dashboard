@@ -381,7 +381,7 @@ func TestStatusReportsEveryRepository(t *testing.T) {
 		"branch": "main", "head": "attached", "operation": "none",
 		"counts.modified": 0.0, "counts.untracked": 0.0, "counts.stashed": 0.0,
 		"upstream.name": "origin/main", "upstream.ahead": 0.0, "upstream.behind": 0.0,
-		"remote.name": "origin", "last_commit.subject": "initial commit",
+		"remote.name": "origin", "last_commit.subject": "initial commit", "last_commit.author": "Test",
 		"last_fetch": nil, "attention_branches": 0.0, "fetch": nil, "error": nil,
 		// never fetched
 		"health": "attention",

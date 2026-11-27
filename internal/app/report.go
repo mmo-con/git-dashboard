@@ -93,6 +93,7 @@ type RemoteReport struct {
 type CommitReport struct {
 	Hash      string    `json:"hash"`
 	ShortHash string    `json:"short_hash"`
+	Author    string    `json:"author"`
 	Subject   string    `json:"subject"`
 	Time      time.Time `json:"time"`
 }
@@ -193,7 +194,7 @@ func repositoryReport(s *Status, r *domain.Repository) RepositoryReport {
 	}
 	if r.LastCommit.Valid && r.LastCommit.Value != nil {
 		c := r.LastCommit.Value
-		rr.LastCommit = &CommitReport{Hash: c.ID, ShortHash: c.ShortID, Subject: clean(c.Subject), Time: c.Time.UTC()}
+		rr.LastCommit = &CommitReport{Hash: c.ID, ShortHash: c.ShortID, Author: clean(c.Author), Subject: clean(c.Subject), Time: c.Time.UTC()}
 	}
 	var errs []string
 	for _, err := range []error{r.EntryError, r.Inspected.Err} {
