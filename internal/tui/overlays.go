@@ -9,6 +9,7 @@ import (
 	"github.com/mattn/go-runewidth"
 
 	"github.com/mmo-con/headquarters/internal/app"
+	"github.com/mmo-con/headquarters/internal/config"
 	"github.com/mmo-con/headquarters/internal/domain"
 )
 
@@ -181,10 +182,12 @@ func (m *Model) viewError(iw, rows int) (string, []string) {
 func (m *Model) viewSort(iw, rows int) (string, []string) {
 	var body []string
 	for i, k := range app.SortKeys {
-		text := "  " + k.String()
+		mark := " "
 		if k == m.sortKey {
-			text = m.icons.clean + " " + k.String()
+			mark = m.icons.clean
 		}
+		// The first letter of the configuration name selects the order.
+		text := mark + " " + config.SortOrders[i][:1] + "  " + k.String()
 		body = append(body, m.selectable(text, i == m.overlayIdx, iw, m.theme.plain))
 	}
 	return "Sort by", body

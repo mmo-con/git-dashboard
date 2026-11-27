@@ -163,7 +163,9 @@ func (m *Model) footerLine() string {
 		left = " " + m.hints("Enter/y", "fetch and update", "j/k", "move", "Esc/n", "cancel")
 	case modeConfirmQuit:
 		left = " " + m.hints("Enter/y", "quit", "Esc/n", "keep running")
-	case modeSort, modeLaunchers, modeCopy:
+	case modeSort:
+		left = " " + m.hints("j/k", "move", "Enter", "choose", "n…h", "sort at once", "Esc", "close")
+	case modeLaunchers, modeCopy:
 		left = " " + m.hints("j/k", "move", "Enter", "choose", "Esc", "close")
 	case modeError:
 		left = " " + m.hints("t", "fetch in terminal", "Esc", "close")

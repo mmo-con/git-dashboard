@@ -1415,6 +1415,26 @@ func TestConfiguredViewAndTreeMarkers(t *testing.T) {
 	}
 }
 
+func TestSortOverlayKeys(t *testing.T) {
+	m := newModel(t)
+	keys(m, "s", "h")
+	if m.mode != modeNormal || m.sortKey != app.SortHealth {
+		t.Fatalf("h must sort by health at once: mode %v, sort %s", m.mode, m.sortKey)
+	}
+	keys(m, "s", "n")
+	if m.mode != modeNormal || m.sortKey != app.SortName {
+		t.Fatalf("n must sort by name at once: mode %v, sort %s", m.mode, m.sortKey)
+	}
+	keys(m, "s", "k")
+	if m.overlayIdx != len(app.SortKeys)-1 {
+		t.Fatalf("k on the first entry must wrap to the last, got %d", m.overlayIdx)
+	}
+	keys(m, "j")
+	if m.overlayIdx != 0 {
+		t.Fatalf("j on the last entry must wrap to the first, got %d", m.overlayIdx)
+	}
+}
+
 func TestConfiguredSort(t *testing.T) {
 	repos := func() []domain.Repository {
 		return []domain.Repository{repo("api", "Work", false), repo("dotfiles", "Personal", false)}

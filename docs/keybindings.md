@@ -25,12 +25,12 @@ cursor moves within the current view before the list scrolls again.
 |---|---|
 | `/` | text filter |
 | `1` … `8` | quick filter: dirty, behind, ahead, diverged, errors, other branches, stashed, stale fetch; press again to clear |
-| `Esc` | clear the text filter or close the current overlay |
+| `Esc` | clear the text filter or close the current overlay; in overlays with a list, `j` / `k` wrap around at the ends |
 | `Tab` / `Shift+Tab` | next / previous family |
 | `t` | search and choose a family |
 | `v` | switch between the flat list and the family tree |
 | `z` | in the tree: collapse all families if any is expanded, otherwise expand all |
-| `s` | choose sorting: name, family, latest commit, worktree state, upstream state, or health; name and path break ties |
+| `s` | choose sorting: name, family, latest commit, worktree state, upstream state, or health; name and path break ties. In the menu, `n`, `f`, `c`, `w`, `u`, or `h` sorts at once |
 | `r` | refresh visible repository state |
 | `R` | reload configuration, rebuild inventory, refresh all; a new Git executable, parallelism limits, lazygit, and launchers take effect at once. When started with a path, the same path is scanned again |
 | `e` | show error details and warnings |
