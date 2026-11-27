@@ -32,8 +32,13 @@ func main() {
 // run executes the command line and returns the exit status: 0 on success,
 // 1 on runtime errors, and 2 on usage or configuration errors.
 func run(args []string, stdout, stderr io.Writer, getenv func(string) string) int {
-	if len(args) > 0 && args[0] == "init" {
-		return runInit(args[1:], stdout, stderr, getenv)
+	if len(args) > 0 {
+		switch args[0] {
+		case "init":
+			return runInit(args[1:], stdout, stderr, getenv)
+		case "status":
+			return runStatus(args[1:], stdout, stderr, getenv)
+		}
 	}
 	flags := flag.NewFlagSet("headquarters", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -42,8 +47,10 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 	checkConfig := flags.Bool("check", false, "validate the configuration, print the inventory, and exit")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: headquarters [options] [path]")
+		fmt.Fprintln(stderr, "       headquarters status [options] [path]")
 		fmt.Fprintln(stderr, "       headquarters init [options] directory...")
 		fmt.Fprintln(stderr, "\nWith a path, the repositories below it replace the configured ones.")
+		fmt.Fprintln(stderr, "status prints the repository status as JSON; see headquarters status -h.")
 		fmt.Fprintln(stderr, "init prints a starting configuration; see headquarters init -h.")
 		fmt.Fprintln(stderr, "\noptions:")
 		flags.PrintDefaults()
@@ -60,8 +67,8 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		return 0
 	}
 
-	if flags.Arg(0) == "init" {
-		fmt.Fprintln(stderr, "headquarters: init must be the first argument; use ./init for a directory named init")
+	if a := flags.Arg(0); a == "init" || a == "status" {
+		fmt.Fprintf(stderr, "headquarters: %s must be the first argument; use ./%s for a directory named %s\n", a, a, a)
 		return 2
 	}
 	scanRoot, err := scanRootArg(flags.Args())
@@ -70,28 +77,11 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		return 2
 	}
 
-	path, err := config.Locate(*configFlag, getenv)
-	if err != nil {
-		fmt.Fprintln(stderr, "headquarters:", err)
-		return 2
+	a, code := openApp(*configFlag, scanRoot, stderr, getenv)
+	if a == nil {
+		return code
 	}
-	cfg, err := config.Load(path, getenv)
-	if err != nil {
-		fmt.Fprintln(stderr, "headquarters: invalid configuration:", err)
-		return 2
-	}
-
-	client, _, err := git.Open(context.Background(), cfg.Git.Executable)
-	if err != nil {
-		fmt.Fprintln(stderr, "headquarters:", err)
-		return 1
-	}
-
-	a := app.New(path, cfg, client)
 	defer a.Close()
-	if scanRoot != "" {
-		a.SetScanRoot(scanRoot)
-	}
 
 	if *checkConfig {
 		return check(a, stdout)
@@ -110,6 +100,31 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) in
 		return 1
 	}
 	return 0
+}
+
+// openApp loads the configuration and opens Git. On failure it reports the
+// error and returns nil with the exit status.
+func openApp(configFlag, scanRoot string, stderr io.Writer, getenv func(string) string) (*app.Application, int) {
+	path, err := config.Locate(configFlag, getenv)
+	if err != nil {
+		fmt.Fprintln(stderr, "headquarters:", err)
+		return nil, 2
+	}
+	cfg, err := config.Load(path, getenv)
+	if err != nil {
+		fmt.Fprintln(stderr, "headquarters: invalid configuration:", err)
+		return nil, 2
+	}
+	client, _, err := git.Open(context.Background(), cfg.Git.Executable)
+	if err != nil {
+		fmt.Fprintln(stderr, "headquarters:", err)
+		return nil, 1
+	}
+	a := app.New(path, cfg, client)
+	if scanRoot != "" {
+		a.SetScanRoot(scanRoot)
+	}
+	return a, 0
 }
 
 // check prints the resolved inventory without starting the TUI.
