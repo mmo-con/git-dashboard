@@ -197,6 +197,14 @@ Ages are a number of days such as `"30d"`, a Go duration such as `"36h"`, or
 
 lazygit starts in the worktree root of the selected repository.
 
+Any terminal Git client that works on the repository in its current
+directory can take lazygit's place, for example gitui or tig:
+
+```toml
+[lazygit]
+command = "gitui"
+```
+
 ## `[ui]`
 
 | Key | Type | Default | Description |

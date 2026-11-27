@@ -15,6 +15,9 @@ individual repository. headquarters does not implement a Git user interface,
 create commits, resolve conflicts, implement Git protocols or credentials,
 embed or fork lazygit, or run arbitrary commands across repositories.
 Cloning and detailed single-repository work remain with other tools.
+lazygit is the default; headquarters starts it only as an external process
+in the worktree root, so another terminal Git client such as gitui or tig
+can be configured in its place.
 
 Use Go, Bubble Tea, and Lip Gloss. Use TOML for configuration, with unknown
 fields rejected. Configuration syntax and precedence are specified in
