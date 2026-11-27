@@ -82,7 +82,9 @@ reports an error; the terminal clipboard (OSC 52) is not used.
 A fetch starts at once. An update asks for confirmation first.
 
 The view at startup is set with `[ui].view` in the configuration, the sort
-order with `[ui].sort`. In the
+order with `[ui].sort`. When the first inventory is loaded and inspected,
+the status line shows once how long it took, unless it shows a configuration
+warning. In the
 tree, families are listed alphabetically, with the current sort order
 applied within each family. Filters still apply. Families start collapsed and
 retain their expansion state when you switch between views. While a text or
