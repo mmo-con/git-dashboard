@@ -179,7 +179,8 @@ func (d *driver) submit(h func(jobs.Event)) func([]jobs.Job) uint64 {
 	return func(js []jobs.Job) uint64 {
 		id := d.scheduler.Submit(js)
 		d.routes[id] = h
-		// The batch may have started after CancelAll ran.
+		// The context may be cancelled before AfterFunc has run CancelAll,
+		// which cancels later batches itself.
 		if d.ctx.Err() != nil {
 			d.scheduler.Cancel(id)
 		}
