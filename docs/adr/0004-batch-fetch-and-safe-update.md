@@ -1,7 +1,8 @@
 # ADR 0004: Batch fetch and safe update
 
-Status: Accepted, amended by [ADR 0011](0011-families-in-the-tree.md) and
-[ADR 0015](0015-showing-incoming-commits.md)
+Status: Accepted, amended by [ADR 0011](0011-families-in-the-tree.md),
+[ADR 0015](0015-showing-incoming-commits.md), and
+[ADR 0018](0018-deleting-merged-branches.md)
 
 ## Context
 
@@ -84,7 +85,8 @@ another worktree of the store.
 Only `refs/heads` are considered. A merged branch without upstream remains
 reported until it exceeds `max_age`; detecting merged branches needs another
 process or Git 2.41. Base-branch comparisons and remote-only branches are out
-of scope. Fast-forwarding a non-checked-out branch would be a separate,
+of scope for this report; deleting merged branches compares with the
+default branch on demand ([ADR 0018](0018-deleting-merged-branches.md)). Fast-forwarding a non-checked-out branch would be a separate,
 opt-in operation with its own preview, never part of `u`.
 
 ## Consequences
