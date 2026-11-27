@@ -231,6 +231,7 @@ field is renamed, removed, or changes its meaning:
       "remote": { "name": "origin", "url": "git@github.com:mmo-con/headquarters.git" },
       "last_fetch": "2026-11-23T08:12:00Z",
       "last_commit": { "hash": "abc1234…", "short_hash": "abc1234",
+                       "author": "Jane Doe",
                        "subject": "tui: group the operations view by status",
                        "time": "2026-11-22T20:41:00Z" },
       "fetch": null,
