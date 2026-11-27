@@ -20,7 +20,9 @@ headquarters is a terminal application for managing a curated collection of
 local Git repositories. It shows a cross-repository overview, groups
 repositories into families, runs safe batch operations such as fetch and
 fast-forward updates, and hands all detailed work within one repository over
-to [lazygit](https://github.com/jesseduffield/lazygit).
+to [lazygit](https://github.com/jesseduffield/lazygit) or another terminal
+Git client, such as [gitui](https://github.com/gitui-org/gitui) or
+[tig](https://github.com/jonas/tig).
 
 > headquarters manages the repository collection. lazygit manages the
 > individual repository.
@@ -72,8 +74,9 @@ The architecture and the decisions behind it are documented in
 - Families as a filter or as a collapsible tree, text, family, and state
   filters (`family:work`, `is:dirty`, `is:behind`, …), and sorting, also by
   health with the most urgent repositories on top.
-- `Enter` opens the selected repository in lazygit; the dashboard refreshes
-  the repository afterward.
+- `Enter` opens the selected repository in lazygit, or in the terminal Git
+  client configured in `[lazygit]`; the dashboard refreshes the repository
+  afterward.
 - Concurrent fetch of the selected or visible repositories with progress,
   cancellation, retry, and an interactive retry in the terminal for
   repositories that need a passphrase.
@@ -105,7 +108,7 @@ write into the user interface.
 
 - Linux or macOS
 - Git 2.34 or newer
-- lazygit (optional, for `Enter`)
+- lazygit or another terminal Git client (optional, for `Enter`)
 - `pbcopy` on macOS, or `wl-copy`, `xclip`, or `xsel` on Linux (optional,
   for copying to the clipboard with `y`)
 - Go 1.26 or newer to build from source

@@ -100,6 +100,8 @@ selected_accent = "cyan"
 header_background = "24"
 header_foreground = "bright-white"
 
+# Enter starts this terminal Git client in the worktree root; another client
+# such as "gitui" or "tig" works as well.
 [lazygit]
 command = "lazygit"
 args = []
