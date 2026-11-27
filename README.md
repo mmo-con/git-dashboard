@@ -143,8 +143,12 @@ remove the quarantine attribute with
 
 ```sh
 make build            # builds ./bin/headquarters
-make install          # installs into $(go env GOPATH)/bin
+make install          # installs into ~/.local/bin, like the installer
 ```
+
+`make install PREFIX=/usr/local` installs into `/usr/local/bin`; `BINDIR`
+sets the directory directly, and `DESTDIR` stages the installation for
+packaging.
 
 ## Usage
 

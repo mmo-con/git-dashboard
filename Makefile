@@ -2,6 +2,9 @@ BINARY  := headquarters
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+# make install uses the same directory as the release installer by default.
+PREFIX ?= $(HOME)/.local
+BINDIR ?= $(PREFIX)/bin
 # Coverage counts code exercised by the tests of any package, except the test
 # helpers themselves.
 COVERPKG = $(shell go list ./... | grep -v /internal/testutil | paste -sd, -)
@@ -14,8 +17,9 @@ GOVULNCHECK_VERSION ?= latest
 build:
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) ./cmd/headquarters
 
-install:
-	go install -trimpath -ldflags '$(LDFLAGS)' ./cmd/headquarters
+install: build
+	install -d '$(DESTDIR)$(BINDIR)'
+	install -m 755 bin/$(BINARY) '$(DESTDIR)$(BINDIR)/$(BINARY)'
 
 test:
 	go test ./...
