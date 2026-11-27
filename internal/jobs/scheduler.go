@@ -50,8 +50,12 @@ type Scheduler struct {
 	nextID  atomic.Uint64
 	mu      sync.Mutex
 	batches map[uint64]context.CancelFunc
-	wg      sync.WaitGroup
-	clock   func() time.Time
+	// closed is set by CancelAll; later batches are cancelled at once. wg
+	// is added to only while mu is held and closed is false, so Add never
+	// runs concurrently with the Wait of CancelAll.
+	closed bool
+	wg     sync.WaitGroup
+	clock  func() time.Time
 }
 
 // NewScheduler creates a scheduler with the given limits per kind.
@@ -94,19 +98,29 @@ func (s *Scheduler) pool(k Kind) chan struct{} {
 }
 
 // Submit starts a batch and returns its ID. Events for every job are pushed
-// to Events: queued, running, and a final status.
+// to Events: queued, running, and a final status. After CancelAll, every job
+// is reported as cancelled without running.
 func (s *Scheduler) Submit(jobs []Job) uint64 {
 	id := s.nextID.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		cancel()
+		for i, j := range jobs {
+			s.emit(id, i, j, domain.StatusQueued, time.Time{}, nil, nil)
+			s.emit(id, i, j, domain.StatusCancelled, time.Time{}, context.Canceled, nil)
+		}
+		return id
+	}
 	s.batches[id] = cancel
+	s.wg.Add(len(jobs))
 	s.mu.Unlock()
 
 	var batchWG sync.WaitGroup
 	for i, j := range jobs {
 		s.emit(id, i, j, domain.StatusQueued, time.Time{}, nil, nil)
 		batchWG.Add(1)
-		s.wg.Add(1)
 		go func(i int, j Job) {
 			defer s.wg.Done()
 			defer batchWG.Done()
@@ -134,9 +148,11 @@ func (s *Scheduler) Cancel(batchID uint64) {
 	}
 }
 
-// CancelAll cancels every batch and waits for all jobs to finish.
+// CancelAll cancels every batch, cancels batches submitted afterward at
+// once, and waits for all jobs to finish.
 func (s *Scheduler) CancelAll() {
 	s.mu.Lock()
+	s.closed = true
 	for _, c := range s.batches {
 		c()
 	}

@@ -196,3 +196,39 @@ func TestQueueNeverBlocksProducers(t *testing.T) {
 		t.Fatal("Next must return nil after Close")
 	}
 }
+
+func TestSubmitAfterCancelAllCancelsWithoutRunning(t *testing.T) {
+	s := NewScheduler(map[Kind]int{KindInspect: 1})
+	s.CancelAll()
+	var ran atomic.Bool
+	s.Submit([]Job{{Kind: KindInspect, Run: func(context.Context) (any, error) {
+		ran.Store(true)
+		return nil, nil
+	}}})
+	ev := collect(t, s, 1)
+	if ev[0].Result.Status != domain.StatusCancelled || ran.Load() {
+		t.Fatalf("status = %s, ran = %v", ev[0].Result.Status, ran.Load())
+	}
+}
+
+// TestSubmitConcurrentWithCancelAll runs Submit while CancelAll waits for the
+// jobs; the race detector reports a WaitGroup that is added to during Wait.
+func TestSubmitConcurrentWithCancelAll(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		s := NewScheduler(map[Kind]int{KindInspect: 2})
+		done := make(chan struct{})
+		go func() {
+			s.CancelAll()
+			close(done)
+		}()
+		s.Submit([]Job{{Kind: KindInspect, Run: func(ctx context.Context) (any, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}}})
+		<-done
+		s.CancelAll()
+		if ev := collect(t, s, 1); ev[0].Result.Status != domain.StatusCancelled {
+			t.Fatalf("status = %s", ev[0].Result.Status)
+		}
+	}
+}
