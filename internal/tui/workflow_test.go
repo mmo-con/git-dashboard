@@ -400,6 +400,9 @@ func TestIncomingCommitsWithRealRepositories(t *testing.T) {
 	if strings.Contains(s, "upstream 2") || strings.Contains(s, "unfetched") {
 		t.Fatalf("the list must be truncated and contain only fetched commits:\n%s", s)
 	}
+	if v := ansi.Strip(strings.Join(m.detailLines(m.current(), 100).fit(100), "\n")); strings.Index(v, "── INCOMING COMMITS") > strings.Index(v, "── RECENT COMMITS") {
+		t.Fatalf("incoming commits must come before the recent commits:\n%s", v)
+	}
 	if modTime(t, fetchHead) != fetchedAt || tu.Git(t, behind, "rev-parse", "origin/main") != tracking {
 		t.Fatal("loading incoming commits must not fetch")
 	}

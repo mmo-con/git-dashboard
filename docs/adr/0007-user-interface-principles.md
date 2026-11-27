@@ -1,6 +1,7 @@
 # ADR 0007: User interface principles
 
 Status: Accepted, amended by [ADR 0013](0013-calmer-table-and-detail-panel.md)
+and [ADR 0017](0017-detail-panel-order-and-commit-lines.md)
 
 ## Context
 
@@ -52,7 +53,7 @@ has its own color, distinct from ahead.
   time of day and then day rather than truncating. Fetch and branch ages
   remain relative. [ADR 0013](0013-calmer-table-and-detail-panel.md)
   replaces the table's commit time with a relative age; the detail panel
-  keeps the absolute time.
+  keeps the absolute time. [ADR 0017](0017-detail-panel-order-and-commit-lines.md) uses the age in the detail panel too.
 - Column widths use all visible rows, avoiding shifts while scrolling. State
   reserves room for transient states and shrinks last. Count titles become
   symbols if full titles do not fit.

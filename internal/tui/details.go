@@ -210,8 +210,9 @@ func (m *Model) label(s string) seg {
 
 // detailLines builds the detail panel for a content width of width cells.
 // The status of the branch and the worktree and errors come first, so they
-// stay visible when the panel is cut off at the bottom; the static location
-// of the repository comes last.
+// stay visible when the panel is cut off at the bottom, followed by incoming
+// and recent commits and other branches; the static location, remotes, and
+// linked worktrees of the repository come last.
 func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	t := m.theme
 	now := m.now()
@@ -244,6 +245,10 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 				d.text(s...)
 			}
 		}
+		if r.RemoteMismatch() {
+			d.text(m.label("remote"), seg{m.icons.mismatch + " expected " + remoteName(r.ExpectedRemote) + ": " +
+				domain.RedactURL(r.ExpectedRemote.URL), t.warn})
+		}
 	}
 
 	if e := m.firstError(r); e != "" {
@@ -253,74 +258,43 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 	}
 
 	if inspected {
-		if bs := m.otherBranchLines(r); len(bs) > 0 {
-			d.section("other branches", t.title)
-			for _, l := range bs {
-				d.add(l, detailBranch)
-			}
-		}
-
-		if r.LastCommit.Valid {
-			n := m.historyCount()
-			title := "last commit"
-			if n > 1 {
-				title = "recent commits"
-			}
-			d.section(title, t.title)
-			commitLine := func(c domain.CommitSummary) string {
-				return line(seg{c.ShortID + "  " + commitTime(now, c.Time) + "  ", t.dim}, seg{c.Subject, t.plain})
-			}
-			if c := r.LastCommit.Value; c == nil {
-				d.text(seg{"no commits yet", t.dim})
-			} else if e, ok := m.recentCommits(r); ok && e.err == nil && len(e.commits) > 0 {
-				d.add(commitLine(e.commits[0]), detailText)
-				for _, older := range e.commits[1:] {
-					d.add(commitLine(older), detailOlderCommit)
-				}
-			} else {
-				d.add(commitLine(*c), detailText)
-				if ok && e.err != nil {
-					d.add(line(seg{"older commits unavailable: " + firstLine(e.err.Error()), t.dim}), detailOlderCommit)
-				}
-			}
-		}
-
 		if rng, ok := app.IncomingOf(r); ok && rng.Behind > 0 && m.incomingCount() > 0 {
 			d.section("incoming commits", t.title)
 			if status, commits := m.incomingStatus(r.ID, rng); status != "" {
 				d.add(status, detailText)
 			} else {
 				for _, c := range commits {
-					d.add(m.incomingCommitLine(now, c), detailIncoming)
+					d.add(m.commitLine(now, c), detailIncoming)
 				}
 				d.incomingOmitted = max(rng.Behind-len(commits), 0)
 			}
 		}
 
-		if r.Remotes.Valid {
-			d.section("remotes", t.title)
-			// Remote names take the label column, unless one is longer.
-			nameWidth := detailLabelWidth - 2
-			for _, rem := range r.Remotes.Value {
-				nameWidth = max(nameWidth, runewidth.StringWidth(domain.Printable(rem.Name)))
+		if r.LastCommit.Valid {
+			title := "last commit"
+			if m.historyCount() > 1 {
+				title = "recent commits"
 			}
-			for _, rem := range r.Remotes.Value {
-				name := runewidth.FillRight(domain.Printable(rem.Name), nameWidth)
-				d.text(seg{name + "  ", t.bold}, seg{domain.RedactURL(rem.URL), t.dim})
-			}
-			if len(r.Remotes.Value) == 0 {
-				d.text(seg{"no remotes", t.dim})
-			}
-			if r.RemoteMismatch() {
-				d.text(seg{m.icons.mismatch + " expected " + remoteName(r.ExpectedRemote) + ": " +
-					domain.RedactURL(r.ExpectedRemote.URL), t.warn})
+			d.section(title, t.title)
+			if c := r.LastCommit.Value; c == nil {
+				d.text(seg{"no commits yet", t.dim})
+			} else if e, ok := m.recentCommits(r); ok && e.err == nil && len(e.commits) > 0 {
+				d.add(m.commitLine(now, e.commits[0]), detailText)
+				for _, older := range e.commits[1:] {
+					d.add(m.commitLine(now, older), detailOlderCommit)
+				}
+			} else {
+				d.add(m.commitLine(now, *c), detailText)
+				if ok && e.err != nil {
+					d.add(line(seg{"older commits unavailable: " + firstLine(e.err.Error()), t.dim}), detailOlderCommit)
+				}
 			}
 		}
 
-		if siblings := m.worktreeSiblings(r); len(siblings) > 0 {
-			d.section("linked worktrees", t.title)
-			for _, p := range siblings {
-				d.text(seg{shortenHome(p), t.dim})
+		if bs := m.otherBranchLines(r); len(bs) > 0 {
+			d.section("other branches", t.title)
+			for _, l := range bs {
+				d.add(l, detailBranch)
 			}
 		}
 	}
@@ -332,6 +306,29 @@ func (m *Model) detailLines(r *domain.Repository, width int) *details {
 		d.text(m.label("workspace"), seg{shortenHome(r.Workspace), t.dim})
 	}
 	d.text(m.label("source"), seg{sourceLabel(r), t.dim})
+	if inspected && r.Remotes.Valid {
+		// Remote names take the label column, unless one is longer.
+		nameWidth := detailLabelWidth - 2
+		for _, rem := range r.Remotes.Value {
+			nameWidth = max(nameWidth, runewidth.StringWidth(domain.Printable(rem.Name)))
+		}
+		for _, rem := range r.Remotes.Value {
+			name := runewidth.FillRight(domain.Printable(rem.Name), nameWidth)
+			d.text(seg{name + "  ", t.bold}, seg{domain.RedactURL(rem.URL), t.dim})
+		}
+		if len(r.Remotes.Value) == 0 {
+			d.text(m.label("remotes"), seg{"none", t.dim})
+		}
+	}
+	if inspected {
+		for i, p := range m.worktreeSiblings(r) {
+			l := m.label("")
+			if i == 0 {
+				l = m.label("linked")
+			}
+			d.text(l, seg{shortenHome(p), t.dim})
+		}
+	}
 	return d
 }
 

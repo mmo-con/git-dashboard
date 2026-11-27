@@ -1,6 +1,6 @@
 # ADR 0013: Calmer table and detail panel
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0017](0017-detail-panel-order-and-commit-lines.md)
 
 ## Context
 
@@ -35,7 +35,8 @@ The detail panel has labeled lines in titled sections:
   shows it, and failures appear in the error section.
 - Errors, other branches, recent commits, remotes, and linked worktrees
   follow. Remote names take the label column; linked worktree paths are
-  shortened to `~`.
+  shortened to `~`. [ADR 0017](0017-detail-panel-order-and-commit-lines.md) reorders these sections and moves remotes
+  and linked worktrees into **Repository**.
 - **Repository** comes last: the path and workspace with the home directory
   shortened to `~`, the family, and the source (configured or discovered).
   These values do not change while the repository is shown.
@@ -54,6 +55,7 @@ In the table:
   hours up to two days, days up to two months, then months and years, such
   as `15 h` or `21 d`. The detail panel keeps the absolute time. This
   amends the common commit time format of ADR 0007.
+  [ADR 0017](0017-detail-panel-order-and-commit-lines.md) shows the age in the detail panel as well.
 - The State column no longer names divergence; the ahead and behind counts
   in the error color and the critical health symbol show it.
 - The Family column is hidden under a family filter, as in the tree.

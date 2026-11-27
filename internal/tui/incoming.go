@@ -11,8 +11,12 @@ import (
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
-// incomingAuthorWidth aligns the subjects of incoming commits.
-const incomingAuthorWidth = 12
+// Widths of the age and author columns of commit lines; "59 min" is the
+// longest age.
+const (
+	commitAgeWidth    = 6
+	commitAuthorWidth = 12
+)
 
 // incomingCount returns the configured number of listed incoming commits.
 func (m *Model) incomingCount() int { return m.app.Config.UI.IncomingCommits }
@@ -137,12 +141,13 @@ func (m *Model) cachedIncoming(id domain.RepositoryID, rng app.IncomingRange) (i
 	return e, true
 }
 
-// incomingCommitLine renders an incoming commit: hash, time, author, and
-// subject.
-func (m *Model) incomingCommitLine(now time.Time, c domain.CommitSummary) string {
+// commitLine renders a recent or incoming commit: hash, age, author, and
+// subject. Ages are right-aligned, so the authors line up.
+func (m *Model) commitLine(now time.Time, c domain.CommitSummary) string {
 	t := m.theme
-	author := runewidth.FillRight(runewidth.Truncate(domain.Printable(c.Author), incomingAuthorWidth, "…"), incomingAuthorWidth)
-	return line(seg{c.ShortID + "  " + commitTime(now, c.Time) + "  " + author + "  ", t.dim}, seg{c.Subject, t.plain})
+	age := runewidth.FillLeft(commitAge(now, c.Time), commitAgeWidth)
+	author := runewidth.FillRight(runewidth.Truncate(domain.Printable(c.Author), commitAuthorWidth, "…"), commitAuthorWidth)
+	return line(seg{c.ShortID + "  " + age + "  " + author + "  ", t.dim}, seg{c.Subject, t.plain})
 }
 
 // incomingMore renders the line that stands for n commits that are not
@@ -184,7 +189,7 @@ func (m *Model) incomingLines(now time.Time, id domain.RepositoryID, rng app.Inc
 	}
 	var out []string
 	for _, c := range commits[:shown] {
-		out = append(out, m.incomingCommitLine(now, c))
+		out = append(out, m.commitLine(now, c))
 	}
 	if more := rng.Behind - shown; more > 0 {
 		out = append(out, m.incomingMore(more))
