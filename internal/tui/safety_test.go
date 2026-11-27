@@ -94,8 +94,15 @@ func TestReloadWithUnusableGitKeepsConfiguration(t *testing.T) {
 func TestInspectionsOfEarlierInventoryAreIgnored(t *testing.T) {
 	m := newModel(t)
 	id := m.repos[0].ID
-	m.inspecting[42] = 3 // still running for the previous inventory
-	m.routes[42] = m.applyInspection
+	// An inspection batch that is still running for the previous inventory;
+	// its jobs never run.
+	m.inspections = app.NewInspections(m.app, func([]jobs.Job) uint64 {
+		m.routes[42] = m.applyInspection
+		return 42
+	})
+	old := m.repos[0]
+	old.Availability = domain.Available
+	m.inspections.Start([]domain.Repository{old})
 	m.Update(inventoryMsg{result: inventory.Result{Repositories: []domain.Repository{repo("api", "Work", false)}}})
 	if m.pendingInspect() != 0 {
 		t.Fatalf("pending inspections of the old inventory must be forgotten: %d", m.pendingInspect())
