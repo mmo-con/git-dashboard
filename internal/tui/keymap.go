@@ -44,8 +44,7 @@ var Bindings = []BindingGroup{
 		{"q / Ctrl+C", "quit (asks while a batch runs)"},
 	}},
 	{Title: "Repository", Bindings: []Binding{
-		{"Enter", "open in lazygit"},
-		{"Enter", "expand or collapse a family row in the tree"},
+		{"Enter", "open in lazygit; tree: toggle family"},
 		{"o", "launcher menu"},
 		{"y", "copy path, branch, remote or web URL"},
 	}},
@@ -56,8 +55,8 @@ var Bindings = []BindingGroup{
 		{"F", "fetch visible repositories"},
 		{"u", "update marked, else row/family"},
 		{"U", "update visible repositories"},
-		{"d", "delete merged branches: marked, else row/family"},
-		{"D", "delete merged branches of visible repositories"},
+		{"d", "delete merged: marked, else row/family"},
+		{"D", "delete merged of visible repositories"},
 	}},
 	{Title: "Update confirmation", Right: true, Bindings: []Binding{
 		{"Enter / y", "fetch, then update"},
