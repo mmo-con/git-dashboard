@@ -463,3 +463,12 @@ func TestStatusDriverCancelsBatchesStartedAfterCancellation(t *testing.T) {
 		t.Fatalf("status = %s, want cancelled", status)
 	}
 }
+
+func TestBranchReportSanitizesNames(t *testing.T) {
+	// Git refuses control characters in branch names, so the names are
+	// constructed here; the report must not print them either way.
+	b := branchReport(domain.BranchState{Name: "evil\x1b[2J", Upstream: "origin/\x07x", Behind: 1, CommitTime: time.Now()})
+	if b.Name != "evil�[2J" || b.Upstream == nil || *b.Upstream != "origin/�x" {
+		t.Errorf("name=%q upstream=%v", b.Name, b.Upstream)
+	}
+}

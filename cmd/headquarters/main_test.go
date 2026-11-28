@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
@@ -406,7 +407,7 @@ func TestStatusNeverReportsUnknownStateAsClean(t *testing.T) {
 	if r["known"] != false || r["health"] != "error" || r["availability"] != "missing" || r["error"] == nil {
 		t.Errorf("missing: %v", r)
 	}
-	for _, k := range []string{"branch", "head", "operation", "counts", "upstream", "last_commit", "attention_branches"} {
+	for _, k := range []string{"branch", "head", "operation", "counts", "upstream", "last_commit", "attention_branches", "branches"} {
 		if v, ok := r[k]; !ok || v != nil {
 			t.Errorf("missing.%s = %#v, want null", k, v)
 		}
@@ -450,6 +451,9 @@ func TestStatusNDJSON(t *testing.T) {
 		var r map[string]any
 		if err := json.Unmarshal([]byte(line), &r); err != nil || r["schema"] != 1.0 || r["name"] == nil {
 			t.Errorf("line %q: %v %v", line, err, r)
+		}
+		if _, ok := r["branches"]; !ok {
+			t.Errorf("line without branches: %q", line)
 		}
 	}
 	if code, _, _ := runCLI(t, nil, "status", "--config", config, "--json", "--format", "ndjson"); code != 2 {
@@ -519,5 +523,163 @@ func TestStatusSanitizesRepositoryText(t *testing.T) {
 	r := entry(t, doc, "notes")
 	if got := field(r, "remote.url"); got != "https://***@example.com/notes.git" {
 		t.Errorf("remote.url = %v", got)
+	}
+}
+
+// commitAt commits like tu.Commit with a fixed commit time, so that the
+// order of branches by latest commit is deterministic.
+func commitAt(t *testing.T, repo, file, message string, at time.Time) {
+	t.Helper()
+	date := at.Format(time.RFC3339)
+	t.Setenv("GIT_COMMITTER_DATE", date)
+	t.Setenv("GIT_AUTHOR_DATE", date)
+	tu.Commit(t, repo, file, file+"\n", message)
+	os.Unsetenv("GIT_COMMITTER_DATE")
+	os.Unsetenv("GIT_AUTHOR_DATE")
+}
+
+// branchRepo creates a clone on branch work with one other branch per
+// reason, plus branches that are not reported, and returns a configuration
+// for it:
+//
+//	main      pinned, behind origin/main
+//	release   pinned, missing
+//	gone      upstream gone
+//	local     no upstream
+//	div       diverged from origin/d, latest commit two days ago
+//	ahead     ahead of origin/a, latest commit three days ago
+//	wt        checked out in a linked worktree, not reported
+//	tmp/x     ignored, not reported
+func branchRepo(t *testing.T, extra string) (config, repo string) {
+	t.Helper()
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	now := time.Now()
+	upstream := tu.InitRepo(t, filepath.Join(base, "upstream"))
+	for _, b := range []string{"a", "d", "g"} {
+		tu.Git(t, upstream, "branch", b)
+	}
+	repo = filepath.Join(base, "branches")
+	tu.Git(t, "", "clone", "-q", upstream, repo)
+	tu.Git(t, repo, "switch", "-q", "-c", "work")
+	for _, b := range []string{"local", "tmp/x"} {
+		tu.Git(t, repo, "branch", b)
+	}
+	tu.Git(t, repo, "worktree", "add", "-q", "-b", "wt", filepath.Join(base, "wt"))
+	for b, up := range map[string]string{"ahead": "origin/a", "div": "origin/d", "gone": "origin/g"} {
+		tu.Git(t, repo, "branch", "-q", "--track", b, up)
+	}
+	tu.Git(t, repo, "switch", "-q", "ahead")
+	commitAt(t, repo, "ahead", "ahead commit", now.Add(-72*time.Hour))
+	tu.Git(t, repo, "switch", "-q", "div")
+	commitAt(t, repo, "div", "local div commit", now.Add(-48*time.Hour))
+	tu.Git(t, repo, "switch", "-q", "work")
+	tu.Git(t, upstream, "switch", "-q", "d")
+	tu.Commit(t, upstream, "d", "d\n", "upstream d commit")
+	tu.Git(t, upstream, "switch", "-q", "main")
+	tu.Commit(t, upstream, "m", "m\n", "upstream main commit")
+	tu.Git(t, upstream, "branch", "-q", "-D", "g")
+	tu.Git(t, repo, "fetch", "-q", "--prune")
+	config = writeConfig(t, `
+[branches]
+ignore = ["tmp/**"]
+`+extra+`
+
+[[repositories]]
+path = "`+repo+`"
+pinned_branches = ["main", "release"]
+`)
+	return config, repo
+}
+
+func branchEntries(t *testing.T, r map[string]any) []map[string]any {
+	t.Helper()
+	list, ok := r["branches"].([]any)
+	if !ok {
+		t.Fatalf("branches = %#v, want a list", r["branches"])
+	}
+	var out []map[string]any
+	for _, v := range list {
+		out = append(out, v.(map[string]any))
+	}
+	return out
+}
+
+func TestStatusReportsBranchReasons(t *testing.T) {
+	config, _ := branchRepo(t, "")
+	r := entry(t, statusJSON(t, 0, "--config", config), "branches")
+	byName := map[string]map[string]any{}
+	for _, b := range branchEntries(t, r) {
+		byName[b["name"].(string)] = b
+	}
+	for name, want := range map[string]map[string]any{
+		"main":    {"state": "behind", "pinned": true, "upstream": "origin/main", "ahead": 0.0, "behind": 1.0},
+		"release": {"state": "missing", "pinned": true, "upstream": nil, "ahead": nil, "behind": nil, "commit_time": nil},
+		"gone":    {"state": "gone", "pinned": false, "upstream": "origin/g", "ahead": nil, "behind": nil},
+		"local":   {"state": "noupstream", "pinned": false, "upstream": nil, "ahead": nil, "behind": nil},
+		"div":     {"state": "diverged", "pinned": false, "upstream": "origin/d", "ahead": 1.0, "behind": 1.0},
+		"ahead":   {"state": "ahead", "pinned": false, "upstream": "origin/a", "ahead": 1.0, "behind": 0.0},
+	} {
+		b, ok := byName[name]
+		if !ok {
+			t.Errorf("branch %s not reported: %v", name, r["branches"])
+			continue
+		}
+		for k, v := range want {
+			if got, ok := b[k]; !ok || got != v {
+				t.Errorf("%s.%s = %#v, want %#v", name, k, got, v)
+			}
+		}
+		if _, missing := want["commit_time"]; !missing {
+			if ts, _ := b["commit_time"].(string); ts == "" {
+				t.Errorf("%s.commit_time = %#v, want a time", name, b["commit_time"])
+			} else if _, err := time.Parse(time.RFC3339, ts); err != nil {
+				t.Errorf("%s.commit_time: %v", name, err)
+			}
+		}
+	}
+}
+
+func TestStatusBranchesFollowDetailPanelOrder(t *testing.T) {
+	config, _ := branchRepo(t, "")
+	r := entry(t, statusJSON(t, 0, "--config", config), "branches")
+	var got []string
+	for _, b := range branchEntries(t, r) {
+		got = append(got, b["name"].(string))
+	}
+	// Pinned branches in configuration order, then the others by latest
+	// commit, newest first, ties by name.
+	if want := "main release gone local div ahead"; strings.Join(got, " ") != want {
+		t.Errorf("order = %v, want %s", got, want)
+	}
+	if r["attention_branches"] != float64(len(got)) {
+		t.Errorf("attention_branches = %v, but %d branches listed", r["attention_branches"], len(got))
+	}
+}
+
+func TestStatusBranchesExcludeWorktreeAndIgnoredBranches(t *testing.T) {
+	config, _ := branchRepo(t, "")
+	r := entry(t, statusJSON(t, 0, "--config", config), "branches")
+	for _, b := range branchEntries(t, r) {
+		switch b["name"] {
+		case "work", "wt", "tmp/x":
+			t.Errorf("branch %v must not be reported", b["name"])
+		}
+	}
+}
+
+func TestStatusReportsEmptyBranchList(t *testing.T) {
+	config, _, _ := statusRepos(t)
+	r := entry(t, statusJSON(t, 0, "--config", config), "clean")
+	if list, ok := r["branches"].([]any); !ok || len(list) != 0 {
+		t.Errorf("branches = %#v, want []", r["branches"])
+	}
+}
+
+func TestStatusBranchesNullWhenBranchesDisabled(t *testing.T) {
+	config, _ := branchRepo(t, "enabled = false")
+	r := entry(t, statusJSON(t, 0, "--config", config), "branches")
+	if v, ok := r["branches"]; !ok || v != nil {
+		t.Errorf("branches = %#v, want null", v)
 	}
 }
