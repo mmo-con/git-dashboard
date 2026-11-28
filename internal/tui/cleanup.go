@@ -8,7 +8,6 @@ import (
 
 	"github.com/mmo-con/headquarters/internal/app"
 	"github.com/mmo-con/headquarters/internal/domain"
-	"github.com/mmo-con/headquarters/internal/git"
 	"github.com/mmo-con/headquarters/internal/jobs"
 )
 
@@ -78,8 +77,8 @@ func (m *Model) applyCleanupRead(ev jobs.Event, _ map[domain.RepositoryID]bool) 
 	r := p.read[ev.JobID]
 	p.done[ev.JobID] = true
 	p.pending--
-	if st, ok := ev.Payload.(git.BranchCleanup); ok && ev.Result.Error == nil {
-		p.plans[ev.JobID] = app.PlanCleanup(r, st)
+	if plan, ok := ev.Payload.([]app.CleanupCandidate); ok && ev.Result.Error == nil {
+		p.plans[ev.JobID] = plan
 	} else {
 		reason := "reading branches failed"
 		if ev.Result.Error != nil {
