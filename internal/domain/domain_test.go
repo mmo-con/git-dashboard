@@ -13,6 +13,8 @@ func TestPrintable(t *testing.T) {
 		"c1 \u009b31m csi":                  "c1 \uFFFD31m csi",
 		"raw \x9b byte":                     "raw \uFFFD byte",
 		"tab\tand\nnewline\rdel\x7f":        "tab and newline\uFFFDdel\uFFFD",
+		"report\u202Efdp.exe":               "report\uFFFDfdp.exe",
+		"\u2066isolated\u2069 \u200Fmark":   "\uFFFDisolated\uFFFD \uFFFDmark",
 	} {
 		if got := Printable(in); got != want {
 			t.Errorf("Printable(%q) = %q, want %q", in, got, want)
@@ -28,6 +30,8 @@ func TestRedactURL(t *testing.T) {
 		"https://github.com/o/r.git":            "https://github.com/o/r.git",
 		"git@github.com:o/r.git":                "git@github.com:o/r.git",
 		"ssh://git@host/r.git":                  "ssh://git@host/r.git",
+		"ssh://user:secret@host/r.git":          "ssh://***@host/r.git",
+		"ftp://user:secret@host/r.git":          "ftp://***@host/r.git",
 		"/local/path":                           "/local/path",
 	} {
 		if got := RedactURL(in); got != want {
@@ -43,6 +47,7 @@ func TestStripURLUserInfo(t *testing.T) {
 		"https://github.com/o/r.git":            "https://github.com/o/r.git",
 		"git@github.com:o/r.git":                "git@github.com:o/r.git",
 		"ssh://git@host/r.git":                  "ssh://git@host/r.git",
+		"ssh://user:secret@host/r.git":          "ssh://user@host/r.git",
 	} {
 		if got := StripURLUserInfo(in); got != want {
 			t.Errorf("StripURLUserInfo(%q) = %q, want %q", in, got, want)

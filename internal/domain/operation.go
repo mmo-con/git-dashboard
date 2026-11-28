@@ -53,20 +53,26 @@ func NormalizeRemoteURL(u string) string {
 }
 
 // RedactURL removes user information from URLs such as
-// https://user:token@host/path. SSH user names such as git@ are kept.
+// https://user:token@host/path. SSH user names such as git@ are kept, but not
+// a password, for example in ssh://user:password@host/path.
 func RedactURL(u string) string {
-	return replaceUserInfo(u, "***@")
+	return replaceUserInfo(u, true)
 }
 
 // StripURLUserInfo removes user information from HTTP(S) URLs entirely, so
-// the result is still a usable URL. SSH user names such as git@ are kept.
+// the result is still a usable URL. SSH user names such as git@ are kept; a
+// password is removed.
 func StripURLUserInfo(u string) string {
-	return replaceUserInfo(u, "")
+	return replaceUserInfo(u, false)
 }
 
-func replaceUserInfo(u, with string) string {
+// replaceUserInfo replaces the user information of an HTTP(S) URL, and that
+// of another URL with a password, with "***@" if redact is set. Otherwise it
+// removes the user information of an HTTP(S) URL and the password of another
+// URL.
+func replaceUserInfo(u string, redact bool) string {
 	i := strings.Index(u, "://")
-	if i < 0 || !strings.HasPrefix(strings.ToLower(u[:i]), "http") {
+	if i < 0 {
 		return u
 	}
 	rest := u[i+3:]
@@ -78,18 +84,29 @@ func replaceUserInfo(u, with string) string {
 	if at < 0 {
 		return u
 	}
-	return u[:i+3] + with + rest[at+1:]
+	user, _, password := strings.Cut(host[:at], ":")
+	http := strings.HasPrefix(strings.ToLower(u[:i]), "http")
+	switch {
+	case redact && (http || password):
+		return u[:i+3] + "***@" + rest[at+1:]
+	case http:
+		return u[:i+3] + rest[at+1:]
+	case password:
+		return u[:i+3] + user + "@" + rest[at+1:]
+	}
+	return u
 }
 
 // Printable makes text from external sources, such as commit subjects, Git
 // error output, or directory names, safe for display in a terminal. Control
-// characters, which could start escape sequences, and invalid UTF-8 are
+// characters, which could start escape sequences, bidirectional formatting
+// characters, which could reorder the displayed text, and invalid UTF-8 are
 // replaced by U+FFFD; a tab becomes a space, and so does a line break, so the
 // result is always a single line.
 func Printable(s string) string {
 	safe := true
 	for _, r := range s {
-		if r == utf8.RuneError || unicode.IsControl(r) {
+		if r == utf8.RuneError || unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r) {
 			safe = false
 			break
 		}
@@ -101,7 +118,7 @@ func Printable(s string) string {
 		switch {
 		case r == '\t' || r == '\n':
 			return ' '
-		case unicode.IsControl(r):
+		case unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r):
 			return utf8.RuneError
 		}
 		return r
