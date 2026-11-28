@@ -53,12 +53,11 @@ type RepositoryReport struct {
 	// Head is "attached", "detached", or "unborn".
 	Head *string `json:"head"`
 	// Operation is "none" or the operation in progress, such as "merging".
-	Operation         *string         `json:"operation"`
-	Counts            *CountsReport   `json:"counts"`
-	Upstream          *UpstreamReport `json:"upstream"`
-	AttentionBranches *int            `json:"attention_branches"`
-	// Branches lists the branches that AttentionBranches counts, in the
-	// order of the detail panel; null exactly when AttentionBranches is.
+	Operation *string         `json:"operation"`
+	Counts    *CountsReport   `json:"counts"`
+	Upstream  *UpstreamReport `json:"upstream"`
+	// Branches lists the other local branches that need attention, in the
+	// order of the detail panel; null if their state is unknown or not read.
 	Branches   []BranchReport `json:"branches"`
 	Remote     *RemoteReport  `json:"remote"`
 	LastFetch  *time.Time     `json:"last_fetch"`
@@ -217,7 +216,6 @@ func repositoryReport(s *Status, r *domain.Repository) RepositoryReport {
 		rr.Upstream = ur
 	}
 	if r.Branches.Valid {
-		rr.AttentionBranches = ptr(len(r.Branches.Value))
 		rr.Branches = make([]BranchReport, 0, len(r.Branches.Value))
 		for _, b := range r.Branches.Value {
 			rr.Branches = append(rr.Branches, branchReport(b))
