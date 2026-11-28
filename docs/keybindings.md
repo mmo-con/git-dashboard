@@ -158,6 +158,7 @@ with the reason:
 | `pinned` | a pinned branch of `[branches]` or of any entry of the repository store |
 | `upstream gone, changes not in …` | merging it would still change the default branch, for example after a squash merge whose lines were changed again; check it in lazygit |
 | `upstream gone; squash check needs Git 2.38` | not merged by ancestry; detecting squash and rebase merges needs Git 2.38 |
+| `rebase in progress; finish it first`, `bisect in progress; finish it first` | upstream gone and deleted without `git branch -d`, while a rebase or bisect runs in a worktree of the repository; finish or abort it and press `d` again |
 | `has commits not pushed to …` | ahead of its upstream |
 | `… update <branch> first` | without upstream, merged into the default branch, but not yet into HEAD, which `git branch -d` requires; a safe update fixes it |
 | `no commits of its own` | without upstream and at the commit of the default branch, for example just created |

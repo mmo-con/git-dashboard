@@ -52,6 +52,7 @@ The [ADR index](adr/README.md) explains how the records are maintained.
 | Detail panel order and commit lines | [ADR 0017](adr/0017-detail-panel-order-and-commit-lines.md) |
 | Deleting merged branches | [ADR 0018](adr/0018-deleting-merged-branches.md) |
 | Deleting squash- and rebase-merged branches | [ADR 0019](adr/0019-deleting-squash-and-rebase-merged-branches.md) |
+| Branches of rebases and bisects | [ADR 0020](adr/0020-branches-of-rebases-and-bisects.md) |
 
 User-facing configuration and keys are documented in
 [configuration.md](configuration.md) and [keybindings.md](keybindings.md).
