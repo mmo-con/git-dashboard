@@ -241,6 +241,11 @@ field is renamed, removed, or changes its meaning:
       "upstream": { "name": "origin/main", "configured": true, "gone": false,
                     "ahead": 0, "behind": 3 },
       "attention_branches": 1,
+      "branches": [
+        { "name": "release", "state": "behind", "pinned": true,
+          "upstream": "origin/release", "ahead": 0, "behind": 2,
+          "commit_time": "2026-11-20T09:30:00Z" }
+      ],
       "remote": { "name": "origin", "url": "git@github.com:mmo-con/headquarters.git" },
       "last_fetch": "2026-11-23T08:12:00Z",
       "last_commit": { "hash": "abc1234…", "short_hash": "abc1234",
@@ -265,6 +270,14 @@ field is renamed, removed, or changes its meaning:
   or up to date. `counts.untracked` is `null` when untracked files are not
   checked, `last_fetch` when the repository was never fetched or the time is
   unknown, and `upstream.name` when no upstream is configured.
+- `branches` lists the other local branches that need attention, as in the
+  detail panel and counted by `attention_branches`: pinned branches first,
+  then the others by latest commit. `state` is `missing`, `noupstream`,
+  `gone`, `diverged`, `ahead`, or `behind`; `upstream` is `null` without an
+  upstream, `ahead` and `behind` are `null` unless the upstream exists, and
+  `commit_time` is `null` for a missing pinned branch. `branches` is `null`
+  when the branch state is unknown or `[branches].enabled = false`, and `[]`
+  when no branch needs attention.
 - `fetch` is `null` without `--fetch`, otherwise the `status` (`succeeded`,
   `failed`, `skipped`, or `cancelled`) and `error` of the fetch.
 - `error` collects configuration, inspection, and fetch errors.

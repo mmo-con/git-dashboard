@@ -57,9 +57,12 @@ type RepositoryReport struct {
 	Counts            *CountsReport   `json:"counts"`
 	Upstream          *UpstreamReport `json:"upstream"`
 	AttentionBranches *int            `json:"attention_branches"`
-	Remote            *RemoteReport   `json:"remote"`
-	LastFetch         *time.Time      `json:"last_fetch"`
-	LastCommit        *CommitReport   `json:"last_commit"`
+	// Branches lists the branches that AttentionBranches counts, in the
+	// order of the detail panel; null exactly when AttentionBranches is.
+	Branches   []BranchReport `json:"branches"`
+	Remote     *RemoteReport  `json:"remote"`
+	LastFetch  *time.Time     `json:"last_fetch"`
+	LastCommit *CommitReport  `json:"last_commit"`
 	// Fetch is the result of the fetch, null if the repository was not
 	// fetched.
 	Fetch *FetchReport `json:"fetch"`
@@ -83,6 +86,38 @@ type UpstreamReport struct {
 	Gone       bool    `json:"gone"`
 	Ahead      int     `json:"ahead"`
 	Behind     int     `json:"behind"`
+}
+
+// BranchReport is a local branch other than the checked-out one that needs
+// attention. State is a domain.BranchReason. Upstream is null without an
+// upstream, Ahead and Behind are null unless the upstream exists, and
+// CommitTime is null for a missing pinned branch.
+type BranchReport struct {
+	Name       string     `json:"name"`
+	State      string     `json:"state"`
+	Pinned     bool       `json:"pinned"`
+	Upstream   *string    `json:"upstream"`
+	Ahead      *int       `json:"ahead"`
+	Behind     *int       `json:"behind"`
+	CommitTime *time.Time `json:"commit_time"`
+}
+
+func branchReport(b domain.BranchState) BranchReport {
+	reason := b.Reason()
+	br := BranchReport{Name: clean(b.Name), State: string(reason), Pinned: b.Pinned}
+	if reason == domain.BranchMissing {
+		return br
+	}
+	if b.Upstream != "" {
+		br.Upstream = ptr(clean(b.Upstream))
+		if !b.Gone {
+			br.Ahead, br.Behind = ptr(b.Ahead), ptr(b.Behind)
+		}
+	}
+	if !b.CommitTime.IsZero() {
+		br.CommitTime = ptr(b.CommitTime.UTC())
+	}
+	return br
 }
 
 type RemoteReport struct {
@@ -183,6 +218,10 @@ func repositoryReport(s *Status, r *domain.Repository) RepositoryReport {
 	}
 	if r.Branches.Valid {
 		rr.AttentionBranches = ptr(len(r.Branches.Value))
+		rr.Branches = make([]BranchReport, 0, len(r.Branches.Value))
+		for _, b := range r.Branches.Value {
+			rr.Branches = append(rr.Branches, branchReport(b))
+		}
 	}
 	if p := r.PrimaryRemote; p != nil {
 		rr.Remote = &RemoteReport{Name: clean(p.Name), URL: clean(domain.RedactURL(p.URL))}
