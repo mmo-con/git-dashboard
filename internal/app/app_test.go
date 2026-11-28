@@ -407,6 +407,27 @@ func TestSortByHealth(t *testing.T) {
 	}
 }
 
+func TestHealthCountsOnlyFailedOperationsAsErrors(t *testing.T) {
+	now := time.Now()
+	r := behindRepo()
+	r.Upstream.Value.Behind = 0
+	r.Worktree.Value = domain.WorktreeState{UntrackedChecked: true}
+	for _, tc := range []struct {
+		op     domain.OperationType
+		status domain.OperationStatus
+		want   Health
+	}{
+		{domain.OperationFetch, domain.StatusCancelled, HealthOK},
+		{domain.OperationUpdate, domain.StatusSkipped, HealthOK},
+		{domain.OperationFetch, domain.StatusFailed, HealthError},
+	} {
+		last := &domain.OperationResult{Operation: tc.op, Status: tc.status, Error: errors.New("reason")}
+		if got := HealthOf(&r, last, now); got != tc.want {
+			t.Errorf("%s %s: health %s, want %s", tc.op, tc.status, got, tc.want)
+		}
+	}
+}
+
 func TestSortKeyNames(t *testing.T) {
 	if len(config.SortOrders) != len(SortKeys) {
 		t.Fatalf("config.SortOrders %v and SortKeys differ", config.SortOrders)

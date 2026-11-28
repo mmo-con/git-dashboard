@@ -26,9 +26,10 @@ const (
 // behind, ahead, and other attention such as a remote mismatch, other
 // branches, stash entries, or a stale fetch. Repositories that are not
 // inspected yet are unknown. last is the latest operation result of r, or
-// nil; now decides whether the last fetch is stale.
+// nil; only a failed operation is an error, not a cancelled or skipped one.
+// now decides whether the last fetch is stale.
 func HealthOf(r *domain.Repository, last *domain.OperationResult, now time.Time) Health {
-	if !r.IsAvailable() || r.EntryError != nil || r.Inspected.Err != nil || (last != nil && last.Error != nil) {
+	if !r.IsAvailable() || r.EntryError != nil || r.Inspected.Err != nil || (last != nil && last.Status == domain.StatusFailed) {
 		return HealthError
 	}
 	if r.Inspected.FinishedAt.IsZero() || !r.Worktree.Valid || !r.Head.Valid || !r.Upstream.Valid {
