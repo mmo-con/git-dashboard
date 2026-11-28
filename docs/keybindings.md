@@ -9,7 +9,7 @@ of the health column and the status symbols.
 |---|---|
 | `j` / `↓` | next row |
 | `k` / `↑` | previous row |
-| `g` / `G` | first / last row |
+| `g` / `G` | first / last row; `Home` / `End` also work |
 | `PgUp` / `PgDn` | page up / down |
 | `h` / `←` | in the tree: collapse the family; on a repository, select its family row and collapse it |
 | `l` / `→` | in the tree: expand the family |
@@ -36,7 +36,7 @@ cursor moves within the current view before the list scrolls again.
 | `e` | show error details and warnings |
 | `b` | show the operations view |
 | `?` | help |
-| `q` / `Ctrl+C` | quit; while a fetch or update batch runs, asks first, because quitting cancels it |
+| `q` / `Ctrl+C` | quit; while a fetch, update, or branch cleanup batch runs, asks first, because quitting cancels it |
 
 The header shows the quick filters with their key and the number of
 matching repositories in the current family. A counter with matches is
