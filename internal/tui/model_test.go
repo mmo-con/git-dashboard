@@ -1541,7 +1541,7 @@ func TestHelpShowsEveryEntryOnOneLineInAWideTerminal(t *testing.T) {
 	m := newModel(t)
 	for _, set := range []string{"unicode", "nerd", "ascii"} {
 		m.icons = iconSet(set)
-		lines := helpBox(t, m, 130)
+		lines := helpBox(t, m, 120)
 		for _, l := range lines {
 			if strings.Contains(strings.ReplaceAll(l, "1 … 8", ""), "…") {
 				t.Errorf("%s: truncated help line %q", set, l)
