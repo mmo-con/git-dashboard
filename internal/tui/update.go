@@ -182,7 +182,7 @@ func (m *Model) applyEvents(events []jobs.Event) {
 	m.advanceUpdate()
 }
 
-// applyBatchEvent passes an event of a fetch or update batch to the
+// applyBatchEvent passes an event of a fetch, update, or cleanup batch to the
 // operations. The route ends with the batch.
 func (m *Model) applyBatchEvent(ev jobs.Event, reinspect map[domain.RepositoryID]bool) {
 	ids, summary := m.ops.Handle(ev)
@@ -426,7 +426,7 @@ func (m *Model) keyNormal(key string) tea.Cmd {
 	return nil
 }
 
-// quit ends the program. While a fetch or update batch runs, it asks first,
+// quit ends the program. While a batch runs, it asks first,
 // because quitting cancels the batch.
 func (m *Model) quit() tea.Cmd {
 	if m.mode == modeConfirmQuit || !m.ops.Running() {

@@ -21,7 +21,7 @@ var Bindings = []BindingGroup{
 	{Title: "Navigation", Bindings: []Binding{
 		{"j / ↓", "next row"},
 		{"k / ↑", "previous row"},
-		{"g / G", "first / last row"},
+		{"g / G", "first / last row (also Home / End)"},
 		{"PgUp / PgDn", "page up / down"},
 		{"h / ←", "tree: collapse family"},
 		{"l / →", "tree: expand family"},
