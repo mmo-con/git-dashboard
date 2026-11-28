@@ -240,7 +240,6 @@ field is renamed, removed, or changes its meaning:
                   "conflicts": 0, "untracked": 1, "stashed": 1 },
       "upstream": { "name": "origin/main", "configured": true, "gone": false,
                     "ahead": 0, "behind": 3 },
-      "attention_branches": 1,
       "branches": [
         { "name": "release", "state": "behind", "pinned": true,
           "upstream": "origin/release", "ahead": 0, "behind": 2,
@@ -271,13 +270,15 @@ field is renamed, removed, or changes its meaning:
   checked, `last_fetch` when the repository was never fetched or the time is
   unknown, and `upstream.name` when no upstream is configured.
 - `branches` lists the other local branches that need attention, as in the
-  detail panel and counted by `attention_branches`: pinned branches first,
-  then the others by latest commit. `state` is `missing`, `noupstream`,
+  detail panel: pinned branches first, then the others by latest commit. `state` is `missing`, `noupstream`,
   `gone`, `diverged`, `ahead`, or `behind`; `upstream` is `null` without an
   upstream, `ahead` and `behind` are `null` unless the upstream exists, and
   `commit_time` is `null` for a missing pinned branch. `branches` is `null`
   when the branch state is unknown or `[branches].enabled = false`, and `[]`
-  when no branch needs attention.
+  when no branch needs attention. Count them so that `null` stays
+  distinguishable from zero, for example with
+  `jq '.repositories[] | .branches | if . == null then "?" else length end'`;
+  `--fail-on branches` checks for them directly.
 - `fetch` is `null` without `--fetch`, otherwise the `status` (`succeeded`,
   `failed`, `skipped`, or `cancelled`) and `error` of the fetch.
 - `error` collects configuration, inspection, and fetch errors.

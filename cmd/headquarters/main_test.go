@@ -384,7 +384,7 @@ func TestStatusReportsEveryRepository(t *testing.T) {
 		"counts.modified": 0.0, "counts.untracked": 0.0, "counts.stashed": 0.0,
 		"upstream.name": "origin/main", "upstream.ahead": 0.0, "upstream.behind": 0.0,
 		"remote.name": "origin", "last_commit.subject": "initial commit", "last_commit.author": "Test",
-		"last_fetch": nil, "attention_branches": 0.0, "fetch": nil, "error": nil,
+		"last_fetch": nil, "fetch": nil, "error": nil,
 		// never fetched
 		"health": "attention",
 	} {
@@ -394,6 +394,13 @@ func TestStatusReportsEveryRepository(t *testing.T) {
 	}
 	if field(r, "last_commit.hash") == nil || field(r, "last_commit.time") == nil {
 		t.Errorf("last commit incomplete: %v", r["last_commit"])
+	}
+	// branches is the only source of the other branches; a separate count
+	// would have to agree with it.
+	for _, e := range doc.Repositories {
+		if _, ok := e["attention_branches"]; ok {
+			t.Errorf("%v: attention_branches must not be reported", e["name"])
+		}
 	}
 	d := entry(t, doc, "dirty")
 	if field(d, "counts.modified") != 1.0 || d["health"] != "dirty" || field(d, "upstream.configured") != false {
@@ -407,7 +414,7 @@ func TestStatusNeverReportsUnknownStateAsClean(t *testing.T) {
 	if r["known"] != false || r["health"] != "error" || r["availability"] != "missing" || r["error"] == nil {
 		t.Errorf("missing: %v", r)
 	}
-	for _, k := range []string{"branch", "head", "operation", "counts", "upstream", "last_commit", "attention_branches", "branches"} {
+	for _, k := range []string{"branch", "head", "operation", "counts", "upstream", "last_commit", "branches"} {
 		if v, ok := r[k]; !ok || v != nil {
 			t.Errorf("missing.%s = %#v, want null", k, v)
 		}
@@ -651,9 +658,6 @@ func TestStatusBranchesFollowDetailPanelOrder(t *testing.T) {
 	// commit, newest first, ties by name.
 	if want := "main release gone local div ahead"; strings.Join(got, " ") != want {
 		t.Errorf("order = %v, want %s", got, want)
-	}
-	if r["attention_branches"] != float64(len(got)) {
-		t.Errorf("attention_branches = %v, but %d branches listed", r["attention_branches"], len(got))
 	}
 }
 
