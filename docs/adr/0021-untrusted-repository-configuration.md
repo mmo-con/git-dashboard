@@ -52,6 +52,9 @@ changed.
   stays within the time budget of
   [ADR 0008](0008-compatibility-performance-and-testing.md) for usual
   repositories; lazygit and the user's own Git commands still use it.
+- The fast-forward of the safe update rewrites the index without the
+  fsmonitor extension. The user's next `git status` synchronizes with the
+  fsmonitor once and restores the extension; no state is lost.
 - Other programs named by repository configuration still run, but only after
   an explicit key for that repository: transports, `core.sshCommand`, and
   credential helpers during a fetch (`f`, `F`, `u`, `U`, `status --fetch`),
