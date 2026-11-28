@@ -406,6 +406,10 @@ func TestStatusReportsEveryRepository(t *testing.T) {
 	if field(d, "counts.modified") != 1.0 || d["health"] != "dirty" || field(d, "upstream.configured") != false {
 		t.Errorf("dirty: %v", d)
 	}
+	// Without an upstream, ahead and behind do not apply: null, not zero.
+	if u := d["upstream"].(map[string]any); u["ahead"] != nil || u["behind"] != nil {
+		t.Errorf("dirty.upstream = %v, want ahead and behind null", u)
+	}
 }
 
 func TestStatusNeverReportsUnknownStateAsClean(t *testing.T) {
@@ -685,5 +689,29 @@ func TestStatusBranchesNullWhenBranchesDisabled(t *testing.T) {
 	r := entry(t, statusJSON(t, 0, "--config", config), "branches")
 	if v, ok := r["branches"]; !ok || v != nil {
 		t.Errorf("branches = %#v, want null", v)
+	}
+}
+
+func TestStatusGoneUpstreamHasNoCounts(t *testing.T) {
+	tu.IsolateGit(t)
+	base := tu.Canonical(t, t.TempDir())
+	upstream := tu.InitRepo(t, filepath.Join(base, "upstream"))
+	tu.Git(t, upstream, "branch", "g")
+	repo := filepath.Join(base, "gone")
+	tu.Git(t, "", "clone", "-q", upstream, repo)
+	tu.Git(t, repo, "switch", "-q", "--track", "-c", "g", "origin/g")
+	tu.Git(t, upstream, "branch", "-q", "-D", "g")
+	tu.Git(t, repo, "fetch", "-q", "--prune")
+	config := writeConfig(t, "[[repositories]]\npath = \""+repo+"\"\n")
+	r := entry(t, statusJSON(t, 0, "--config", config), "gone")
+	u, _ := r["upstream"].(map[string]any)
+	if u == nil || u["gone"] != true || u["name"] != "origin/g" {
+		t.Fatalf("upstream = %v, want gone origin/g", r["upstream"])
+	}
+	if v, ok := u["ahead"]; !ok || v != nil {
+		t.Errorf("upstream.ahead = %#v, want null", v)
+	}
+	if v, ok := u["behind"]; !ok || v != nil {
+		t.Errorf("upstream.behind = %#v, want null", v)
 	}
 }
