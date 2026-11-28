@@ -1,6 +1,6 @@
 # ADR 0019: Deleting squash- and rebase-merged branches
 
-Status: Accepted
+Status: Accepted, amended by [ADR 0020](0020-branches-of-rebases-and-bisects.md)
 
 ## Context
 
@@ -52,6 +52,8 @@ git update-ref -d refs/heads/<branch> <checked commit>
 
 `git branch -d` would refuse them, because it checks HEAD or the ancestry
 only. Git deletes the ref only if it still points to the checked commit.
+While a rebase or bisect is in progress in the store, these branches are
+kept ([ADR 0020](0020-branches-of-rebases-and-bisects.md)).
 Every other candidate is deleted with `git branch -d` as before; branches
 without an upstream keep the reason `update <branch> first`.
 

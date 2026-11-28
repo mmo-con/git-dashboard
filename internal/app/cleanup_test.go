@@ -1,13 +1,16 @@
 package app
 
 import (
+	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
+	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
 
 func cleanupRepo() domain.Repository {
@@ -138,6 +141,65 @@ func TestPlanCleanupWithoutDefaultBranch(t *testing.T) {
 	if rows := PlanCleanup(r, st); len(rows) != 1 || !strings.Contains(rows[0].Reason, "no remote") {
 		t.Fatalf("rows = %+v", rows)
 	}
+}
+
+func TestPlanCleanupKeepsRefDeletesDuringRebaseOrBisect(t *testing.T) {
+	squashed := git.CleanupBranch{Name: "squashed", CommitID: "s1", Upstream: "origin/squashed", Gone: true, Contained: true}
+	merged := git.CleanupBranch{Name: "merged", CommitID: "m1", MergedDefault: true, MergedHead: true}
+	for op, word := range map[domain.OperationInProgress]string{domain.Rebasing: "rebase", domain.Bisecting: "bisect"} {
+		st := cleanupState(squashed, merged)
+		st.InProgress = op
+		got := planned(PlanCleanup(cleanupRepo(), st))
+		if !strings.Contains(got["squashed"], word+" in progress") {
+			t.Errorf("%s: squashed = %q", word, got["squashed"])
+		}
+		// git branch -d refuses a branch in use by a rebase or bisect itself.
+		if got["merged"] != "delete" {
+			t.Errorf("%s: merged = %q", word, got["merged"])
+		}
+	}
+}
+
+// TestCleanupKeepsBranchOfStoppedRebase reproduces a branch with a gone
+// upstream, merged into the default branch but not into HEAD, that is
+// being rebased: its worktree's HEAD is detached, so the branch is not
+// checked out, but deleting it would break the rebase.
+func TestCleanupKeepsBranchOfStoppedRebase(t *testing.T) {
+	tu.IsolateGit(t)
+	dir := tu.Canonical(t, t.TempDir())
+	up := filepath.Join(dir, "up.git")
+	tu.Git(t, "", "init", "-q", "--bare", up)
+	clone := filepath.Join(dir, "clone")
+	tu.Git(t, "", "clone", "-q", up, clone)
+	tu.Commit(t, clone, "a", "a\n", "init")
+	tu.Git(t, clone, "push", "-q", "origin", "main")
+	tu.Git(t, clone, "remote", "set-head", "origin", "--auto")
+	tu.Git(t, clone, "switch", "-q", "-c", "done")
+	tu.Commit(t, clone, "b", "b\n", "done one")
+	tu.Commit(t, clone, "c", "c\n", "done two")
+	tu.Git(t, clone, "push", "-q", "-u", "origin", "done")
+	other := filepath.Join(dir, "other")
+	tu.Git(t, "", "clone", "-q", up, other)
+	tu.Git(t, other, "merge", "-q", "--no-ff", "-m", "merge done", "origin/done")
+	tu.Git(t, other, "push", "-q", "origin", "main", ":done")
+	tu.Git(t, clone, "fetch", "-q", "--prune")
+	if out, err := tu.TryGit(clone, "rebase", "-x", "false", "HEAD~1"); err == nil {
+		t.Fatalf("the rebase must stop: %s", out)
+	}
+
+	c := git.New("git")
+	v := c.Validate(context.Background(), clone)
+	r := domain.Repository{ID: domain.RepositoryID(clone), StoreID: domain.StoreID(v.Location.CommonDir),
+		Availability: v.Availability, Location: v.Location, PrimaryRemote: &domain.Remote{Name: "origin"}}
+	st, err := c.ReadBranchCleanup(context.Background(), r.Location, "origin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := PlanCleanup(r, st)
+	if got := planned(rows)["done"]; !strings.Contains(got, "rebase in progress") {
+		t.Fatalf("done = %q", got)
+	}
+	tu.Git(t, clone, "rev-parse", "--verify", "-q", "refs/heads/done")
 }
 
 func TestCleanupTargetsReadEachStoreOnce(t *testing.T) {

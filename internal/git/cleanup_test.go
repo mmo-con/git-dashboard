@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
 	tu "github.com/mmo-con/headquarters/internal/testutil"
 )
@@ -108,6 +109,38 @@ func TestReadBranchCleanupWithoutDefaultBranch(t *testing.T) {
 				t.Fatalf("remote %q: nothing is merged into an unknown default: %+v", remote, b)
 			}
 		}
+	}
+}
+
+func TestReadBranchCleanupReportsRebaseAndBisect(t *testing.T) {
+	clone, worktree := mergedBranchFixture(t)
+	c := git.New("git")
+	loc := validate(t, c, clone)
+	read := func() domain.OperationInProgress {
+		t.Helper()
+		st, err := c.ReadBranchCleanup(context.Background(), loc, "origin")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return st.InProgress
+	}
+	if op := read(); op != domain.NoOperation {
+		t.Fatalf("in progress = %v, want none", op)
+	}
+
+	// A rebase that stops after its first commit, in a linked worktree.
+	tu.Commit(t, worktree, "s", "s\n", "side work")
+	if out, err := tu.TryGit(worktree, "rebase", "-x", "false", "HEAD~1"); err == nil {
+		t.Fatalf("the rebase must stop: %s", out)
+	}
+	if op := read(); op != domain.Rebasing {
+		t.Fatalf("in progress = %v, want rebasing", op)
+	}
+	tu.Git(t, worktree, "rebase", "--abort")
+
+	tu.Git(t, clone, "bisect", "start")
+	if op := read(); op != domain.Bisecting {
+		t.Fatalf("in progress = %v, want bisecting", op)
 	}
 }
 

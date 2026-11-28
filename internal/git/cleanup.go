@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mmo-con/headquarters/internal/domain"
@@ -22,7 +25,11 @@ type BranchCleanup struct {
 	// ContainmentChecked reports whether Contained was determined; it needs
 	// git merge-tree --write-tree of Git 2.38.
 	ContainmentChecked bool
-	Branches           []CleanupBranch
+	// InProgress is a rebase or bisect in any worktree of the store, or
+	// NoOperation. While it runs, a branch can be in use without being
+	// checked out, because the worktree's HEAD is detached.
+	InProgress domain.OperationInProgress
+	Branches   []CleanupBranch
 }
 
 // CleanupBranch is one local branch.
@@ -103,6 +110,11 @@ func (c *Client) ReadBranchCleanup(ctx context.Context, loc domain.Location, rem
 	if st.DefaultID == "" {
 		st.Default = ""
 	}
+	op, err := storeOperation(loc.CommonDir)
+	if err != nil {
+		return BranchCleanup{}, fmt.Errorf("reading the worktrees failed: %w", err)
+	}
+	st.InProgress = op
 	if st.Default != "" {
 		if err := c.markMerged(ctx, dir, st.Default, st.Branches, func(b *CleanupBranch) { b.MergedDefault = true }); err != nil {
 			return BranchCleanup{}, err
@@ -155,6 +167,47 @@ func (c *Client) contained(ctx context.Context, dir, base, commit, baseTree stri
 
 // cleanupFormat lists one ref per line with NUL-separated fields.
 const cleanupFormat = "%(HEAD)%00%(refname)%00%(objectname)%00%(upstream:short)%00%(upstream:track,nobracket)%00%(worktreepath)%00%(tree)"
+
+// storeOperation returns a rebase or bisect in progress in any worktree of
+// the store with the common Git directory commonDir, through the file system
+// only. The main worktree keeps its state in commonDir, a linked worktree in
+// commonDir/worktrees/<id>. A marker that cannot be checked is an error, so
+// that an unknown state is never taken for no operation.
+func storeOperation(commonDir string) (domain.OperationInProgress, error) {
+	if commonDir == "" {
+		return domain.NoOperation, errors.New("the common Git directory is unknown")
+	}
+	dirs := []string{commonDir}
+	entries, err := os.ReadDir(filepath.Join(commonDir, "worktrees"))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return domain.NoOperation, err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			dirs = append(dirs, filepath.Join(commonDir, "worktrees", e.Name()))
+		}
+	}
+	markers := []struct {
+		name string
+		op   domain.OperationInProgress
+	}{
+		{"rebase-merge", domain.Rebasing},
+		{"rebase-apply", domain.Rebasing},
+		{"BISECT_LOG", domain.Bisecting},
+	}
+	for _, dir := range dirs {
+		for _, m := range markers {
+			_, err := os.Lstat(filepath.Join(dir, m.name))
+			switch {
+			case err == nil:
+				return m.op, nil
+			case !errors.Is(err, fs.ErrNotExist):
+				return domain.NoOperation, err
+			}
+		}
+	}
+	return domain.NoOperation, nil
+}
 
 // markMerged calls mark for every branch reachable from rev.
 func (c *Client) markMerged(ctx context.Context, dir, rev string, branches []CleanupBranch, mark func(*CleanupBranch)) error {

@@ -92,6 +92,11 @@ func PlanCleanup(r domain.Repository, st git.BranchCleanup) []CleanupCandidate {
 			c.Reason = "upstream gone; squash check needs Git 2.38"
 		case !b.MergedDefault && !b.Contained:
 			c.Reason = "upstream gone, changes not in " + def
+		case b.Gone && (!b.MergedDefault || !b.MergedHead) && st.InProgress != domain.NoOperation:
+			// The checked ref would be deleted without Git's check of the
+			// worktrees, which refuses a branch that a rebase or bisect uses
+			// while its worktree's HEAD is detached.
+			c.Reason = operationName(st.InProgress) + " in progress; finish it first"
 		case b.Gone:
 			// Everything is in the default branch: by ancestry, or because a
 			// squash or rebase merge left nothing to merge. git branch -d
@@ -138,6 +143,17 @@ func primaryRemoteName(r domain.Repository) string {
 		return ""
 	}
 	return r.PrimaryRemote.Name
+}
+
+// operationName names a rebase or bisect in a reason.
+func operationName(op domain.OperationInProgress) string {
+	switch op {
+	case domain.Rebasing:
+		return "rebase"
+	case domain.Bisecting:
+		return "bisect"
+	}
+	return op.String()
 }
 
 // CleanupJobs creates one job per deletable branch. Each job reads the
