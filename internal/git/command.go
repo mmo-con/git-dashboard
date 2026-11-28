@@ -61,8 +61,11 @@ type result struct {
 // captured, and the process runs isolated from the terminal. Cancellation of
 // ctx terminates the complete process group: first with SIGTERM, so that Git
 // can clean up its lock files, and with SIGKILL after terminationGrace.
+// core.fsmonitor is disabled, because its value is a program that the
+// configuration of a repository can name (ADR 0021); an empty value disables
+// it in every supported Git version.
 func (r runner) run(ctx context.Context, dir string, readOnly bool, args ...string) (result, error) {
-	full := append([]string{"--no-pager"}, args...)
+	full := append([]string{"-c", "core.fsmonitor=", "--no-pager"}, args...)
 	if dir != "" {
 		full = append([]string{"-C", dir}, full...)
 	}
