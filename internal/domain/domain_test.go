@@ -150,3 +150,24 @@ func TestBranchPolicySelect(t *testing.T) {
 		t.Fatalf("disabled policy selected %+v", sel)
 	}
 }
+
+func TestBranchReason(t *testing.T) {
+	for _, tc := range []struct {
+		b    BranchState
+		want BranchReason
+	}{
+		// A missing branch has no upstream either; missing wins.
+		{BranchState{Missing: true}, BranchMissing},
+		// Without an upstream, ahead and behind do not apply.
+		{BranchState{Ahead: 1}, BranchNoUpstream},
+		{BranchState{Upstream: "origin/a", Gone: true, Ahead: 1}, BranchGone},
+		{BranchState{Upstream: "origin/a", Ahead: 2, Behind: 3}, BranchDiverged},
+		{BranchState{Upstream: "origin/a", Ahead: 2}, BranchAhead},
+		{BranchState{Upstream: "origin/a", Behind: 3}, BranchBehind},
+		{BranchState{Upstream: "origin/a"}, BranchCurrent},
+	} {
+		if got := tc.b.Reason(); got != tc.want {
+			t.Errorf("%+v: Reason() = %q, want %q", tc.b, got, tc.want)
+		}
+	}
+}

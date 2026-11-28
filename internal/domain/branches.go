@@ -37,6 +37,43 @@ func (b BranchState) NeedsAttention() bool {
 	return b.Missing || b.Unpublished() || b.Behind > 0
 }
 
+// BranchReason names why a branch needs attention. The values are stable,
+// because the status report prints them.
+type BranchReason string
+
+const (
+	BranchMissing    BranchReason = "missing"
+	BranchNoUpstream BranchReason = "noupstream"
+	BranchGone       BranchReason = "gone"
+	BranchDiverged   BranchReason = "diverged"
+	BranchAhead      BranchReason = "ahead"
+	BranchBehind     BranchReason = "behind"
+	// BranchCurrent is the reason of a branch that does not need attention.
+	BranchCurrent BranchReason = "current"
+)
+
+// Reason returns the most important reason why the branch needs attention:
+// a missing pinned branch, no upstream, a gone upstream, then its relation
+// to the upstream. The detail panel and the status report both use it, so
+// they name the same reason.
+func (b BranchState) Reason() BranchReason {
+	switch {
+	case b.Missing:
+		return BranchMissing
+	case b.Upstream == "":
+		return BranchNoUpstream
+	case b.Gone:
+		return BranchGone
+	case b.Ahead > 0 && b.Behind > 0:
+		return BranchDiverged
+	case b.Ahead > 0:
+		return BranchAhead
+	case b.Behind > 0:
+		return BranchBehind
+	}
+	return BranchCurrent
+}
+
 // BranchPolicy decides which local branches other than HEAD are reported.
 type BranchPolicy struct {
 	Enabled bool

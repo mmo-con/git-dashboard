@@ -312,16 +312,16 @@ func (m *Model) otherBranchLines(r *domain.Repository) []string {
 	var out []string
 	for _, b := range r.Branches.Value {
 		var state seg
-		switch {
-		case b.Missing:
+		switch b.Reason() {
+		case domain.BranchMissing:
 			state = seg{ic.unavailable + " missing", t.warn}
-		case b.Upstream == "":
+		case domain.BranchNoUpstream:
 			state = seg{ic.noUpstream + " no upstream", t.warn}
-		case b.Gone:
+		case domain.BranchGone:
 			state = seg{ic.noUpstream + " upstream gone", t.warn}
-		case b.Ahead > 0 && b.Behind > 0:
+		case domain.BranchDiverged:
 			state = seg{fmt.Sprintf("%s%d %s%d diverged", ic.ahead, b.Ahead, ic.behind, b.Behind), t.err}
-		case b.Ahead > 0:
+		case domain.BranchAhead:
 			state = seg{fmt.Sprintf("%s%d", ic.ahead, b.Ahead), t.ahead}
 		default:
 			state = seg{fmt.Sprintf("%s%d", ic.behind, b.Behind), t.behind}
