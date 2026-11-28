@@ -62,7 +62,11 @@ warnings and errors go to standard error.
 | 3 | report written, and a repository matches a `--fail-on` state |
 
 `--fail-on` takes state names of the filter language (`dirty` for `is:dirty`)
-and `unknown`; `error` also matches a failed fetch.
+and `unknown`, which matches every entry with `known: false`, including
+unavailable entries and failed inspections; `error` also matches a failed
+fetch. A state that is not determined, such as the worktree of a repository
+whose index cannot be read, therefore fails an `unknown` check instead of
+passing a `dirty` check unnoticed.
 
 **No coordination across processes.** Store locks and the batch limits apply
 within one process. A dashboard and a `status --fetch` running at the same

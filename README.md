@@ -187,11 +187,11 @@ without starting the user interface. It never changes a repository and
 accesses the network only with `--fetch`.
 
 ```sh
-headquarters status --json                                # one JSON document
-headquarters status --filter "is:dirty family:work"       # dashboard filter syntax
-headquarters status --format ndjson                       # one repository per line
-headquarters status --fail-on dirty,ahead,unpublished     # exit 3 if any repository matches
-headquarters status --fetch --fail-on behind              # fetch the matching repositories first
+headquarters status --json                                    # one JSON document
+headquarters status --filter "is:dirty family:work"           # dashboard filter syntax
+headquarters status --format ndjson                           # one repository per line
+headquarters status --fail-on dirty,ahead,unpublished,unknown # exit 3 if any repository matches
+headquarters status --fetch --fail-on behind                  # fetch the matching repositories first
 ```
 
 `--filter` accepts the text filter of the dashboard
@@ -201,7 +201,10 @@ match the filter, with the configured fetch parallelism and timeout, then
 inspects them again and applies the filter to the new state. `--fail-on`
 takes the states of the filter language without `is:`, such as `dirty`,
 `behind`, `ahead`, `diverged`, `unpublished`, `stashed`, `stale`, or `error`,
-plus `unknown`; `error` also matches a failed fetch. A path argument replaces
+plus `unknown`, which matches every repository with `known: false`, such as an
+unavailable entry or a failed inspection; `error` also matches a failed fetch.
+Add `unknown` to checks such as `--fail-on dirty`, so that a repository whose
+state cannot be read does not pass unnoticed. A path argument replaces
 the configured repositories as in the dashboard. The report follows the
 configured sort order.
 

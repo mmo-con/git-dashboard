@@ -64,13 +64,20 @@ func ValidateStatusStates(names []string) error {
 	return nil
 }
 
-// Is reports whether r is in a state of StatusStates: "unknown" means unknown
-// health, "error" also matches a failed fetch, and every other state matches
-// like its "is:" filter token.
+// Known reports whether the inspection determined the complete state of r:
+// the entry is available and its inspection finished without an error.
+func Known(r *domain.Repository) bool {
+	return r.IsAvailable() && !r.Inspected.FinishedAt.IsZero() && r.Inspected.Err == nil &&
+		r.Head.Valid && r.Operation.Valid && r.Worktree.Valid && r.Upstream.Valid
+}
+
+// Is reports whether r is in a state of StatusStates: "unknown" means that
+// the state is not completely known (see Known), "error" also matches a
+// failed fetch, and every other state matches like its "is:" filter token.
 func (s *Status) Is(r *domain.Repository, state string) bool {
 	switch state {
 	case "unknown":
-		return s.Health(r) == HealthUnknown
+		return !Known(r)
 	case "error":
 		if res, ok := s.FetchResult(r); ok && res.Status == domain.StatusFailed {
 			return true
