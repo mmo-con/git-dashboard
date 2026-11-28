@@ -467,6 +467,76 @@ func TestInheritedGitDirDoesNotRedirect(t *testing.T) {
 	}
 }
 
+// markerProgram returns a program that creates the file marker when it runs
+// and fails.
+func markerProgram(t *testing.T) (program, marker string) {
+	t.Helper()
+	dir := t.TempDir()
+	marker = filepath.Join(dir, "ran")
+	program = filepath.Join(dir, "program")
+	if err := os.WriteFile(program, []byte("#!/bin/sh\ntouch '"+marker+"'\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return program, marker
+}
+
+func assertNotRun(t *testing.T, marker, what string) {
+	t.Helper()
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatalf("%s ran a program from the repository configuration", what)
+	}
+}
+
+func TestBackgroundGitIgnoresRepositoryFsmonitor(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	base := tu.Canonical(t, t.TempDir())
+	origin := tu.InitRepo(t, filepath.Join(base, "origin"))
+	tu.Git(t, base, "clone", "-q", origin, "clone")
+	clone := filepath.Join(base, "clone")
+	tu.Commit(t, origin, "b", "b\n", "upstream work")
+	hook, marker := markerProgram(t)
+	tu.Git(t, clone, "config", "core.fsmonitor", hook)
+	loc := validate(t, c, clone)
+
+	if err := c.Fetch(context.Background(), loc, git.FetchOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	in := inspect(t, c, loc)
+	assertNotRun(t, marker, "the inspection")
+	if err := c.MergeFastForwardOnly(context.Background(), loc, in.Upstream.Value.CommitID); err != nil {
+		t.Fatal(err)
+	}
+	assertNotRun(t, marker, "the fast-forward")
+}
+
+func TestDetachedInspectionIgnoresShowSignature(t *testing.T) {
+	tu.IsolateGit(t)
+	c := git.New("git")
+	repo := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "repo"))
+	// A commit with an OpenPGP signature header, written without a signing
+	// program; verifying it would start gpg.program.
+	object := "tree " + tu.Git(t, repo, "rev-parse", "HEAD^{tree}") + "\n" +
+		"parent " + tu.Git(t, repo, "rev-parse", "HEAD") + "\n" +
+		"author Test <test@example.com> 1700000000 +0000\n" +
+		"committer Test <test@example.com> 1700000000 +0000\n" +
+		"gpgsig -----BEGIN PGP SIGNATURE-----\n \n c2lnbmF0dXJl\n -----END PGP SIGNATURE-----\n" +
+		"\nsigned subject\n"
+	path := filepath.Join(t.TempDir(), "commit")
+	tu.WriteFile(t, path, object)
+	id := tu.Git(t, repo, "hash-object", "-t", "commit", "-w", path)
+	tu.Git(t, repo, "checkout", "-q", "--detach", id)
+	program, marker := markerProgram(t)
+	tu.Git(t, repo, "config", "gpg.program", program)
+	tu.Git(t, repo, "config", "log.showSignature", "true")
+
+	in := inspect(t, c, validate(t, c, repo))
+	if !in.LastCommit.Valid || in.LastCommit.Value == nil || in.LastCommit.Value.ID != id {
+		t.Fatalf("latest commit = %+v, want %s", in.LastCommit.Value, id)
+	}
+	assertNotRun(t, marker, "the inspection of a detached HEAD")
+}
+
 func TestFetchAndFastForward(t *testing.T) {
 	tu.IsolateGit(t)
 	c := git.New("git")

@@ -37,5 +37,12 @@ headquarters invokes the installed Git CLI and uses your Git configuration,
 credential helpers, and SSH configuration. It can also launch configured
 external programs. Use trusted repositories, configuration files, and tools.
 
+Inspecting a repository runs no program that the repository's configuration
+names: background Git processes disable `core.fsmonitor` and signature
+verification. Fetching, the branch cleanup preview, and lazygit or other
+launchers still use the repository's configuration, for example
+`core.sshCommand` or merge drivers; see
+[ADR 0021](docs/adr/0021-untrusted-repository-configuration.md).
+
 Release archives are accompanied by SHA-256 checksums. These checksums are
 published alongside the archives and are not independent signatures.

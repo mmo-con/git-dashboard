@@ -90,7 +90,7 @@ func (c *Client) Inspect(ctx context.Context, loc domain.Location, opts InspectO
 		in.LastCommit = domain.KnownValue(commit)
 	default:
 		// Detached HEAD, or the branch changed after status ran.
-		res, err := c.run.run(ctx, root, true, "log", "-1", "--no-color", "--format=%H%x00%h%x00%an%x00%ct%x00%s")
+		res, err := c.run.run(ctx, root, true, "log", "-1", "--no-color", "--no-show-signature", "--format=%H%x00%h%x00%an%x00%ct%x00%s")
 		if err == nil {
 			commit, err = parseCommit(res.stdout)
 			if err == nil {

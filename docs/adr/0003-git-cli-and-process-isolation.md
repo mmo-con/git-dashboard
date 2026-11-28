@@ -1,6 +1,7 @@
 # ADR 0003: Git CLI and process isolation
 
 Status: Accepted, amended by [ADR 0015](0015-showing-incoming-commits.md)
+and [ADR 0021](0021-untrusted-repository-configuration.md)
 
 ## Context
 
@@ -36,6 +37,9 @@ Every Git process started while the TUI owns the terminal:
 - runs without `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
   `GIT_COMMON_DIR`, `GIT_OBJECT_DIRECTORY`, and `GIT_NAMESPACE`. Everything
   else, including locale, is inherited.
+- gets `-c core.fsmonitor=`, and `git log` gets `--no-show-signature`, so
+  that no program named by the configuration of a repository runs
+  ([ADR 0021](0021-untrusted-repository-configuration.md)).
 
 No shell is involved; paths and URLs are data. Do not change Git
 configuration, including `safe.directory`.
@@ -103,7 +107,7 @@ upstream commit remains unknown.
 Detached HEAD or a branch switched between calls needs a fourth process:
 
 ```text
-git log -1 --no-color --format=%H%x00%h%x00%an%x00%ct%x00%s
+git log -1 --no-color --no-show-signature --format=%H%x00%h%x00%an%x00%ct%x00%s
 ```
 
 Git 2.34 lacks the porcelain stash header and needs one additional process:
