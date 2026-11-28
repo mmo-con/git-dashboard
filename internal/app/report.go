@@ -79,12 +79,15 @@ type CountsReport struct {
 	Stashed   *int `json:"stashed"`
 }
 
+// UpstreamReport is the upstream of the checked-out branch. Ahead and
+// Behind are null unless the upstream exists, so that 0 always means a
+// known zero.
 type UpstreamReport struct {
 	Name       *string `json:"name"`
 	Configured bool    `json:"configured"`
 	Gone       bool    `json:"gone"`
-	Ahead      int     `json:"ahead"`
-	Behind     int     `json:"behind"`
+	Ahead      *int    `json:"ahead"`
+	Behind     *int    `json:"behind"`
 }
 
 // BranchReport is a local branch other than the checked-out one that needs
@@ -209,7 +212,10 @@ func repositoryReport(s *Status, r *domain.Repository) RepositoryReport {
 	}
 	if r.Upstream.Valid {
 		u := r.Upstream.Value
-		ur := &UpstreamReport{Configured: u.Configured, Gone: u.Gone, Ahead: u.Ahead, Behind: u.Behind}
+		ur := &UpstreamReport{Configured: u.Configured, Gone: u.Gone}
+		if u.Configured && !u.Gone {
+			ur.Ahead, ur.Behind = ptr(u.Ahead), ptr(u.Behind)
+		}
 		if u.Configured && u.Ref != "" {
 			ur.Name = ptr(clean(u.Ref))
 		}

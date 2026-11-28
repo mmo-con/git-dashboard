@@ -268,7 +268,9 @@ field is renamed, removed, or changes its meaning:
   could not be determined; an unknown repository is never reported as clean
   or up to date. `counts.untracked` is `null` when untracked files are not
   checked, `last_fetch` when the repository was never fetched or the time is
-  unknown, and `upstream.name` when no upstream is configured.
+  unknown, `upstream.name` when no upstream is configured, and
+  `upstream.ahead` and `upstream.behind` when no upstream is configured or
+  it is gone. A count is `0` only when it is known to be zero.
 - `branches` lists the other local branches that need attention, as in the
   detail panel: pinned branches first, then the others by latest commit. `state` is `missing`, `noupstream`,
   `gone`, `diverged`, `ahead`, or `behind`; `upstream` is `null` without an
