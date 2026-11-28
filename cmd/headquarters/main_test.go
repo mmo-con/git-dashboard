@@ -372,7 +372,8 @@ func TestStatusReportsEveryRepository(t *testing.T) {
 	if got := names(doc); got != "clean dirty missing notes" {
 		t.Fatalf("repositories: %s", got)
 	}
-	if doc.Summary["total"] != 4.0 || doc.Summary["dirty"] != 1.0 || doc.Summary["unknown"] != 0.0 {
+	// missing is unavailable, so its state is unknown.
+	if doc.Summary["total"] != 4.0 || doc.Summary["dirty"] != 1.0 || doc.Summary["unknown"] != 1.0 {
 		t.Errorf("summary: %v", doc.Summary)
 	}
 	r := entry(t, doc, "clean")
@@ -463,6 +464,20 @@ func TestStatusFailOn(t *testing.T) {
 	statusJSON(t, 0, "--config", config, "--fail-on", "dirty,unknown", "--filter", "family:personal")
 	if code, _, errOut := runCLI(t, nil, "status", "--config", config, "--fail-on", "dirty,bogus"); code != 2 || !strings.Contains(errOut, "bogus") {
 		t.Errorf("invalid state: code=%d stderr=%q", code, errOut)
+	}
+}
+
+func TestStatusFailOnUnknownMatchesUnreadableRepositories(t *testing.T) {
+	tu.IsolateGit(t)
+	repo := tu.InitRepo(t, filepath.Join(tu.Canonical(t, t.TempDir()), "broken"))
+	tu.WriteFile(t, filepath.Join(repo, "README"), "changed\n")
+	// git status cannot read a corrupt index, so the worktree state stays
+	// unknown although the file was modified.
+	tu.WriteFile(t, filepath.Join(repo, ".git", "index"), "garbage")
+	config := writeConfig(t, "[[repositories]]\npath = \""+repo+"\"\n")
+	doc := statusJSON(t, 3, "--config", config, "--fail-on", "dirty,unknown")
+	if r := entry(t, doc, "broken"); r["known"] != false || doc.Summary["unknown"] != 1.0 {
+		t.Errorf("known=%v summary=%v", r["known"], doc.Summary)
 	}
 }
 

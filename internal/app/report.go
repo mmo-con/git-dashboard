@@ -138,9 +138,8 @@ func repositoryReport(s *Status, r *domain.Repository) RepositoryReport {
 		Path:         clean(r.Path),
 		Family:       clean(string(r.Family)),
 		Availability: r.Availability.String(),
-		Known: r.IsAvailable() && !r.Inspected.FinishedAt.IsZero() && r.Inspected.Err == nil &&
-			r.Head.Valid && r.Operation.Valid && r.Worktree.Valid && r.Upstream.Valid,
-		Health: s.Health(r).String(),
+		Known:        Known(r),
+		Health:       s.Health(r).String(),
 	}
 	if r.Head.Valid {
 		h := r.Head.Value
