@@ -114,8 +114,9 @@ func PlanCleanup(r domain.Repository, st git.BranchCleanup) []CleanupCandidate {
 	return append(deletable, skipped...)
 }
 
-// CleanupReadJob reads the branches of the store of r for the preview. It
-// is read-only, runs in the inspection pool, and takes no lock.
+// CleanupReadJob reads the branches of the store of r for the preview and
+// plans them; its payload is the []CleanupCandidate of PlanCleanup. It is
+// read-only, runs in the inspection pool, and takes no lock.
 func CleanupReadJob(client git.Interface, r domain.Repository, timeout time.Duration) jobs.Job {
 	return jobs.Job{
 		Kind:         jobs.KindInspect,
@@ -123,7 +124,11 @@ func CleanupReadJob(client git.Interface, r domain.Repository, timeout time.Dura
 		StoreID:      r.StoreID,
 		Timeout:      timeout,
 		Run: func(ctx context.Context) (any, error) {
-			return client.ReadBranchCleanup(ctx, r.Location, primaryRemoteName(r))
+			st, err := client.ReadBranchCleanup(ctx, r.Location, primaryRemoteName(r))
+			if err != nil {
+				return nil, err
+			}
+			return PlanCleanup(r, st), nil
 		},
 	}
 }

@@ -6,9 +6,11 @@ package app
 import (
 	"context"
 	"os"
+	"os/exec"
 	"sync/atomic"
 
 	"github.com/mmo-con/headquarters/internal/config"
+	"github.com/mmo-con/headquarters/internal/domain"
 	"github.com/mmo-con/headquarters/internal/git"
 	"github.com/mmo-con/headquarters/internal/inventory"
 	"github.com/mmo-con/headquarters/internal/jobs"
@@ -114,6 +116,12 @@ func (a *Application) NextGeneration() uint64 { return a.generation.Add(1) }
 // FetchOptions returns the configured fetch options.
 func (a *Application) FetchOptions() git.FetchOptions {
 	return git.FetchOptions{Prune: a.Config.Git.FetchPrune}
+}
+
+// InteractiveFetchCommand returns the fetch of r for the terminal handover,
+// which may prompt for credentials.
+func (a *Application) InteractiveFetchCommand(r domain.Repository) *exec.Cmd {
+	return a.Git.InteractiveFetchCommand(r.Location, a.FetchOptions())
 }
 
 // Close cancels all running work.

@@ -2,8 +2,10 @@ package tui
 
 import (
 	"errors"
+	"go/build"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +27,18 @@ func writeConfig(t *testing.T, m *Model, body string) string {
 	}
 	m.app.ConfigPath = p
 	return p
+}
+
+func TestUserInterfaceDoesNotImportGit(t *testing.T) {
+	pkg, err := build.ImportDir(".", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ADR 0006: the user interface works through application services and
+	// domain models; only internal/git builds and starts Git commands.
+	if slices.Contains(pkg.Imports, "github.com/mmo-con/headquarters/internal/git") {
+		t.Fatalf("internal/tui imports internal/git: %v", pkg.Imports)
+	}
 }
 
 func TestReloadActivatesConfigurationInUpdateLoop(t *testing.T) {

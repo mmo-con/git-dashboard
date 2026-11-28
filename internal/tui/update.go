@@ -746,7 +746,7 @@ func (m *Model) interactiveFetch(r domain.Repository) tea.Cmd {
 		m.setError(r.Name + " is " + r.Availability.String())
 		return nil
 	}
-	return m.handover(r, "git fetch", m.app.Git.InteractiveFetchCommand(r.Location, m.app.FetchOptions()))
+	return m.handover(r, "git fetch", m.app.InteractiveFetchCommand(r))
 }
 
 // handover gives the terminal to cmd. The store is locked so that no job runs
