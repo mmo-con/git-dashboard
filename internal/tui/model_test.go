@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1506,6 +1507,78 @@ func TestConfiguredSort(t *testing.T) {
 	reload("health")
 	if m.sortKey != app.SortHealth {
 		t.Fatalf("a changed sort setting must take effect, got %s", m.sortKey)
+	}
+}
+
+// helpBox opens the help view in a terminal of the given width and returns
+// its plain lines without the border.
+func helpBox(t *testing.T, m *Model, width int) []string {
+	t.Helper()
+	m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+	keys(m, "?")
+	defer keys(m, "esc")
+	box := m.modal(200)
+	if len(box) < 3 {
+		t.Fatalf("width %d: no help box", width)
+	}
+	var out []string
+	for _, l := range box[1 : len(box)-1] {
+		out = append(out, strings.Trim(ansi.Strip(l), "│"))
+	}
+	return out
+}
+
+// helpEntries lists every key binding and legend entry of the help view.
+func helpEntries(m *Model) []Binding {
+	var out []Binding
+	for _, g := range Bindings {
+		out = append(out, g.Bindings...)
+	}
+	return append(append(out, m.icons.healthLegend()...), m.icons.legend()...)
+}
+
+func TestHelpShowsEveryEntryOnOneLineInAWideTerminal(t *testing.T) {
+	m := newModel(t)
+	for _, set := range []string{"unicode", "nerd", "ascii"} {
+		m.icons = iconSet(set)
+		lines := helpBox(t, m, 130)
+		for _, l := range lines {
+			if strings.Contains(strings.ReplaceAll(l, "1 … 8", ""), "…") {
+				t.Errorf("%s: truncated help line %q", set, l)
+			}
+		}
+		for _, b := range helpEntries(m) {
+			if !slices.ContainsFunc(lines, func(l string) bool { return strings.Contains(l, b.Action) }) {
+				t.Errorf("%s: no help line shows %q in full", set, b.Action)
+			}
+		}
+	}
+}
+
+func TestHelpWrapsInsteadOfTruncatingInANarrowTerminal(t *testing.T) {
+	m := newModel(t)
+	for _, set := range []string{"unicode", "nerd", "ascii"} {
+		m.icons = iconSet(set)
+		lines := helpBox(t, m, 60)
+		for _, l := range lines {
+			if strings.Contains(strings.ReplaceAll(l, "1 … 8", ""), "…") {
+				t.Errorf("%s: truncated help line %q", set, l)
+			}
+		}
+		text := strings.Join(strings.Fields(strings.Join(lines, " ")), " ")
+		for _, b := range helpEntries(m) {
+			if !strings.Contains(text, strings.Join(strings.Fields(b.Action), " ")) {
+				t.Errorf("%s: the help lost text of %q", set, b.Action)
+			}
+		}
+	}
+}
+
+func TestHelpIsNoWiderThanItsContent(t *testing.T) {
+	m := newModel(t)
+	wide, wider := helpBox(t, m, 160), helpBox(t, m, 240)
+	if w, ww := ansi.StringWidth(wide[0]), ansi.StringWidth(wider[0]); w != ww {
+		t.Errorf("the help must not grow beyond its content: %d columns at width 160, %d at 240", w, ww)
 	}
 }
 

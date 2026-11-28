@@ -20,7 +20,7 @@ func (m *Model) modal(h int) []string {
 		build func(iw, rows int) (string, []string)
 	}
 	specs := map[mode]spec{
-		modeHelp:           {96, m.viewHelp},
+		modeHelp:           {0, m.viewHelp}, // width set below
 		modeError:          {100, m.viewError},
 		modeSort:           {40, m.viewSort},
 		modeFamily:         {50, m.viewFamily},
@@ -34,6 +34,9 @@ func (m *Model) modal(h int) []string {
 	s, ok := specs[m.mode]
 	if !ok {
 		return nil
+	}
+	if m.mode == modeHelp {
+		s.width = m.helpWidth()
 	}
 	mw := min(s.width, m.width-4)
 	rows := max(h-4, 3)
@@ -72,49 +75,101 @@ func (m *Model) selectable(text string, selected bool, iw int, style lipgloss.St
 	return style.Render(text)
 }
 
+// helpColumn is a column of the help view. Keys are aligned to the widest
+// key of the column; actions that do not fit are wrapped below themselves.
+type helpColumn struct {
+	groups  []BindingGroup
+	keyW    int // width of the widest key
+	natural int // width that shows every title and action on one line
+}
+
+// minHelpAction is the narrowest action text that still allows two columns.
+const minHelpAction = 24
+
+func newHelpColumn(groups []BindingGroup) helpColumn {
+	c := helpColumn{groups: groups}
+	for _, g := range groups {
+		for _, b := range g.Bindings {
+			c.keyW = max(c.keyW, ansi.StringWidth(b.Keys))
+		}
+	}
+	for _, g := range groups {
+		c.natural = max(c.natural, ansi.StringWidth(g.Title))
+		for _, b := range g.Bindings {
+			c.natural = max(c.natural, c.indent()+ansi.StringWidth(b.Action))
+		}
+	}
+	return c
+}
+
+// indent is the width of the key column with its margins.
+func (c helpColumn) indent() int { return 2 + c.keyW + 2 }
+
+func (c helpColumn) render(m *Model, w int) []string {
+	var out []string
+	for _, g := range c.groups {
+		for _, l := range strings.Split(ansi.Wrap(g.Title, max(w, 1), ""), "\n") {
+			out = append(out, m.theme.panelTitle.Render(l))
+		}
+		for _, b := range g.Bindings {
+			lines := strings.Split(ansi.Wrap(b.Action, max(w-c.indent(), 8), ""), "\n")
+			out = append(out, m.theme.key.Render("  "+fitANSI(b.Keys, c.keyW))+"  "+lines[0])
+			for _, l := range lines[1:] {
+				out = append(out, strings.Repeat(" ", c.indent())+l)
+			}
+		}
+		out = append(out, "")
+	}
+	return out
+}
+
+// helpColumns returns the left and right column of the wide help view and
+// the single column of the narrow one.
+func (m *Model) helpColumns() (left, right, single helpColumn) {
+	health := BindingGroup{Title: "Health column (most important state only)", Bindings: m.icons.healthLegend()}
+	symbols := BindingGroup{Title: "Symbols", Bindings: m.icons.legend()}
+	var lg, rg []BindingGroup
+	for _, g := range Bindings {
+		if g.Right {
+			rg = append(rg, g)
+		} else {
+			lg = append(lg, g)
+		}
+	}
+	all := append(append([]BindingGroup{}, Bindings...), health, symbols)
+	return newHelpColumn(append(lg, health)), newHelpColumn(append(rg, symbols)), newHelpColumn(all)
+}
+
+// helpWidth is the width of the help dialog that shows every entry on one line.
+func (m *Model) helpWidth() int {
+	left, right, _ := m.helpColumns()
+	return left.natural + 2 + right.natural + 4
+}
+
 func (m *Model) viewHelp(iw, rows int) (string, []string) {
-	col := func(groups []BindingGroup) []string {
-		var out []string
-		for _, g := range groups {
-			out = append(out, m.theme.panelTitle.Render(g.Title))
-			for _, b := range g.Bindings {
-				out = append(out, m.theme.key.Render(fmt.Sprintf("  %-12s", b.Keys))+" "+b.Action)
-			}
-			out = append(out, "")
-		}
-		return out
+	left, right, single := m.helpColumns()
+	if iw < left.indent()+minHelpAction+2+right.indent()+minHelpAction {
+		return "Help", m.scroll(single.render(m, iw), rows)
 	}
-	legend := []BindingGroup{
-		{Title: "Health column (most important state only)", Bindings: m.icons.healthLegend()},
-		{Title: "Symbols", Bindings: m.icons.legend()},
+	// Share the width in proportion to the natural widths.
+	lw := left.natural
+	if lw+2+right.natural > iw {
+		lw = (iw - 2) * left.natural / (left.natural + right.natural)
 	}
-	var left, right []string
-	if iw >= 84 {
-		var lg, rg []BindingGroup
-		for _, g := range Bindings {
-			if g.Right {
-				rg = append(rg, g)
-			} else {
-				lg = append(lg, g)
-			}
+	lw = max(lw, left.indent()+minHelpAction)
+	l, r := left.render(m, lw), right.render(m, iw-2-lw)
+	out := make([]string, max(len(l), len(r)))
+	for i := range out {
+		a, b := "", ""
+		if i < len(l) {
+			a = l[i]
 		}
-		left = col(append(lg, legend[0]))
-		right = col(append(rg, legend[1]))
-		w := iw / 2
-		var out []string
-		for i := 0; i < max(len(left), len(right)); i++ {
-			l, r := "", ""
-			if i < len(left) {
-				l = left[i]
-			}
-			if i < len(right) {
-				r = right[i]
-			}
-			out = append(out, fitANSI(l, w-2)+"  "+r)
+		if i < len(r) {
+			b = r[i]
 		}
-		return "Help", m.scroll(out, rows)
+		out[i] = fitANSI(a, lw) + "  " + b
 	}
-	return "Help", m.scroll(col(append(append([]BindingGroup{}, Bindings...), legend...)), rows)
+	return "Help", m.scroll(out, rows)
 }
 
 // scroll applies the help scroll offset.
